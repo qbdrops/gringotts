@@ -9,18 +9,17 @@ contract IFC {
     bytes32 public hashOfTGID;
     // if poe has already been recorded then can not record again
     bool record = false;
-    uint deposit;
     address[] public objectionAddress;
     string[] indexMerkelTree;
-    uint treeHeight;
+    uint deposit = 100;
+    uint treeHeight = 10;
     uint8 public test;
 
     event InformPOE(bytes32 poe, bytes32 id);
 
-    function IFC() {
+    function IFC(bytes32 _hashOfTGID) {
         owner = msg.sender;
-        deposit = 100;
-        treeHeight = 10;
+        hashOfTGID = _hashOfTGID;
     } 
 
     function setPOE(string rootHash) returns (bool) {
@@ -112,5 +111,13 @@ contract IFC {
         }
         indexMerkelTree.push(hashMsg);
         return true;
+    }
+
+    function getObjectionAddress(uint idx) constant returns (address) {
+        if (idx >= objectionAddress.length) {
+            revert();
+        } else {
+            return objectionAddress[idx];
+        }
     }
 }
