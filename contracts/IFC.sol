@@ -18,19 +18,11 @@ contract IFC {
 
     event InformPOE(bytes32 poe, bytes32 id);
 
-    function IFC(bytes32 _hashOfTGID) {
+    function IFC(bytes32 _hashOfTGID, string rootHash) {
         owner = msg.sender;
         hashOfTGID = _hashOfTGID;
-        start = now;
-    } 
-
-    function setPOE(string rootHash) returns (bool) {
-        if (owner != msg.sender || record == true) {
-            return false;
-        }
         proofOfExistence = rootHash;
-        record = true;
-        return true;
+        start = now;
     }
 
     function takeObjection(string tgid) payable returns (bool) {
