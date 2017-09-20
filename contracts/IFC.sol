@@ -14,12 +14,14 @@ contract IFC {
     uint deposit = 100;
     uint treeHeight = 10;
     uint8 public test;
+    uint start;
 
     event InformPOE(bytes32 poe, bytes32 id);
 
     function IFC(bytes32 _hashOfTGID) {
         owner = msg.sender;
         hashOfTGID = _hashOfTGID;
+        start = now;
     } 
 
     function setPOE(string rootHash) returns (bool) {
@@ -118,6 +120,14 @@ contract IFC {
             revert();
         } else {
             return objectionAddress[idx];
+        }
+    }
+    // After one day, agent can get his deposit back
+    function refund() {
+        if (start + 1 days < now) {
+            revert();
+        } else {
+            selfdestruct(owner);
         }
     }
 }
