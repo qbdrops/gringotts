@@ -4,7 +4,7 @@ contract IFC {
     // owner is the agent
     address public owner;
     // root hash of the transaction tree
-    string public proofOfExistence;
+    bytes32 public proofOfExistence;
     // hash of the transaction group id
     bytes32 public hashOfTGID;
     // if poe has already been recorded then can not record again
@@ -16,9 +16,7 @@ contract IFC {
     uint8 public test;
     uint start;
 
-    event InformPOE(bytes32 poe, bytes32 id);
-
-    function IFC(bytes32 _hashOfTGID, string rootHash) {
+    function IFC(bytes32 _hashOfTGID, bytes32 rootHash) {
         owner = msg.sender;
         hashOfTGID = _hashOfTGID;
         proofOfExistence = rootHash;
@@ -77,7 +75,7 @@ contract IFC {
         for (uint i = 1; i < treeHeight; i++) {
             hashMsg = bytes32ToString(sha3(concat(hashMsg, indexMerkelTree[i])));
         }
-        return (sha3(hashMsg) == sha3(proofOfExistence));
+        return (sha3(hashMsg) == sha3(bytes32ToString(proofOfExistence)));
     }
 
     function judge(bytes32 hashMsg, uint8 v, bytes32 r, bytes32 s) returns (bool) {

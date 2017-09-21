@@ -1,9 +1,10 @@
 pragma solidity ^0.4.13;
 
+import "./IFC.sol";
+
 contract HashReg {
     address public owner;
-
-    mapping (bytes32 => address) public addressIFC;
+    mapping (bytes32 => address) IFCaddress;
 
     modifier onlyOwner {
         require(msg.sender == owner);
@@ -14,16 +15,22 @@ contract HashReg {
         owner = msg.sender;
     }
 
-    function addIFCAddress(bytes32 rootHash, address addr) onlyOwner returns (bool) {
-        if (addressIFC[rootHash] != 0x0) {
+    function addIFCAddress(address addr) onlyOwner returns (bool) {
+        bytes32 rootHash;
+        IFC ifc = IFC(addr);
+        rootHash = ifc.proofOfExistence();
+        if (rootHash == 0x0) {
+            return false;
+        }
+        if (IFCaddress[rootHash] != 0x0) {
             return false;
         } else {
-            addressIFC[rootHash] = addr;
+            IFCaddress[rootHash] = addr;
         }
         return true;
     }
 
     function getIFCAddress(bytes32 rootHash) constant returns (address) {
-        return addressIFC[rootHash];
+        return IFCaddress[rootHash];
     }
 }
