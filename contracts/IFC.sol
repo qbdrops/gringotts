@@ -7,19 +7,18 @@ contract IFC {
     bytes32 public proofOfExistence;
     // hash of the transaction group id
     bytes32 public hashOfTGID;
-    // if poe has already been recorded then can not record again
-    bool record = false;
     address[] public objectionAddress;
-    string[] indexMerkelTree;
-    uint deposit = 100;
-    uint treeHeight = 10;
-    uint8 public test;
+    bytes32[] indexMerkelTree;
+    uint deposit;
+    uint treeHeight;
     uint start;
 
-    function IFC(bytes32 _hashOfTGID, bytes32 rootHash) {
+    function IFC(bytes32 tgid, bytes32 poe, uint dps, uint th) {
         owner = msg.sender;
-        hashOfTGID = _hashOfTGID;
-        proofOfExistence = rootHash;
+        hashOfTGID = tgid;
+        proofOfExistence = poe;
+        deposit = dps;
+        treeHeight = th;
         start = now;
     }
 
@@ -53,12 +52,37 @@ contract IFC {
         if (number < 10) {
             return byte(48 + number);
         } else if (number < 16) {
+            // asciicode a = 97 return 10
             return byte(87 + number);
         } else {
             revert();
         }
     }
     
+    function asciiToUint(byte char) constant returns (uint) {
+        uint asciiNum = uint(char);
+        if (asciiNum > 47 && asciiNum < 58) {
+            return asciiNum - 48;
+        } else if (asciiNum > 96 && asciiNum < 103) {
+            return asciiNum - 87;
+        } else {
+            revert();
+        }
+    }
+
+    function hashStringToIMT(string a){
+        bytes memory b = bytes(a);
+        uint hashUint;
+        uint hashNum = b.length/64;
+        for(uint i = 0; i < hashNum; i++){
+            hashUint = 0;
+            for(uint j = 64*i ; j < 64*(i+1); j++){
+                hashUint = uint(hashUint)*16 + uint(asciiToUint(b[j]));
+            }
+            indexMerkelTree.push(bytes32(hashUint));
+        }
+    }
+
     function bytes32ToString (bytes32 data) constant returns (string) {
         bytes memory bytesString = new bytes(64);
         for (uint j = 0; j < 32; j++) {
@@ -71,9 +95,9 @@ contract IFC {
 
     function isEqualToRootHash() constant returns (bool) {
         string memory hashMsg;
-        hashMsg = indexMerkelTree[0];
+        hashMsg = bytes32ToString(indexMerkelTree[0]);
         for (uint i = 1; i < treeHeight; i++) {
-            hashMsg = bytes32ToString(sha3(concat(hashMsg, indexMerkelTree[i])));
+            hashMsg = bytes32ToString(sha3(concat(hashMsg, bytes32ToString(indexMerkelTree[i]))));
         }
         return (sha3(hashMsg) == sha3(bytes32ToString(proofOfExistence)));
     }
@@ -81,10 +105,8 @@ contract IFC {
     function judge(bytes32 hashMsg, uint8 v, bytes32 r, bytes32 s) returns (bool) {
         address verifySigner = verify(hashMsg, v, r, s);
         if (verifySigner != msg.sender) {
-            test = 0;
             return false;
         }
-        test = 1;
         return true;
     }
 
@@ -97,11 +119,11 @@ contract IFC {
         return false;
     }
 
-    function inputIMT(string hashMsg) returns (bool) {
+    function setIMT(string hashMsg) returns (bool) {
         if (!isInObjection(msg.sender)) {
             return false;
         }
-        indexMerkelTree.push(hashMsg);
+        hashStringToIMT(hashMsg);
         return true;
     }
 
@@ -110,6 +132,14 @@ contract IFC {
             revert();
         } else {
             return objectionAddress[idx];
+        }
+    }
+
+    function getIndexMerkelTree(uint idx) constant returns (bytes32) {
+        if (idx >= indexMerkelTree.length) {
+            revert();
+        } else {
+            return indexMerkelTree[idx];
         }
     }
     // After one day, agent can get his deposit back
