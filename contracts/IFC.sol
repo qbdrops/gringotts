@@ -102,29 +102,28 @@ contract IFC {
         return (sha3(hashMsg) == sha3(bytes32ToString(proofOfExistence)));
     }
 
-    function judge(bytes32 hashMsg, uint8 v, bytes32 r, bytes32 s) returns (bool) {
-        address verifySigner = verify(hashMsg, v, r, s);
-        if (verifySigner != msg.sender) {
+    function setIMT(bytes32 hashMsg, uint8 v, bytes32 r, bytes32 s, string hashConcatString) returns (bool) {
+        if (sha3(hashConcatString) != hashMsg) {
             return false;
         }
+        if (!isInObjection(msg.sender)) {
+            return false;
+        }
+        address verifySigner = verify(hashMsg, v, r, s);
+        if (verifySigner != owner) {
+            return false;
+        }
+        hashStringToIMT(hashConcatString);
         return true;
     }
 
-    function isInObjection(address consumer) returns (bool) {
+    function isInObjection(address consumer) constant returns (bool) {
         for (uint i = 0; i < objectionAddress.length; i++) {
             if (consumer == objectionAddress[i]) {
                 return true;
             }
         }
         return false;
-    }
-
-    function setIMT(string hashMsg) returns (bool) {
-        if (!isInObjection(msg.sender)) {
-            return false;
-        }
-        hashStringToIMT(hashMsg);
-        return true;
     }
 
     function getObjectionAddress(uint idx) constant returns (address) {
