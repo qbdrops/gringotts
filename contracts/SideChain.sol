@@ -1,6 +1,6 @@
 pragma solidity ^0.4.13;
 
-contract IFC {
+contract SideChain {
     // owner is the agent
     address public owner;
     // root hash of the transaction tree
@@ -15,7 +15,7 @@ contract IFC {
     uint treeHeight = 3;
     uint start;
 
-    function IFC(bytes32 tgid, bytes32 poe) payable {
+    function SideChain(bytes32 tgid, bytes32 poe) payable {
         transactions = 2**(treeHeight - 1);
         if (msg.value != (transactions*depositPerTx)) {
             revert();
