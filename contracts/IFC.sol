@@ -9,21 +9,25 @@ contract IFC {
     bytes32 public hashOfTGID;
     address[] public objectionAddress;
     bytes32[] indexMerkelTree;
-    uint deposit;
-    uint treeHeight;
+    uint minmumObjectionValue;
+    uint transactions;
+    uint depositPerTx = 100;
+    uint treeHeight = 3;
     uint start;
 
-    function IFC(bytes32 tgid, bytes32 poe, uint dps, uint th) {
+    function IFC(bytes32 tgid, bytes32 poe) payable {
+        transactions = 2**(treeHeight - 1);
+        if (msg.value != (transactions*depositPerTx)) {
+            revert();
+        }
         owner = msg.sender;
         hashOfTGID = tgid;
         proofOfExistence = poe;
-        deposit = dps;
-        treeHeight = th;
         start = now;
     }
 
     function takeObjection(string tgid) payable returns (bool) {
-        if (msg.value < deposit || sha3(tgid) != hashOfTGID) {
+        if (msg.value < minmumObjectionValue || sha3(tgid) != hashOfTGID) {
             return false;
         }
         objectionAddress.push(msg.sender);
@@ -70,7 +74,7 @@ contract IFC {
         }
     }
 
-    function hashStringToIMT(string a){
+    function hashStringToIMT(string a) private {
         bytes memory b = bytes(a);
         uint hashUint;
         uint hashNum = b.length/64;
@@ -94,12 +98,31 @@ contract IFC {
     }
 
     function isEqualToRootHash() constant returns (bool) {
+        if (indexMerkelTree.length == 0) {
+            return false;
+        }
         string memory hashMsg;
         hashMsg = bytes32ToString(indexMerkelTree[0]);
         for (uint i = 1; i < treeHeight; i++) {
             hashMsg = bytes32ToString(sha3(concat(hashMsg, bytes32ToString(indexMerkelTree[i]))));
         }
         return (sha3(hashMsg) == sha3(bytes32ToString(proofOfExistence)));
+    }
+
+    function judge() payable returns (bool){
+        if (msg.sender != owner || !isInObjection(msg.sender)) {
+            return false;
+        }
+        if (isEqualToRootHash()) {
+            refund();
+        } else if (objectionAddress.length > 0) {
+            for (uint i = 0; i < objectionAddress.length; i++) {
+                objectionAddress[i].transfer(depositPerTx);
+            }
+            return true;
+        } else {
+            return false;
+        }
     }
 
     function setIMT(bytes32 hashMsg, uint8 v, bytes32 r, bytes32 s, string hashConcatString) returns (bool) {
@@ -142,7 +165,7 @@ contract IFC {
         }
     }
     // After one day, agent can get his deposit back
-    function refund() {
+    function refund() payable {
         if (start + 1 days < now) {
             revert();
         } else {
