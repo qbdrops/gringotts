@@ -1,36 +1,36 @@
 pragma solidity ^0.4.13;
 
-import "./IFC.sol";
+import "./SideChain.sol";
 
-contract HashReg {
+contract IFC {
     address public owner;
-    mapping (bytes32 => address) IFCaddress;
+    mapping (bytes32 => address) sideChainAddress;
 
     modifier onlyOwner {
         require(msg.sender == owner);
         _;
     }
 
-    function HashReg() {
+    function IFC() {
         owner = msg.sender;
     }
 
     function addIFCAddress(address addr) onlyOwner returns (bool) {
         bytes32 rootHash;
-        IFC ifc = IFC(addr);
-        rootHash = ifc.proofOfExistence();
+        SideChain sc = SideChain(addr);
+        rootHash = sc.proofOfExistence();
         if (rootHash == 0x0) {
             return false;
         }
-        if (IFCaddress[rootHash] != 0x0) {
+        if (sideChainAddress[rootHash] != 0x0) {
             return false;
         } else {
-            IFCaddress[rootHash] = addr;
+            sideChainAddress[rootHash] = addr;
         }
         return true;
     }
 
     function getIFCAddress(bytes32 rootHash) constant returns (address) {
-        return IFCaddress[rootHash];
+        return sideChainAddress[rootHash];
     }
 }
