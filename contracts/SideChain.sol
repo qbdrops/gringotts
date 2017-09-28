@@ -74,17 +74,26 @@ contract SideChain {
         }
     }
 
-    function hashStringToIMT(string a) private {
-        bytes memory b = bytes(a);
-        uint hashUint;
-        uint hashNum = b.length/64;
+    function hashStringToIMT(string hashString) {
+        bytes memory bHashString = bytes(hashString);
+        bytes memory tmp = new bytes(64);
+        uint hashNum = bHashString.length/64;
         for(uint i = 0; i < hashNum; i++){
-            hashUint = 0;
-            for(uint j = 64*i ; j < 64*(i+1); j++){
-                hashUint = uint(hashUint)*16 + uint(asciiToUint(b[j]));
+            for(uint j = 0 ; j < 64; j++){
+                tmp[j] = bHashString[j+64*i];
             }
-            indexMerkelTree.push(bytes32(hashUint));
+            indexMerkelTree.push(stringToBytes32(string(tmp)));
         }
+    }
+
+    function stringToBytes32(string str) constant returns (bytes32) {
+        bytes memory bString = bytes(str);
+        uint uintString;
+        if (bString.length != 64) { revert(); }
+        for (uint i = 0; i < 64; i++) {
+            uintString = uintString*16 + uint(asciiToUint(bString[i]));
+        }
+        return bytes32(uintString);
     }
 
     function bytes32ToString (bytes32 data) constant returns (string) {
