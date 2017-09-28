@@ -5,32 +5,57 @@ contract SideChain {
     address public owner;
     // root hash of the transaction tree
     bytes32 public proofOfExistence;
-    // hash of the transaction group id
-    bytes32 public hashOfTGID;
+    // hash of the side chain id
+    bytes32 public hashOfSCID;
     address[] public objectionAddress;
     bytes32[] indexMerkelTree;
     uint minmumObjectionValue;
     uint transactions;
     uint depositPerTx = 100;
     uint treeHeight = 3;
-    uint start;
+    uint refundExpire;
 
-    function SideChain(bytes32 tgid, bytes32 poe) payable {
+    mapping (address => ObjectionInfo) objections;
+
+    struct ObjectionInfo {
+        bytes32 hashOfReq;
+        bytes32 TID;
+        bytes32 hashOfSCID;
+        bytes32 hashOfReceipt;
+        uint expire;
+    }
+
+    function SideChain(bytes32 hscid, bytes32 poe) payable {
         transactions = 2**(treeHeight - 1);
         if (msg.value != (transactions*depositPerTx)) {
             revert();
         }
         owner = msg.sender;
-        hashOfTGID = tgid;
+        hashOfSCID = hscid;
         proofOfExistence = poe;
-        start = now;
+        refundExpire = now + 1 days;
     }
 
-    function takeObjection(string tgid) payable returns (bool) {
-        if (msg.value < minmumObjectionValue || sha3(tgid) != hashOfTGID) {
+    function takeObjection(
+        bytes32 hq,
+        bytes32 tid,
+        string scid,
+        string receipt,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) payable returns (bool){
+        if (msg.value < minmumObjectionValue || sha3(scid) != hashOfSCID) {
             return false;
         }
-        objectionAddress.push(msg.sender);
+        string memory str;
+        str = concat(bytes32ToString(hq), bytes32ToString(tid));
+        str = concat(str, bytes32ToString(sha3(scid)));
+        str = concat(str, bytes32ToString(sha3(receipt)));
+        bytes32 hashMsg = sha3(str);
+        address signer = verify(hashMsg, v, r, s);
+        if (signer != owner) { return false; }
+        objections[msg.sender] = ObjectionInfo(hq, tid, sha3(scid), sha3(receipt), now + 1 days);
         return true;
     }
 
@@ -141,8 +166,8 @@ contract SideChain {
         if (!isInObjection(msg.sender)) {
             return false;
         }
-        address verifySigner = verify(hashMsg, v, r, s);
-        if (verifySigner != owner) {
+        address signer = verify(hashMsg, v, r, s);
+        if (signer != owner) {
             return false;
         }
         hashStringToIMT(hashConcatString);
@@ -175,7 +200,7 @@ contract SideChain {
     }
     // After one day, agent can get his deposit back
     function refund() payable {
-        if (start + 1 days < now) {
+        if (refundExpire > now) {
             revert();
         } else {
             selfdestruct(owner);
