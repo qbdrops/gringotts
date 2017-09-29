@@ -132,7 +132,17 @@ contract SideChain {
         return string(bytesString);
     }
 
-    function judge() payable returns (bool){
+    function hashOrder(address objector) constant returns (uint[]) {
+        uint[] memory order = new uint[](treeHeight);
+        // temporary
+        order[0] = 4;
+        order[1] = 5;
+        order[2] = 3;
+        //==========
+        return order;
+    }
+
+    function judge() returns (bool){
         if (msg.sender != owner) {
             return false;
         }
@@ -140,9 +150,7 @@ contract SideChain {
             address objector = objectors[i];
             // [4,5,3] = function(objector)
             uint[] memory idxs = new uint[](treeHeight);
-            idxs[0] = 4;
-            idxs[1] = 5;
-            idxs[2] = 3;
+            idxs = hashOrder(objector);
             bytes32 result = indexMerkelTree[idxs[0]];
             for(uint j = 1; j < idxs.length; j++) {
                 result = sha3(strConcat(bytes32ToString(result), bytes32ToString(indexMerkelTree[idxs[j]])));
@@ -152,6 +160,7 @@ contract SideChain {
                 objections[objector].objectionSuccess = false;
             }
         }
+        return true;
     }
 
     function setIMT(uint idx, bytes32 data) returns (bool) {
