@@ -7,8 +7,6 @@ contract SideChain {
     bytes32 public proofOfExistence;
     // hash of the side chain id
     bytes32 public hashOfSCID;
-    address[] public objectionAddress;
-    bytes32[] indexMerkelTree;
     uint minmumObjectionValue;
     uint transactions;
     uint depositPerTx = 100;
@@ -16,6 +14,9 @@ contract SideChain {
     uint refundExpire;
 
     mapping (address => ObjectionInfo) objections;
+    address[] public objectors;
+
+    mapping (uint => bytes32) indexMerkelTree;
 
     struct ObjectionInfo {
         bytes32 hashOfReq;
@@ -23,6 +24,7 @@ contract SideChain {
         bytes32 hashOfSCID;
         bytes32 hashOfReceipt;
         uint expire;
+        bool objectionSuccess;
     }
 
     function SideChain(bytes32 hscid, bytes32 poe) payable {
@@ -49,13 +51,14 @@ contract SideChain {
             return false;
         }
         string memory str;
-        str = concat(bytes32ToString(hq), bytes32ToString(tid));
-        str = concat(str, bytes32ToString(sha3(scid)));
-        str = concat(str, bytes32ToString(sha3(receipt)));
+        str = strConcat(bytes32ToString(hq), bytes32ToString(tid));
+        str = strConcat(str, bytes32ToString(sha3(scid)));
+        str = strConcat(str, bytes32ToString(sha3(receipt)));
         bytes32 hashMsg = sha3(str);
         address signer = verify(hashMsg, v, r, s);
         if (signer != owner) { return false; }
-        objections[msg.sender] = ObjectionInfo(hq, tid, sha3(scid), sha3(receipt), now + 1 days);
+        objections[msg.sender] = ObjectionInfo(hq, tid, sha3(scid), sha3(receipt), now + 1 days, true);
+        objectors.push(msg.sender);
         return true;
     }
 
@@ -66,7 +69,7 @@ contract SideChain {
         return signer;
     }
 
-    function concat(string _a, string _b) constant returns (string) {
+    function strConcat(string _a, string _b) constant returns (string) {
         bytes memory bytes_a = bytes(_a);
         bytes memory bytes_b = bytes(_b);
         string memory length_ab = new string(bytes_a.length + bytes_b.length);
@@ -99,18 +102,6 @@ contract SideChain {
         }
     }
 
-    function hashStringToIMT(string hashString) {
-        bytes memory bHashString = bytes(hashString);
-        bytes memory tmp = new bytes(64);
-        uint hashNum = bHashString.length/64;
-        for(uint i = 0; i < hashNum; i++){
-            for(uint j = 0 ; j < 64; j++){
-                tmp[j] = bHashString[j+64*i];
-            }
-            indexMerkelTree.push(stringToBytes32(string(tmp)));
-        }
-    }
-
     function stringToBytes32(string str) constant returns (bytes32) {
         bytes memory bString = bytes(str);
         uint uintString;
@@ -131,52 +122,37 @@ contract SideChain {
         return string(bytesString);
     }
 
-    function isEqualToRootHash() constant returns (bool) {
-        if (indexMerkelTree.length == 0) {
-            return false;
-        }
-        string memory hashMsg;
-        hashMsg = bytes32ToString(indexMerkelTree[0]);
-        for (uint i = 1; i < treeHeight; i++) {
-            hashMsg = bytes32ToString(sha3(concat(hashMsg, bytes32ToString(indexMerkelTree[i]))));
-        }
-        return (sha3(hashMsg) == sha3(bytes32ToString(proofOfExistence)));
-    }
-
     function judge() payable returns (bool){
-        if (msg.sender != owner || !isInObjection(msg.sender)) {
+        if (msg.sender != owner) {
             return false;
         }
-        if (isEqualToRootHash()) {
-            refund();
-        } else if (objectionAddress.length > 0) {
-            for (uint i = 0; i < objectionAddress.length; i++) {
-                objectionAddress[i].transfer(depositPerTx);
+        for (uint i = 0; i < objectors.length; i++) {
+            address objector = objectors[i];
+            // [4,5,3] = function(objector)
+            uint[] memory idxs = new uint[](treeHeight);
+            idxs[0] = 4;
+            idxs[1] = 5;
+            idxs[2] = 3;
+            bytes32 result = indexMerkelTree[idxs[0]];
+            for(uint j = 1; j < idxs.length; j++) {
+                result = sha3(strConcat(bytes32ToString(result), bytes32ToString(indexMerkelTree[idxs[j]])));
             }
-            return true;
-        } else {
-            return false;
+            result = sha3(strConcat(bytes32ToString(result), bytes32ToString(hashOfSCID)));
+            if (result == proofOfExistence) {
+                objections[objector].objectionSuccess = false;
+            }
         }
     }
 
-    function setIMT(bytes32 hashMsg, uint8 v, bytes32 r, bytes32 s, string hashConcatString) returns (bool) {
-        if (sha3(hashConcatString) != hashMsg) {
-            return false;
-        }
-        if (!isInObjection(msg.sender)) {
-            return false;
-        }
-        address signer = verify(hashMsg, v, r, s);
-        if (signer != owner) {
-            return false;
-        }
-        hashStringToIMT(hashConcatString);
+    function setIMT(uint idx, bytes32 data) returns (bool) {
+        if (msg.sender != owner) { return false; }
+        indexMerkelTree[idx] = data;
         return true;
     }
 
-    function isInObjection(address consumer) constant returns (bool) {
-        for (uint i = 0; i < objectionAddress.length; i++) {
-            if (consumer == objectionAddress[i]) {
+    function isObjector(address objector) constant returns (bool) {
+        for (uint i = 0; i < objectors.length; i++) {
+            if (objector == objectors[i]) {
                 return true;
             }
         }
@@ -184,20 +160,22 @@ contract SideChain {
     }
 
     function getObjectionAddress(uint idx) constant returns (address) {
-        if (idx >= objectionAddress.length) {
+        if (idx >= objectors.length) {
             revert();
         } else {
-            return objectionAddress[idx];
+            return objectors[idx];
         }
     }
 
     function getIndexMerkelTree(uint idx) constant returns (bytes32) {
-        if (idx >= indexMerkelTree.length) {
-            revert();
-        } else {
-            return indexMerkelTree[idx];
-        }
+        return indexMerkelTree[idx];
     }
+
+    function getObjectionResult(address objector) constant returns (bool) {
+        if (!isObjector(objector)) { revert(); }
+        return objections[objector].objectionSuccess;
+    }
+
     // After one day, agent can get his deposit back
     function refund() payable {
         if (refundExpire > now) {

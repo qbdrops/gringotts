@@ -15,7 +15,7 @@ contract IFC {
         owner = msg.sender;
     }
 
-    function addIFCAddress(address addr) onlyOwner returns (bool) {
+    function addSideChainAddress(address addr) onlyOwner returns (bool) {
         bytes32 rootHash;
         SideChain sc = SideChain(addr);
         rootHash = sc.proofOfExistence();
@@ -30,7 +30,7 @@ contract IFC {
         return true;
     }
 
-    function getIFCAddress(bytes32 rootHash) constant returns (address) {
+    function getSideChainAddress(bytes32 rootHash) constant returns (address) {
         return sideChainAddress[rootHash];
     }
 }
