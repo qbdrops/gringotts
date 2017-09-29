@@ -114,10 +114,20 @@ contract SideChain {
 
     function bytes32ToString (bytes32 data) constant returns (string) {
         bytes memory bytesString = new bytes(64);
-        for (uint j = 0; j < 32; j++) {
-            byte char = byte(bytes32(uint(data) * 2 ** (8 * j)));
-            bytesString[j*2+0] = uintToAscii(uint(char) / 16);
-            bytesString[j*2+1] = uintToAscii(uint(char) % 16);
+        for (uint i = 0; i < 32; i++) {
+            byte char = byte(bytes32(uint(data) * 2 ** (8 * i)));
+            bytesString[i*2+0] = uintToAscii(uint(char) / 16);
+            bytesString[i*2+1] = uintToAscii(uint(char) % 16);
+        }
+        return string(bytesString);
+    }
+
+    function addressToString(address addr) constant returns (string) {
+        bytes memory bytesString = new bytes(40);
+        for (uint i = 0; i < 20; i++) {
+            byte char = byte(bytes20(uint(addr) * 2 ** (8 * i)));
+            bytesString[i*2+0] = uintToAscii(uint(char) / 16);
+            bytesString[i*2+1] = uintToAscii(uint(char) % 16);
         }
         return string(bytesString);
     }
