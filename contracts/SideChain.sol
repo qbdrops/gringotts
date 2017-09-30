@@ -12,6 +12,7 @@ contract SideChain {
     uint depositPerTx = 100;
     uint treeHeight = 3;
     uint refundExpire;
+    bool public judgeFinish;
 
     mapping (address => ObjectionInfo) objections;
     address[] public objectors;
@@ -23,7 +24,6 @@ contract SideChain {
         bytes32 TID;
         bytes32 hashOfSCID;
         bytes32 hashOfReceipt;
-        uint expire;
         bool objectionSuccess;
     }
 
@@ -36,6 +36,7 @@ contract SideChain {
         hashOfSCID = hscid;
         proofOfExistence = poe;
         refundExpire = now + 1 days;
+        judgeFinish = false;
     }
 
     function takeObjection(
@@ -47,9 +48,12 @@ contract SideChain {
         bytes32 r,
         bytes32 s
     ) payable returns (bool){
-        if (msg.value < minmumObjectionValue || sha3(scid) != hashOfSCID) {
-            return false;
-        }
+        // if objection time is expire or deposit is under minmumObjectionValue than revert
+        if (now + 1 hours > refundExpire || msg.value != minmumObjectionValue) { revert(); }
+        // if scid is wrong then deposit not getting back
+        // ********* (agent gave fake scid) not resolve
+        if (sha3(scid) != hashOfSCID) { return false; }
+        // *********
         string memory str;
         str = strConcat(bytes32ToString(hq), bytes32ToString(tid));
         str = strConcat(str, bytes32ToString(sha3(scid)));
@@ -57,7 +61,7 @@ contract SideChain {
         bytes32 hashMsg = sha3(str);
         address signer = verify(hashMsg, v, r, s);
         if (signer != owner) { return false; }
-        objections[msg.sender] = ObjectionInfo(hq, tid, sha3(scid), sha3(receipt), now + 1 days, true);
+        objections[msg.sender] = ObjectionInfo(hq, tid, sha3(scid), sha3(receipt), true);
         objectors.push(msg.sender);
         return true;
     }
@@ -142,7 +146,7 @@ contract SideChain {
         return order;
     }
 
-    function judge() returns (bool){
+    function exonerate() returns (bool){
         if (msg.sender != owner) {
             return false;
         }
@@ -196,11 +200,18 @@ contract SideChain {
     }
 
     // After one day, agent can get his deposit back
-    function refund() payable {
-        if (refundExpire > now) {
+    function judge() {
+        if (refundExpire > now || judgeFinish == true) {
             revert();
         } else {
-            selfdestruct(owner);
+            for (uint i = 0; i < objectors.length; i++) {
+                address objector = objectors[i];
+                if (objections[objector].objectionSuccess) {
+                    objector.transfer(depositPerTx + minmumObjectionValue);
+                }
+            }
+            owner.transfer(this.balance);
+            judgeFinish = true;
         }
     }
 }
