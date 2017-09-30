@@ -138,11 +138,15 @@ contract SideChain {
 
     function hashOrder(address objector) constant returns (uint[]) {
         uint[] memory order = new uint[](treeHeight);
-        // temporary
-        order[0] = 4;
-        order[1] = 5;
-        order[2] = 3;
-        //==========
+        string memory uid = addressToString(objector);
+        string memory tid = bytes32ToString(objections[objector].TID);
+        uint idx  = uint(bytes6(sha3(strConcat(uid,tid)))) % (2**(treeHeight-1));
+        order[0] = 2**(treeHeight-1) + idx;
+        for(uint i = 1; i < treeHeight; i++) {
+            order[i] = 2**(treeHeight-i) + ((idx >> 1) << 1) + ((idx % 2) ^ 1);
+            idx = idx >> 1;
+
+        }
         return order;
     }
 
@@ -152,7 +156,6 @@ contract SideChain {
         }
         for (uint i = 0; i < objectors.length; i++) {
             address objector = objectors[i];
-            // [4,5,3] = function(objector)
             uint[] memory idxs = new uint[](treeHeight);
             idxs = hashOrder(objector);
             bytes32 result = indexMerkelTree[idxs[0]];
