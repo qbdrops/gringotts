@@ -5,10 +5,7 @@ contract SideChain {
     address public owner;
     // root hash of the transaction tree
     bytes32 public proofOfExistence;
-    // hash of the side chain id
-    bytes32 public hashOfSCID;
-    uint minmumObjectionValue;
-    uint transactions;
+
     uint depositPerTx = 100;
     uint treeHeight = 3;
     uint refundExpire;
@@ -22,45 +19,40 @@ contract SideChain {
     struct ObjectionInfo {
         bytes32 hashOfReq;
         bytes32 TID;
-        bytes32 hashOfSCID;
+        bytes32 SCID;
         bytes32 hashOfReceipt;
         bool objectionSuccess;
     }
 
-    function SideChain(bytes32 hscid, bytes32 poe) payable {
-        transactions = 2**(treeHeight - 1);
+    function SideChain(bytes32 poe) payable {
+        uint transactions = 2**(treeHeight - 1);
         if (msg.value != (transactions*depositPerTx)) {
             revert();
         }
         owner = msg.sender;
-        hashOfSCID = hscid;
         proofOfExistence = poe;
         refundExpire = now + 1 days;
         judgeFinish = false;
     }
 
     function takeObjection(
-        bytes32 hq,
+        bytes32 hq, // hash of request
         bytes32 tid,
-        string scid,
+        bytes32 scid,
         string receipt,
         uint8 v,
         bytes32 r,
         bytes32 s) payable returns (bool) {
-        // if objection time is expire or deposit is under minmumObjectionValue than revert
-        if (now + 1 hours > refundExpire || msg.value != minmumObjectionValue) { revert(); }
-        // if scid is wrong then deposit not getting back
-        // ********* (agent gave fake scid) not resolve
-        if (sha3(scid) != hashOfSCID) {return false;}
-        // *********
+        // if objection time is expire
+        if (now + 1 hours > refundExpire) { revert(); }
         string memory str;
         str = strConcat(bytes32ToString(hq), bytes32ToString(tid));
-        str = strConcat(str, bytes32ToString(sha3(scid)));
+        str = strConcat(str, bytes32ToString(scid));
         str = strConcat(str, bytes32ToString(sha3(receipt)));
         bytes32 hashMsg = sha3(str);
         address signer = verify(hashMsg, v, r, s);
         if (signer != owner) { return false; }
-        objections[msg.sender] = ObjectionInfo(hq, tid, sha3(scid), sha3(receipt), true);
+        objections[msg.sender] = ObjectionInfo(hq, tid, scid, sha3(receipt), true);
         objectors.push(msg.sender);
         return true;
     }
@@ -144,7 +136,6 @@ contract SideChain {
         for(uint i = 1; i < treeHeight; i++) {
             order[i] = 2**(treeHeight-i) + ((idx >> 1) << 1) + ((idx % 2) ^ 1);
             idx = idx >> 1;
-
         }
         return order;
     }
@@ -161,7 +152,6 @@ contract SideChain {
             for(uint j = 1; j < idxs.length; j++) {
                 result = sha3(strConcat(bytes32ToString(result), bytes32ToString(indexMerkelTree[idxs[j]])));
             }
-            result = sha3(strConcat(bytes32ToString(result), bytes32ToString(hashOfSCID)));
             if (result == proofOfExistence) {
                 objections[objector].objectionSuccess = false;
             }
@@ -209,7 +199,7 @@ contract SideChain {
             for (uint i = 0; i < objectors.length; i++) {
                 address objector = objectors[i];
                 if (objections[objector].objectionSuccess) {
-                    objector.transfer(depositPerTx + minmumObjectionValue);
+                    objector.transfer(depositPerTx);
                 }
             }
             owner.transfer(this.balance);
