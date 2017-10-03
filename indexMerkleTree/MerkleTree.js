@@ -39,8 +39,8 @@ class MerkleTree{
 
    
       calcLeafIndex(UidADDTid){   //calc leaflocation  
-        this.index = parseInt(keccak256(UidADDTid.toString()),16); 
-        return (1 << (this.height - 1)) + Math.abs((this.index / Math.pow(10,60))) % (1 << (this.height - 1)); //calc the leaf node id
+       this.index = parseInt(keccak256(UidADDTid.toString()).substring(2,14),16); 
+        return (1 << (this.height - 1)) + Math.abs(this.index) % (1 << (this.height - 1)); //calc the leaf node id
     };
   
       
