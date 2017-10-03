@@ -46,13 +46,12 @@ contract SideChain {
         string receipt,
         uint8 v,
         bytes32 r,
-        bytes32 s
-    ) payable returns (bool){
+        bytes32 s) payable returns (bool) {
         // if objection time is expire or deposit is under minmumObjectionValue than revert
         if (now + 1 hours > refundExpire || msg.value != minmumObjectionValue) { revert(); }
         // if scid is wrong then deposit not getting back
         // ********* (agent gave fake scid) not resolve
-        if (sha3(scid) != hashOfSCID) { return false; }
+        if (sha3(scid) != hashOfSCID) {return false;}
         // *********
         string memory str;
         str = strConcat(bytes32ToString(hq), bytes32ToString(tid));
@@ -150,7 +149,7 @@ contract SideChain {
         return order;
     }
 
-    function exonerate() returns (bool){
+    function exonerate() returns (bool) {
         if (msg.sender != owner) {
             return false;
         }

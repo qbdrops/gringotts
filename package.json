@@ -1,0 +1,20 @@
+{
+  "name": "ifc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "truffle test",
+    "lint": "./node_modules/.bin/eslint .",
+    "start": "node server"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.16.1",
+    "js-sha3": "^0.6.1"
+  },
+  "devDependencies": {
+    "eslint": "^4.8.0"
+  }
+}
