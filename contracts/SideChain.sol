@@ -107,10 +107,10 @@ contract SideChain {
         return bytes32(uintString);
     }
 
-    function bytes32ToString (bytes32 data) constant returns (string) {
+    function bytes32ToString (bytes32 b32) constant returns (string) {
         bytes memory bytesString = new bytes(64);
         for (uint i = 0; i < 32; i++) {
-            byte char = byte(bytes32(uint(data) * 2 ** (8 * i)));
+            byte char = byte(bytes32(uint(b32) * 2 ** (8 * i)));
             bytesString[i*2+0] = uintToAscii(uint(char) / 16);
             bytesString[i*2+1] = uintToAscii(uint(char) % 16);
         }
@@ -159,9 +159,12 @@ contract SideChain {
         return true;
     }
 
-    function setIMT(uint idx, bytes32 data) returns (bool) {
+    function setIMT(uint[] idxs, bytes32[] nodeHash) returns (bool) {
         if (msg.sender != owner) { return false; }
-        indexMerkelTree[idx] = data;
+        if(idxs.length != nodeHash.length) {revert();}
+        for (uint i = 0; i < idxs.length; i++) {
+            indexMerkelTree[idxs[i]] = nodeHash[i];
+        }
         return true;
     }
 
