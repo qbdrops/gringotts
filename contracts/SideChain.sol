@@ -6,10 +6,10 @@ contract SideChain {
     // root hash of the transaction tree
     bytes32 public proofOfExistence;
 
-    uint depositPerTx = 100;
+    uint deposit = 100;
     uint treeHeight = 3;
-    uint refundExpire;
-    bool public judgeFinish;
+    uint expire;
+    bool public completed;
 
     mapping (address => ObjectionInfo) objections;
     address[] public objectors;
@@ -26,13 +26,13 @@ contract SideChain {
 
     function SideChain(bytes32 poe) payable {
         uint transactions = 2**(treeHeight - 1);
-        if (msg.value != (transactions*depositPerTx)) {
+        if (msg.value != (transactions*deposit)) {
             revert();
         }
         owner = msg.sender;
         proofOfExistence = poe;
-        refundExpire = now + 1 days;
-        judgeFinish = false;
+        expire = now + 1 days;
+        completed = false;
     }
 
     function takeObjection(
@@ -44,7 +44,7 @@ contract SideChain {
         bytes32 r,
         bytes32 s) payable returns (bool) {
         // if objection time is expire
-        if (now + 1 hours > refundExpire) { revert(); }
+        if (now + 1 hours > expire) { revert(); }
         string memory str;
         str = strConcat(bytes32ToString(hq), bytes32ToString(tid));
         str = strConcat(str, bytes32ToString(scid));
@@ -196,17 +196,17 @@ contract SideChain {
 
     // After one day, agent can get his deposit back
     function judge() {
-        if (refundExpire > now || judgeFinish == true) {
+        if (expire > now || completed == true) {
             revert();
         } else {
             for (uint i = 0; i < objectors.length; i++) {
                 address objector = objectors[i];
                 if (objections[objector].objectionSuccess) {
-                    objector.transfer(depositPerTx);
+                    objector.transfer(deposit);
                 }
             }
             owner.transfer(this.balance);
-            judgeFinish = true;
+            completed = true;
         }
     }
 }
