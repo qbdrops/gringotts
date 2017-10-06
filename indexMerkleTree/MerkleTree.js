@@ -37,10 +37,12 @@ class MerkleTree {
         return 1 << (height -1);
     }
 
-    putTransactionInTree(Uid,Tid,Treceipt) {
+    putTransactionInTree(order) {
     //將交易放進樹當中
-        this.index = this.calcLeafIndex(Uid.concat(Tid));
-        this.nodes[this.index].put(Tid,Treceipt);
+        let tid = order.tid || '';
+        let content = order.content || '';
+        this.index = this.calcLeafIndex(tid);
+        this.nodes[this.index].put(tid, content);
         
         for (let i = this.index; i > 0; i >>= 1) {
             this.nodes[i].updateContentDigest();
@@ -183,7 +185,7 @@ class Node {
     }
 
     getContent() {
-        return this.content; 
+        return this.content;
     }
 }
 

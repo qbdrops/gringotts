@@ -6,15 +6,20 @@
   "scripts": {
     "test": "truffle test",
     "lint": "./node_modules/.bin/eslint .",
-    "start": "node server"
+    "start": "node server.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "body-parser": "^1.18.2",
+    "ethereumjs-util": "^5.1.2",
     "express": "^4.16.1",
-    "js-sha3": "^0.6.1"
+    "js-sha3": "^0.6.1",
+    "solc": "^0.4.17",
+    "web3": "^0.20.1"
   },
   "devDependencies": {
-    "eslint": "^4.8.0"
+    "eslint": "^4.8.0",
+    "faker": "^4.1.0"
   }
 }
