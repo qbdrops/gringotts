@@ -8,7 +8,7 @@ app.use(bodyParser.urlencoded({extended: false}));
 
 const privatekey = '2058a2d1b99d534dc0ec3e71876e4bcb0843fd55637211627087d53985ab04aa';
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
-const account = '0x49aabbbe9141fe7a80804bdf01473e250a3414cb';
+const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
 
 function queryStringToJSON(bill) {           
     var pairs = bill.split('&');
@@ -66,7 +66,6 @@ app.post('/slice', function (req, res) {
 app.listen(3000, function () {
     console.log(privatekey);
     console.log(publickey);
-    console.log('0x' + ethUtils.pubToAddress(publickey).toString('hex'));
     console.log(account);
-    console.log('Example app listening on port 3000!');
+    console.log('App listening on port 3000!');
 });

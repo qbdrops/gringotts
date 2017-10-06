@@ -3,7 +3,7 @@ const faker = require('faker');
 const Web3 = require('web3');
 const fs = require('fs');
 
-const scid = 2;
+const scid = 7;
 const maxHeight = 10;
 const IFCContractAddress = '0x84af34e4bf857a6c505cd5a319b7d478941dc853';
 
@@ -32,7 +32,7 @@ let makeTree = function () {
         tree.putTransactionInTree(content);
     }
     
-    let rootHash = tree.getRootHash();
+    let rootHash = '0x' + tree.getRootHash();
     return rootHash;
 };
 
@@ -64,12 +64,14 @@ let deploySideChainContract = function (rootHash) {
 async function main() {
     try {
         const rootHash = makeTree();
+        console.log('Root Hash: ' + rootHash);
         const result = await deploySideChainContract(rootHash);
         const contractAddress = result.address;
         const txHash = result.transactionHash;
 
-        console.log(contractAddress);
-        console.log(txHash);
+        console.log('Sidechain ID: ' + scid);
+        console.log('Sidechain contract address: ' + contractAddress);
+        console.log('Tx hash: ' + txHash);
 
         unlockCoinbase();
         let addSideChainTxHash = IFCContract.addSideChainAddress(contractAddress, {
@@ -77,7 +79,7 @@ async function main() {
             gas: 3000000
         });
 
-        console.log(addSideChainTxHash);
+        console.log('Add sidechain tx hash: ' + addSideChainTxHash);
     } catch (e) {
         console.log(e);
     }
