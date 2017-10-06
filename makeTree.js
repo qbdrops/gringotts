@@ -12,7 +12,6 @@ let tree = new MerkleTree(maxHeight);
 const IFC = JSON.parse(fs.readFileSync('./build/contracts/IFC.json'));
 const sidechain = JSON.parse(fs.readFileSync('./build/contracts/SideChain.json'));
 
-const IFCBytecode = IFC.unlinked_binary;
 const IFCABI = IFC.abi;
 const IFCContractClass = web3.eth.contract(IFCABI);
 const IFCContract = IFCContractClass.at(IFCContractAddress);
@@ -39,7 +38,7 @@ let makeTree = function () {
 
 let unlockCoinbase = function () {
     web3.personal.unlockAccount(web3.eth.coinbase, 'howard123');
-}
+};
 
 let deploySideChainContract = function (rootHash) {
     unlockCoinbase();

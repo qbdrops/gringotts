@@ -15,10 +15,10 @@
     "ethereumjs-util": "^5.1.2",
     "express": "^4.16.1",
     "js-sha3": "^0.6.1",
-    "solc": "^0.4.17",
     "web3": "^0.20.1"
   },
   "devDependencies": {
+    "babel-eslint": "^8.0.1",
     "eslint": "^4.8.0",
     "faker": "^4.1.0"
   }
