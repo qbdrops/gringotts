@@ -16,21 +16,20 @@ contract IFC {
     }
 
     function addSideChainAddress(address addr) onlyOwner returns (bool) {
-        bytes32 rootHash;
+        bytes32 scid;
         SideChain sc = SideChain(addr);
-        rootHash = sc.proofOfExistence();
-        if (rootHash == 0x0) {
+        scid = sc.sideChainID();
+        if (scid == 0x0) {
             return false;
         }
-        if (sideChainAddress[rootHash] != 0x0) {
+        if (sideChainAddress[scid] != 0x0) {
             return false;
-        } else {
-            sideChainAddress[rootHash] = addr;
         }
+        sideChainAddress[scid] = addr;
         return true;
     }
 
-    function getSideChainAddress(bytes32 rootHash) constant returns (address) {
-        return sideChainAddress[rootHash];
+    function getSideChainAddress(bytes32 scid) constant returns (address) {
+        return sideChainAddress[scid];
     }
 }

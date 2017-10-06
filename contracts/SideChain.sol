@@ -1,18 +1,18 @@
 pragma solidity ^0.4.13;
 
 contract SideChain {
-    // owner is the agent
-    address public owner;
     // root hash of the transaction tree
     bytes32 public proofOfExistence;
-
-    uint deposit = 100;
-    uint treeHeight = 3;
-    uint expire;
+    bytes32 public sideChainID;
     bool public completed;
+    // owner is the agent
+    address owner;
+    uint deposit = 100;
+    uint treeHeight;
+    uint expire;
 
     mapping (address => ObjectionInfo) objections;
-    address[] public objectors;
+    address[] objectors;
 
     mapping (uint => bytes32) indexMerkelTree;
 
@@ -24,15 +24,20 @@ contract SideChain {
         bool objectionSuccess;
     }
 
-    function SideChain(bytes32 poe) payable {
+    function SideChain(bytes32 scid, bytes32 poe, uint th) {
+        owner = msg.sender;
+        sideChainID = scid;
+        proofOfExistence = poe;
+        treeHeight = th;
+        completed = false;
+    }
+
+    function setDeposit() payable {
         uint transactions = 2**(treeHeight - 1);
-        if (msg.value != (transactions*deposit)) {
+        if (msg.value < (transactions*deposit)) {
             revert();
         }
-        owner = msg.sender;
-        proofOfExistence = poe;
-        expire = now + 1 days;
-        completed = false;
+        expire = now + 1 days;  
     }
 
     function takeObjection(
@@ -194,9 +199,8 @@ contract SideChain {
         return objections[objector].objectionSuccess;
     }
 
-    // After one day, agent can get his deposit back
     function judge() {
-        if (expire > now || completed == true) {
+        if (expire == 0 || expire > now || completed == true) {
             revert();
         } else {
             for (uint i = 0; i < objectors.length; i++) {
