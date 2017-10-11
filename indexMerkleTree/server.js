@@ -1,5 +1,6 @@
 const MerkleTree = require('./MerkleTree.js');
-let tree = new MerkleTree(10);
+const MerkleTurn = require('./MerkleTurn.js');
+let tree = new MerkleTree(4);
 
 let RH1 = tree.getRootHash();
 console.log('Initial Roothash : ' +RH1);
@@ -13,7 +14,7 @@ tree.putTransactionInTree({
 });
 let RH2 = tree.getRootHash();
 console.log('Update Roothash : '+RH1+' --> '+RH2);
-console.log('Get Transaction1 from tree: '+tree.getTransaction('U0x123','T001'));
+console.log('Get Transaction1 from tree: '+tree.getTransaction('T001'));
 
 console.log('----Put Transaction2----');
 tree.putTransactionInTree({
@@ -22,4 +23,23 @@ tree.putTransactionInTree({
 });
 let RH3 = tree.getRootHash();
 console.log('Update Roothash : '+RH2+' --> '+RH3);
-console.log('Get Transaction2 from tree: '+tree.getTransaction('U0x123','T002'));
+console.log('Get Transaction2 from tree: '+tree.getTransaction('T002'));
+
+//console.log(tree);
+
+
+
+
+
+writeMerkle(tree,'./merkletree/tree.json');
+
+
+async function restore () {
+    let restoreTree = await readMerkle('./merkletree/tree.json');
+    console.log(restoreTree);
+} 
+
+restore();
+
+
+   

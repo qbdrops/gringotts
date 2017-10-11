@@ -26,9 +26,9 @@ class MerkleTree {
     }
     
     //functions
-    calcLeafIndex(UidADDTid) {
+    calcLeafIndex(Tid) {
     //calc leaflocation  
-        this.index = parseInt(keccak256(UidADDTid.toString()).substring(2,14),16);
+        this.index = parseInt(keccak256(Tid.toString()).substring(2,14),16);
         //calc the leaf node id
         return (1 << (this.height - 1)) + Math.abs(this.index) % (1 << (this.height - 1));
     }
@@ -71,15 +71,14 @@ class MerkleTree {
     //     return this.nodes[i].getContentDigest();
     // }
        
-    getTransaction(Uid,Tid) {
+    getTransaction(Tid) {
     //拿到交易內容
-        this.index = this.calcLeafIndex(Uid.concat(Tid));
+        this.index = this.calcLeafIndex(Tid);
         return this.nodes[this.index].getContent();
     }
-
-    extractSlice(Uid,Tid) {
+    extractSlice(Tid) {
     //拿到證據切片
-        this.index = this.calcLeafIndex(Uid.concat(Tid));
+        this.index = this.calcLeafIndex(Tid);
         this.slice = new Array();
         let left = '';
         let right = '';
@@ -119,6 +118,16 @@ class MerkleTree {
             return 'Transaction not in the leaf.';
         }
     }
+
+
+
+    //restore merkleTree
+    reputData(id, content, contentDigest){
+     this.nodes[id].reput(content, contentDigest);
+    }
+
+
+
 }
 
 class Node {
@@ -187,6 +196,12 @@ class Node {
     getContent() {
         return this.content;
     }
+    
+    reput(content, contentDigest){//restore merkleTree
+        this.content = content;
+        this.contentDigest = contentDigest;
+    }
+
 }
 
 module.exports = MerkleTree;
