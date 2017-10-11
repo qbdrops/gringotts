@@ -15,11 +15,11 @@ contract SideChain {
     address[] objectors;
 
     mapping (uint => bytes32) indexMerkelTree;
+    mapping (uint => bytes32[]) leafNodeData;
 
     struct ObjectionInfo {
         bytes32 hashOfReq;
         bytes32 TID;
-        bytes32 SCID;
         bytes32 hashOfReceipt;
         bool objectionSuccess;
     }
@@ -33,8 +33,8 @@ contract SideChain {
     }
 
     function setDeposit() payable {
-        uint transactions = 2**(treeHeight - 1);
-        if (msg.value < (transactions*deposit)) {
+        uint transactions = 2 ** (treeHeight - 1);
+        if (msg.value < (transactions * deposit)) {
             revert();
         }
         expire = now + 1 days;  
@@ -57,7 +57,8 @@ contract SideChain {
         bytes32 hashMsg = sha3(str);
         address signer = verify(hashMsg, v, r, s);
         if (signer != owner) { return false; }
-        objections[msg.sender] = ObjectionInfo(hq, tid, scid, sha3(receipt), true);
+        if (scid != sideChainID) { return false; }
+        objections[msg.sender] = ObjectionInfo(hq, tid, sha3(receipt), true);
         objectors.push(msg.sender);
         return true;
     }
@@ -171,6 +172,11 @@ contract SideChain {
             indexMerkelTree[idxs[i]] = nodeHash[i];
         }
         return true;
+    }
+
+    function setLFD(uint idx, bytes32[] lfd) returns (bool) {
+        if (msg.sender != owner) { return false; }
+        leafNodeData[idx] = lfd;
     }
 
     function isObjector(address objector) constant returns (bool) {
