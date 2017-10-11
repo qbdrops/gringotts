@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.18.2",
+    "cors": "^2.8.4",
     "ethereumjs-util": "^5.1.2",
     "express": "^4.16.1",
     "js-sha3": "^0.6.1",

@@ -1,10 +1,12 @@
 var express = require('express');
 var bodyParser = require('body-parser');
+var cors = require('cors');
 var ethUtils = require('ethereumjs-util');
 
 var app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: false}));
+app.use(cors());
 
 const privatekey = '2058a2d1b99d534dc0ec3e71876e4bcb0843fd55637211627087d53985ab04aa';
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
