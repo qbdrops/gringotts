@@ -23,20 +23,17 @@ contract SideChain {
         bool objectionSuccess;
     }
 
-    function SideChain(bytes32 scid, bytes32 rh, uint th) {
+    function SideChain(bytes32 scid, bytes32 rh, uint th) payable {
         sideChainOwner = msg.sender;
         sideChainID = scid;
         sideChainRootHash = rh;
         treeHeight = th;
         completed = false;
-    }
-
-    function setDeposit() payable {
         uint transactions = 2 ** (treeHeight - 1);
         if (msg.value < (transactions * deposit)) {
             revert();
         }
-        expire = now + 1 days;  
+        expire = now + 1 days; 
     }
 
     function takeObjection(
@@ -56,7 +53,6 @@ contract SideChain {
         bytes32 hashMsg = sha3(str);
         address signer = verify(hashMsg, v, r, s);
         if (signer != sideChainOwner) { return false; }
-        if (scid != sideChainID) { return false; }
         objections[msg.sender] = ObjectionInfo(req, tid, rpt, true);
         objectors.push(msg.sender);
         return true;
