@@ -130,8 +130,7 @@ contract SideChain {
 
     function hashOrder(address objector) constant returns (uint[]) {
         uint[] memory order = new uint[](treeHeight);
-        string memory tid = bytes32ToString(objections[objector].hashOfTID);
-        uint idx  = uint(bytes6(sha3(tid))) % (2**(treeHeight-1));
+        uint idx  = uint(bytes6(objections[objector].hashOfTID)) % (2**(treeHeight-1));
         order[0] = 2**(treeHeight-1) + idx;
         for(uint i = 1; i < treeHeight; i++) {
             order[i] = 2**(treeHeight-i) + ((idx >> 1) << 1) + ((idx % 2) ^ 1);
@@ -162,18 +161,22 @@ contract SideChain {
 
     function inLFD(address objector, uint num) constant returns (bool) {
         if (leafNodeData[num].length < 2) {
-            return (objections[objector].hashOfReceipt == leafNodeData[num][0]);
-        }
-        for (uint i = 0; i < leafNodeData[num].length; i++) {
-            if(objections[objector].hashOfReceipt == leafNodeData[num][i]) {
-                string memory dataStr = bytes32ToString(leafNodeData[num][0]);
-                for (uint j = 1; j < leafNodeData[num].length; j++) {
-                    dataStr = strConcat(dataStr, bytes32ToString(leafNodeData[num][j]));
-                }
-                return (indexMerkelTree[num] == sha3(dataStr));
+            if (objections[objector].hashOfReceipt == leafNodeData[num][0]) {
+                return (indexMerkelTree[num] == sha3(bytes32ToString(leafNodeData[num][0])));
             }
+            return false;
+        } else {
+            for (uint i = 0; i < leafNodeData[num].length; i++) {
+                if(objections[objector].hashOfReceipt == leafNodeData[num][i]) {
+                    string memory dataStr = bytes32ToString(leafNodeData[num][0]);
+                    for (uint j = 1; j < leafNodeData[num].length; j++) {
+                        dataStr = strConcat(dataStr, bytes32ToString(leafNodeData[num][j]));
+                    }
+                    return (indexMerkelTree[num] == sha3(dataStr));
+                }
+            }
+            return false;
         }
-        return false;
     }
 
     function setIMT(uint[] idxs, bytes32[] nodeHash) returns (bool) {
