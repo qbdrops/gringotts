@@ -1,12 +1,11 @@
 pragma solidity ^0.4.13;
 
 contract SideChain {
-    // root hash of the transaction tree
-    bytes32 public proofOfExistence;
+    bytes32 public sideChainRootHash;
     bytes32 public sideChainID;
+    address public sideChainOwner;
     bool public completed;
-    // owner is the agent
-    address owner;
+
     uint deposit = 100;
     uint treeHeight;
     uint expire;
@@ -19,15 +18,15 @@ contract SideChain {
 
     struct ObjectionInfo {
         bytes32 hashOfReq;
-        bytes32 TID;
+        bytes32 hashOfTID;
         bytes32 hashOfReceipt;
         bool objectionSuccess;
     }
 
-    function SideChain(bytes32 scid, bytes32 poe, uint th) {
-        owner = msg.sender;
+    function SideChain(bytes32 scid, bytes32 rh, uint th) {
+        sideChainOwner = msg.sender;
         sideChainID = scid;
-        proofOfExistence = poe;
+        sideChainRootHash = rh;
         treeHeight = th;
         completed = false;
     }
@@ -41,24 +40,24 @@ contract SideChain {
     }
 
     function takeObjection(
-        bytes32 hq, // hash of request
+        bytes32 req,
         bytes32 tid,
         bytes32 scid,
-        string receipt,
+        bytes32 rpt,
         uint8 v,
         bytes32 r,
         bytes32 s) payable returns (bool) {
         // if objection time is expire
         if (now + 1 hours > expire) { revert(); }
         string memory str;
-        str = strConcat(bytes32ToString(hq), bytes32ToString(tid));
+        str = strConcat(bytes32ToString(req), bytes32ToString(tid));
         str = strConcat(str, bytes32ToString(scid));
-        str = strConcat(str, bytes32ToString(sha3(receipt)));
+        str = strConcat(str, bytes32ToString(rpt));
         bytes32 hashMsg = sha3(str);
         address signer = verify(hashMsg, v, r, s);
-        if (signer != owner) { return false; }
+        if (signer != sideChainOwner) { return false; }
         if (scid != sideChainID) { return false; }
-        objections[msg.sender] = ObjectionInfo(hq, tid, sha3(receipt), true);
+        objections[msg.sender] = ObjectionInfo(req, tid, rpt, true);
         objectors.push(msg.sender);
         return true;
     }
@@ -135,9 +134,8 @@ contract SideChain {
 
     function hashOrder(address objector) constant returns (uint[]) {
         uint[] memory order = new uint[](treeHeight);
-        string memory uid = addressToString(objector);
-        string memory tid = bytes32ToString(objections[objector].TID);
-        uint idx  = uint(bytes6(sha3(strConcat(uid,tid)))) % (2**(treeHeight-1));
+        string memory tid = bytes32ToString(objections[objector].hashOfTID);
+        uint idx  = uint(bytes6(sha3(tid))) % (2**(treeHeight-1));
         order[0] = 2**(treeHeight-1) + idx;
         for(uint i = 1; i < treeHeight; i++) {
             order[i] = 2**(treeHeight-i) + ((idx >> 1) << 1) + ((idx % 2) ^ 1);
@@ -147,7 +145,7 @@ contract SideChain {
     }
 
     function exonerate() returns (bool) {
-        if (msg.sender != owner) {
+        if (msg.sender != sideChainOwner) {
             return false;
         }
         for (uint i = 0; i < objectors.length; i++) {
@@ -155,18 +153,35 @@ contract SideChain {
             uint[] memory idxs = new uint[](treeHeight);
             idxs = hashOrder(objector);
             bytes32 result = indexMerkelTree[idxs[0]];
+            require(inLFD(objector, idxs[0]));
             for(uint j = 1; j < idxs.length; j++) {
                 result = sha3(strConcat(bytes32ToString(result), bytes32ToString(indexMerkelTree[idxs[j]])));
             }
-            if (result == proofOfExistence) {
+            if (result == sideChainRootHash) {
                 objections[objector].objectionSuccess = false;
             }
         }
         return true;
     }
 
+    function inLFD(address objector, uint num) constant returns (bool) {
+        if (leafNodeData[num].length < 2) {
+            return (objections[objector].hashOfReceipt == leafNodeData[num][0]);
+        }
+        for (uint i = 0; i < leafNodeData[num].length; i++) {
+            if(objections[objector].hashOfReceipt == leafNodeData[num][i]) {
+                string memory dataStr = bytes32ToString(leafNodeData[num][0]);
+                for (uint j = 1; j < leafNodeData[num].length; j++) {
+                    dataStr = strConcat(dataStr, bytes32ToString(leafNodeData[num][j]));
+                }
+                return (indexMerkelTree[num] == sha3(dataStr));
+            }
+        }
+        return false;
+    }
+
     function setIMT(uint[] idxs, bytes32[] nodeHash) returns (bool) {
-        if (msg.sender != owner) { return false; }
+        if (msg.sender != sideChainOwner) { return false; }
         if(idxs.length != nodeHash.length) {revert();}
         for (uint i = 0; i < idxs.length; i++) {
             indexMerkelTree[idxs[i]] = nodeHash[i];
@@ -175,7 +190,7 @@ contract SideChain {
     }
 
     function setLFD(uint idx, bytes32[] lfd) returns (bool) {
-        if (msg.sender != owner) { return false; }
+        if (msg.sender != sideChainOwner) { return false; }
         leafNodeData[idx] = lfd;
     }
 
@@ -215,7 +230,7 @@ contract SideChain {
                     objector.transfer(deposit);
                 }
             }
-            owner.transfer(this.balance);
+            sideChainOwner.transfer(this.balance);
             completed = true;
         }
     }
