@@ -1,6 +1,6 @@
 //npm install --save circular-json
-var CircularJSON = require('circular-json')
-var fs = require('fs');
+const CircularJSON = require('circular-json')
+const fs = require('fs');
 const MerkleTree = require('./MerkleTree.js');
 
 

@@ -1,44 +1,40 @@
 const MerkleTree = require('./MerkleTree.js');
 const MerkleTurn = require('./MerkleTurn.js');
+const Client = require('./clientAudit.js');
 const NodeRSA = require('node-rsa');
-var fs = require('fs');
-let tree = new MerkleTree(3);
+const fs = require('fs');
 
+
+let tree = new MerkleTree(3);
 let RH1 = tree.getRootHash();
 console.log('Initial Roothash : ' +RH1);
-console.log('-----------Insert some data in Tree-----------');
-console.log('----Put Transaction----');
 tree.putTransactionInTree({
     'tid': 'T002',
     'content': 'to : cp4 , from : U0x123 , video : xx212311 , time : 5 minutes , XPA : 500000'
 });
-console.log('----Put Transaction2----');
 tree.putTransactionInTree({
     'tid': 'T002',
     'content': 'to : cp4 , from : U0x123 , video : xx212311 , time : 5 minutes , XPA : 500000'
 });
 let RH2 = tree.getRootHash();
 console.log('Update Roothash : '+RH1+' --> '+RH2);
-console.log('Get Transaction from tree: '+tree.getTransactionHashSet('T002'));
-console.log(tree.calcLeafIndex('T002'));
-//console.log(tree);
+console.log('Get TransactionHashSet from tree: '+tree.getTransactionHashSet('T002'));
 
 
-
-writeMerkle(tree,'./merkletree/tree.json');
+writeMerkle(tree,'./merkletree/tree.json');// write tree to file.
 
 
 async function restore () {
-    let restoreTree = await readMerkle('./merkletree/tree.json');
+    let restoreTree = await readMerkle('./merkletree/tree.json');// restore tree
     console.log('-------------------------------------------------------------------------------------------------------------------------------------------------');
-    console.log('restore tree complete');
+    console.log('restore tree .......');
     console.log(tree);
     console.log(restoreTree.getTransactionHashSet('T002'));
     console.log(restoreTree.getTransactionSet('T002'));
-    console.log(restoreTree.auditSlice(restoreTree.extractSlice('T002'), restoreTree.getTransactionHashSet('T002'), {
+    console.log(auditSlice(restoreTree.extractSlice('T002'), restoreTree.getTransactionHashSet('T002'), {
     'tid': 'T002',
     'content': 'to : cp4 , from : U0x123 , video : xx212311 , time : 5 minutes , XPA : 500000'
-    })); //auditslice(切片, 肉粽堆(切片下各訂單的hash), 訂單明文);
+    })); //auditslice(slice, orderHashSet, orderPlain);
 
 } 
 
