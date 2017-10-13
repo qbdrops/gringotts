@@ -1,5 +1,4 @@
 var keccak256 = require('js-sha3').keccak256;
-const LinkedHashMap = require('./LinkedHashMap.js');
 
 class MerkleTree {
     constructor(height) {
@@ -28,7 +27,7 @@ class MerkleTree {
     //functions
     calcLeafIndex(Tid) {
     //calc leaflocation  
-        this.index = parseInt(keccak256(Tid.toString()).substring(2,14),16);
+        this.index = parseInt(keccak256(Tid.toString()).substring(0,12),16);
         //calc the leaf node id
         return (1 << (this.height - 1)) + Math.abs(this.index) % (1 << (this.height - 1));
     }
@@ -42,39 +41,27 @@ class MerkleTree {
         let tid = order.tid || '';
         let content = order.content || '';
         this.index = this.calcLeafIndex(tid);
-        this.nodes[this.index].put(tid, content);
+        this.nodes[this.index].put(content);
         
         for (let i = this.index; i > 0; i >>= 1) {
             this.nodes[i].updateContentDigest();
         }
     }
-    
-    //    containsInTree(Uid,Tid) {
-    //      this.index = this.calcLeafIndex(Uid.concat(Tid));
-    //     return this.nodes[this.index].contains(Tid);
-    // }
-    
-    //    removeInTree(Uid,Tid) {
-    //     this.index = this.calcLeafIndex(Uid.concat(Tid));
-    //     this.nodes[this.index].remove(Tid);
-    //         for (let i = leaflocation; i > 0; i >>= 1) {
-    //                this.nodes[i].updateContentDigest();
-    //     }
-    // }
-    
+
     getRootHash () {
     //拿到交易證據(代表所有交易紀錄256bits的唯一證據)
         return this.nodes[1].getContentDigest();
     }
-    
-    //    getNodeHash(i) {
-    //     return this.nodes[i].getContentDigest();
-    // }
-       
-    getTransaction(Tid) {
-    //拿到交易內容
+
+    getTransactionHashSet(Tid) {
+    //拿到交易內容的雜湊值(包含其他collision的雜湊)
         this.index = this.calcLeafIndex(Tid);
         return this.nodes[this.index].getContent();
+    }
+    getTransactionSet(Tid) {
+    //拿到交易內容(包含其他collision的交易)
+        this.index = this.calcLeafIndex(Tid);
+        return this.nodes[this.index].getContentPlain();
     }
     extractSlice(Tid) {
     //拿到證據切片
@@ -97,12 +84,19 @@ class MerkleTree {
         return this.slice;
     }
 
-    auditSlice(Tid, slice, content) {//稽核交易內容是否存在於切片及切片是否正確(用戶端核心程式碼)
-        let contentDigest = keccak256(content.toString());
+    auditSlice(slice, orderHashSet, order) {
+        let tid = order.tid || '';
+        let content = order.content || '';
+        let mergeT = '';
         let leftChild = '';
         let rightChild = '';
-        if(content.get(Tid) !== null) {
-            if(contentDigest === slice[0] || contentDigest === slice[1]) { 
+        if(orderHashSet.indexOf(keccak256(content)) >= 0) {// order的hash存在於一堆肉粽中？
+            console.log(tid+' order check ........ ok!');
+            for( let i = 0 ; i < orderHashSet.length ; i++){
+                mergeT = mergeT.concat(orderHashSet[i]);// 串肉粽
+            }
+                let Digest = keccak256(mergeT);// 算串肉粽hash
+            if(Digest === slice[0] || Digest === slice[1]) { // 稽核切片
                 while(slice.length > 1) {
                     leftChild = slice.shift();
                     rightChild = slice.shift();
@@ -110,20 +104,20 @@ class MerkleTree {
                         return 'auditing have problem at : ' + leftChild + ' and ' + rightChild;
                     }
                 }
-                return Tid+' audit complete , roothash = '+slice[0];
+                return tid+' slice audit ........ ok!';
             } else {
-                return 'Hash value error, data incorrect.';    
+                return 'Leaf hash error, data incorrect.';    
             }
         } else {
-            return 'Transaction not in the leaf.';
+            return tid+' order check ........ order hash not in the leaf.';
         }
     }
 
 
 
     //restore merkleTree
-    reputData(id, content, contentDigest){
-     this.nodes[id].reput(content, contentDigest);
+    reputData(id, content, contentPlain, contentDigest){
+     this.nodes[id].reput(content, contentPlain, contentDigest);
     }
 
 
@@ -132,12 +126,14 @@ class MerkleTree {
 
 class Node {
     constructor(id,leftChild,rightChild) {
-        this.content;
+        this.content = null;
+        this.contentPlain = null;
         this.contentDigest = '';
         this.isLeaf = false;
         this.id = id;
         this.leftChild = leftChild;
         this.rightChild = rightChild;
+
 
         if(leftChild === null || rightChild === null) {
             // leaf node
@@ -153,37 +149,23 @@ class Node {
         this.content = null;
     }
         
-    put(Tid,Treceipt) {
-        if(this.content === null) {
-            this.content = new LinkedHashMap();
+    put(orderplain) {
+        if(this.content === null && this.contentPlain === null) {
+            this.content = new Array();
+            this.contentPlain = new Array();
         }
-        this.content.put(Tid, Treceipt);    
+        this.contentPlain.push(orderplain);
+        this.content.push(keccak256(orderplain));    
     }
-    // contains(Tid) {
-    //     if (this.content !== null) {
-    //          if(this.content.get(Tid) !== null){
-    //              return true;
-    //          }
-    //     } else {
-    //         return false;
-    //     }
-    // };
     
-    
-    
-    //  remove(Tid) {
-    
-    //     if (Tid >= 0) {
-    //         this.content.put(Tid,null); 
-    //         return true;
-    //     } else {
-    //         return false;
-    //     }
-    // }
 
     updateContentDigest() {
+        let mergeT = '';
         if (this.isLeaf === true) {
-            this.contentDigest = keccak256(this.content.toString());
+            for( let i = 0 ; i < this.content.length ; i++){
+                mergeT = mergeT.concat(this.content[i]);//串肉粽
+            }
+            this.contentDigest = keccak256(mergeT);
         } else {
             this.contentDigest = keccak256(this.leftChild.contentDigest.concat(this.rightChild.contentDigest));
         }
@@ -196,9 +178,12 @@ class Node {
     getContent() {
         return this.content;
     }
-    
-    reput(content, contentDigest){//restore merkleTree
+    getContentPlain() {
+        return this.contentPlain;
+    }
+    reput(content, contentPlain, contentDigest){//restore merkleTree
         this.content = content;
+        this.contentPlain = contentPlain;
         this.contentDigest = contentDigest;
     }
 

@@ -23,7 +23,7 @@ const MerkleTree = require('./MerkleTree.js');
             let restoreTree = new MerkleTree(refile.height);
 
             for(let i = 1 ; i < (1 << refile.height) ; i++){
-            restoreTree.reputData(i,refile.nodes[i].content, refile.nodes[i].contentDigest);
+            restoreTree.reputData(i,refile.nodes[i].content, refile.nodes[i].contentPlain, refile.nodes[i].contentDigest);
             }
             resolve(restoreTree);
         
