@@ -19,17 +19,19 @@ const MerkleTree = require('./MerkleTree.js');
         return new Promise((resolve, reject) => {
             fs.readFile(path.toString(), 'utf-8', (err, data)=> {
     
-            let refile = CircularJSON.parse(data);
-            let restoreTree = new MerkleTree(refile.height);
+                let refile = CircularJSON.parse(data);
+                let restoreTree = new MerkleTree(refile.height);
 
-            for(let i = 1 ; i < (1 << refile.height) ; i++){
-            restoreTree.reputData(i,refile.nodes[i].content, refile.nodes[i].contentPlain, refile.nodes[i].contentDigest);
-            }
-            resolve(restoreTree);
+                for(let i = 1 ; i < (1 << refile.height) ; i++){
+                    restoreTree.reputData(i,refile.nodes[i].content, refile.nodes[i].contentPlain, refile.nodes[i].contentDigest);
+                }
+                
+
+                resolve(restoreTree);
         
   
              
-        });
+            });
 
         });   
   }

@@ -1,5 +1,4 @@
 const keccak256 = require('js-sha3').keccak256;
-
 class MerkleTree {
     constructor(height) {
         this.nodes;
@@ -38,14 +37,16 @@ class MerkleTree {
 
     putTransactionInTree(order) {
     //將交易放進樹當中
+       
         let tid = order.tid || '';
         let content = order.content || '';
+           
         this.index = this.calcLeafIndex(tid);
-        this.nodes[this.index].put(content);
-         
-        for (let i = this.index; i > 0; i >>= 1) {
-            this.nodes[i].updateContentDigest();
-        }
+        this.nodes[this.index].put(content);         
+            for (let i = this.index; i > 0; i >>= 1) {
+                this.nodes[i].updateContentDigest();
+            }
+       
     }
 
     getRootHash () {
