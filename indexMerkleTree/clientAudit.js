@@ -2,7 +2,7 @@ const keccak256 = require('js-sha3').keccak256;
 
 auditSlice = function(slice, orderHashSet, order) {
         let tid = order.tid || '';
-        let content = order.content || '';
+        let content = order.orderCipher || '';
         let mergeT = '';
         let leftChild = '';
         let rightChild = '';
