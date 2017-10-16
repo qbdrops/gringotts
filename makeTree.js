@@ -1,13 +1,14 @@
-const MerkleTree = require('./indexMerkleTree/MerkleTree.js');
-const faker = require('faker');
-const Web3 = require('web3');
-const fs = require('fs');
+let env = require('./env');
+let MerkleTree = require('./indexMerkleTree/MerkleTree.js');
+let faker = require('faker');
+let Web3 = require('web3');
+let fs = require('fs');
 
-const scid = 7;
+const scid = 8;
 const maxHeight = 10;
-const IFCContractAddress = '0x84af34e4bf857a6c505cd5a319b7d478941dc853';
+const IFCContractAddress = env.IFCContractAddress;
 
-let web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'));
+let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
 let tree = new MerkleTree(maxHeight);
 const IFC = JSON.parse(fs.readFileSync('./build/contracts/IFC.json'));
 const sidechain = JSON.parse(fs.readFileSync('./build/contracts/SideChain.json'));
@@ -37,7 +38,7 @@ let makeTree = function () {
 };
 
 let unlockCoinbase = function () {
-    web3.personal.unlockAccount(web3.eth.coinbase, 'howard123');
+    web3.personal.unlockAccount(web3.eth.coinbase, env.coinbasePassword);
 };
 
 let deploySideChainContract = function (rootHash) {
