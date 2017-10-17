@@ -43,9 +43,9 @@ class MerkleTree {
            
         this.index = this.calcLeafIndex(tid);
         this.nodes[this.index].put(content);         
-            for (let i = this.index; i > 0; i >>= 1) {
-                this.nodes[i].updateContentDigest();
-            }
+        for (let i = this.index; i > 0; i >>= 1) {
+            this.nodes[i].updateContentDigest();
+        }
        
     }
 
@@ -89,7 +89,7 @@ class MerkleTree {
 
     //restore merkleTree
     reputData(id, content, contentPlain, contentDigest){
-     this.nodes[id].reput(content, contentPlain, contentDigest);
+        this.nodes[id].reput(content, contentPlain, contentDigest);
     }
 
 
