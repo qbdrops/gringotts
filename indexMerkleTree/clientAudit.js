@@ -2,11 +2,12 @@ const keccak256 = require('js-sha3').keccak256;
 
 let auditSlice = function(slice, orderHashSet, order) {
     let tid = order.tid || '';
-    let content = order.orderCipher || '';
+    let content_user = order.orderCipher_user || '';
+    let content_cp = order.orderCipher_cp || '';
     let mergeT = '';
     let leftChild = '';
     let rightChild = '';
-    if(orderHashSet.indexOf(keccak256(content)) >= 0) {// order的hash存在於一堆肉粽中？
+    if(orderHashSet.indexOf(keccak256(content_user.concat(content_cp))) >= 0) {// order的hash存在於一堆肉粽中？
         console.log(tid+' order check ........ ok!');
         for( let i = 0 ; i < orderHashSet.length ; i++){
             mergeT = mergeT.concat(orderHashSet[i]);// 串肉粽
