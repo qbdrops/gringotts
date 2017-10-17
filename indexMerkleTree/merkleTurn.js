@@ -27,7 +27,7 @@ let restoreMerkle = function(refile){
     return new Promise((resolve) => {     
         let restoreTree = new MerkleTree(refile.height);
         for(let i = 1 ; i < (1 << refile.height) ; i++){
-            restoreTree.reputData(i,refile.nodes[i].content, refile.nodes[i].content_user, refile.nodes[i].content_cp, refile.nodes[i].contentDigest);
+            restoreTree.reputData(i,refile.nodes[i].content, refile.nodes[i].contentUser, refile.nodes[i].contentCp, refile.nodes[i].contentDigest);
         }
                 
 

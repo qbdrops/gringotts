@@ -39,10 +39,10 @@ class MerkleTree {
     //將交易放進樹當中
        
         let tid = order.tid || '';
-        let content_user = order.content_user || '';
-        let content_cp = order.content_cp || ''; 
+        let contentUser = order.contentUser || '';
+        let contentCp = order.contentCp || ''; 
         this.index = this.calcLeafIndex(tid);
-        this.nodes[this.index].put(content_user, content_cp);         
+        this.nodes[this.index].put(contentUser, contentCp);         
         for (let i = this.index; i > 0; i >>= 1) {
             this.nodes[i].updateContentDigest();
         }
@@ -59,12 +59,12 @@ class MerkleTree {
         this.index = this.calcLeafIndex(Tid);
         return this.nodes[this.index].getContent();
     }
-    getTransactionSet_user(Tid) {
+    getTransactionSetUser(Tid) {
     //拿到用戶公鑰加密的交易內容(包含其他collision的交易)
         this.index = this.calcLeafIndex(Tid);
         return this.nodes[this.index].getContentUser();
     }
-    getTransactionSet_cp(Tid) {
+    getTransactionSetCp(Tid) {
         //拿到ＣＰ公鑰加密的交易內容(包含其他collision的交易)
         this.index = this.calcLeafIndex(Tid);
         return this.nodes[this.index].getContentCp();
@@ -93,8 +93,8 @@ class MerkleTree {
 
 
     //restore merkleTree
-    reputData(id, content, content_user, content_cp, contentDigest){
-        this.nodes[id].reput(content, content_user, content_cp, contentDigest);
+    reputData(id, content, contentUser, contentCp, contentDigest){
+        this.nodes[id].reput(content, contentUser, contentCp, contentDigest);
     }
 
 
@@ -104,8 +104,8 @@ class MerkleTree {
 class Node {
     constructor(id,leftChild,rightChild) {
         this.content = null;
-        this.content_user = null;
-        this.content_cp = null;
+        this.contentUser = null;
+        this.contentCp = null;
         this.contentDigest = '';
         this.isLeaf = false;
         this.id = id;
@@ -127,15 +127,15 @@ class Node {
         this.content = null;
     }
         
-    put(cipher_user,cipher_cp) {
-        if(this.content === null && this.content_user === null && this.content_cp === null) {
+    put(cipherUser,cipherCp) {
+        if(this.content === null && this.contentUser === null && this.contentCp === null) {
             this.content = new Array();
-            this.content_user = new Array();
-            this.content_cp = new Array();
+            this.contentUser = new Array();
+            this.contentCp = new Array();
         }
-        this.content_user.push(cipher_user);
-        this.content_cp.push(cipher_cp);
-        this.content.push(keccak256(cipher_user.concat(cipher_cp)));     
+        this.contentUser.push(cipherUser);
+        this.contentCp.push(cipherCp);
+        this.content.push(keccak256(cipherUser.concat(cipherCp)));     
     }
     
 
@@ -159,15 +159,15 @@ class Node {
         return this.content;
     }
     getContentUser() {
-        return this.content_user;
+        return this.contentUser;
     }
     getContentCp() {
-        return this.content_cp;
+        return this.contentCp;
     }
-    reput(content, content_user, content_cp, contentDigest){//restore merkleTree
+    reput(content, contentUser, contentCp, contentDigest){//restore merkleTree
         this.content = content;
-        this.content_user = content_user;
-        this.content_cp = content_cp;
+        this.contentUser = contentUser;
+        this.contentCp = contentCp;
         this.contentDigest = contentDigest;
     }
 
