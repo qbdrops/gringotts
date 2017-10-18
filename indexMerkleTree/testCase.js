@@ -10,8 +10,8 @@ async function restore () {
     let content = 'to : cp4 , from : U0x123 , video : xx212311 , time : 5 minutes , XPA : 500000';
     let publicUser = await RSAencrypt.readPublic('./indexMerkleTree/keypair/userPublicKey.json');
     let publicCp = await RSAencrypt.readPublic('./indexMerkleTree/keypair/cpPublicKey.json');    
-    let ciphertextUser = await RSAencrypt.encrypt(content, publicUser);// encrypt by user key
-    let ciphertextCp = await RSAencrypt.encrypt(content, publicCp);// encrypt by user key
+    let ciphertextUser = await RSAencrypt.encrypt(content, publicUser.publicKey);// encrypt by user key
+    let ciphertextCp = await RSAencrypt.encrypt(content, publicCp.publicKey);// encrypt by user key
     tree.putTransactionInTree({
         'tid': 'T002',
         'contentUser': ''+ciphertextUser+'',

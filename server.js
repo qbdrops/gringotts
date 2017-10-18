@@ -3,7 +3,9 @@ let express = require('express');
 let bodyParser = require('body-parser');
 let cors = require('cors');
 let ethUtils = require('ethereumjs-util');
-let db = require('./db');
+let RSAencrypt = require('./indexMerkleTree/RSAencrypt.js');
+let connect = require('./db');
+let db;
 
 let app = express();
 app.use(bodyParser.json());
@@ -13,6 +15,12 @@ app.use(cors());
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
 const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
+
+async function init() {
+    db = await connect();
+}
+
+init();
 
 function queryStringToJSON(bill) {
     var pairs = bill.split('&');
@@ -88,6 +96,24 @@ app.post('/slice', function (req, res) {
         res.status(500, e.message);
     }
 });
+
+app.get('/save/keys', async function (req, res) {
+    try {
+        saveKeys();
+        let keys = await db.getPublicKeys();
+        res.send(keys);
+    } catch (e) {
+        console.log(e);
+        res.status(500, e.message);
+    }
+});
+
+let saveKeys = async function () {
+    let public_user = await RSAencrypt.readPublic('./indexMerkleTree/keypair/userPublicKey.json');
+    let public_cp = await RSAencrypt.readPublic('./indexMerkleTree/keypair/cpPublicKey.json');
+    let response = await db.insertPublicKeys(public_user, public_cp);
+    return response;
+};
 
 app.listen(3000, function () {
     console.log(privatekey);

@@ -1,10 +1,14 @@
 let env = require('./env');
-let MerkleTree = require('./indexMerkleTree/MerkleTree.js');
+let MerkleTree = require('./indexMerkleTree/MerkleTree');
+let RSA = require('./indexMerkleTree/RSAencrypt');
 let faker = require('faker');
 let Web3 = require('web3');
 let fs = require('fs');
+let DB = require('./db');
+let db;
+let keys;
 
-const scid = 8;
+const scid = 11;
 const maxHeight = 10;
 const IFCContractAddress = env.IFCContractAddress;
 
@@ -21,17 +25,40 @@ const sidechainBytecode = sidechain.unlinked_binary;
 const sidechainABI = sidechain.abi;
 const sidechainContractClass = web3.eth.contract(sidechainABI);
 
-let makeTree = function () {
+let makeTree = async function () {
+    let userPublicKey = keys.userPublicKey.publickey;
+    let cpsPublicKey = keys.cpsPublicKey.publickey;
+
+    console.log(userPublicKey);
+    console.log(cpsPublicKey);
+
     let leafNodeNumber = Math.pow(2, maxHeight - 1);
+    let globalTid;
     for (let i = 0; i < leafNodeNumber; i++) {
+        let tid = faker.random.uuid();
+        let message = faker.random.alphaNumeric(100);
+        let cipherUser = await RSA.encrypt(message, userPublicKey);
+        let cipherCP = await RSA.encrypt(message, cpsPublicKey);
+
+        if (i == 0) {
+            globalTid = tid;
+            console.log(cipherUser);
+            console.log(cipherCP);
+        }
+
         let content = {
-            'tid': faker.random.uuid(),
-            'content': faker.random.alphaNumeric(100)
+            'tid': tid,
+            'contentUser': cipherUser,
+            'contentCp': cipherCP,
         };
-    
-        console.log(content);
+
         tree.putTransactionInTree(content);
     }
+
+    let cipherA = tree.getTransactionSetUser(globalTid);
+    let cipherB = tree.getTransactionSetCp(globalTid);
+    console.log(cipherA);
+    console.log(cipherB);
     
     let rootHash = '0x' + tree.getRootHash();
     return rootHash;
@@ -62,9 +89,12 @@ let deploySideChainContract = function (rootHash) {
     });
 };
 
-async function main() {
+async function make() {
     try {
-        const rootHash = makeTree();
+        db = await DB();
+        keys = await db.getPublicKeys();
+        console.log(keys);
+        const rootHash = await makeTree();
         console.log('Root Hash: ' + rootHash);
         const result = await deploySideChainContract(rootHash);
         const contractAddress = result.address;
@@ -81,9 +111,10 @@ async function main() {
         });
 
         console.log('Add sidechain tx hash: ' + addSideChainTxHash);
+        db.close();
     } catch (e) {
         console.log(e);
     }
 }
 
-main();
+make();
