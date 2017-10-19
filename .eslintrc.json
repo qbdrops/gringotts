@@ -27,6 +27,7 @@
         ],
         "no-console": [
             "off"
-        ]
+        ],
+        "camelcase": [2, {"properties": "always"}]
     }
 }

@@ -109,9 +109,9 @@ app.get('/save/keys', async function (req, res) {
 });
 
 let saveKeys = async function () {
-    let public_user = await RSAencrypt.readPublic('./indexMerkleTree/keypair/userPublicKey.json');
-    let public_cp = await RSAencrypt.readPublic('./indexMerkleTree/keypair/cpPublicKey.json');
-    let response = await db.insertPublicKeys(public_user, public_cp);
+    let publicUser = await RSAencrypt.readPublic('./indexMerkleTree/keypair/userPublicKey.json');
+    let publicCp = await RSAencrypt.readPublic('./indexMerkleTree/keypair/cpPublicKey.json');
+    let response = await db.insertPublicKeys(publicUser, publicCp);
     return response;
 };
 

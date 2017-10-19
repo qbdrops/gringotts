@@ -23,6 +23,8 @@
   "devDependencies": {
     "babel-eslint": "^8.0.1",
     "eslint": "^4.8.0",
-    "faker": "^4.1.0"
+    "faker": "^4.1.0",
+    "mocha": "^4.0.1",
+    "should": "^13.1.2"
   }
 }

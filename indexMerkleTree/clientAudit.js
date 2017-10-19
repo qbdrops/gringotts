@@ -12,8 +12,8 @@ let auditSlice = function(slice, orderHashSet, order) {
         for( let i = 0 ; i < orderHashSet.length ; i++){
             mergeT = mergeT.concat(orderHashSet[i]);// 串肉粽
         }
-        let Digest = keccak256(mergeT);// 算串肉粽hash
-        if(Digest === slice[0] || Digest === slice[1]) { // 稽核切片
+        let digest = keccak256(mergeT);// 算串肉粽hash
+        if(digest === slice[0] || digest === slice[1]) { // 稽核切片
             while(slice.length > 1) {
                 leftChild = slice.shift();
                 rightChild = slice.shift();

@@ -26,10 +26,7 @@ async function restore () {
     console.log('Update Roothash : '+RH1+' --> '+RH2);
     console.log('Get TransactionHashSet from tree: '+tree.getTransactionHashSet('T002'));
 
-
     MerkleTurn.writeMerkle(tree,'./indexMerkleTree/merkletree/tree.json');// write tree to file.
-
-
 
     let restorefile = await MerkleTurn.readJSONfile('./indexMerkleTree/merkletree/tree.json');// restore tree
     let restoreTree = await MerkleTurn.restoreMerkle(restorefile);// restore tree
@@ -48,17 +45,7 @@ async function restore () {
     
     };
 
-    console.log(Client.auditSlice(restoreTree.extractSlice('T002'), restoreTree.getTransactionHashSet('T002'),order)); //auditslice(slice, orderHashSet, ordercipher);
+    console.log(Client.auditSlice(restoreTree.extractSlice('T002'), restoreTree.getTransactionHashSet('T002'),order)); //auditslice(slice, orderHashSet, order);
 } 
 
 restore();
-
-
-
-
-
-
-   
-
-
-

@@ -8,8 +8,7 @@ class MerkleTree {
 
         if (this.height <= 0) {
             console.log('Tree height should be more than 1.');
-        }
-        
+        }       
         //initial node  bottom-up
         this.nodes = new Array(1 << height);
         for (let i = this.nodes.length - 1; i > 0; i--) {
@@ -21,23 +20,19 @@ class MerkleTree {
                 this.nodes[i] = new Node(i, this.nodes[i * 2], this.nodes[(i * 2) + 1]);
             }
         } 
-    }
-    
-    //functions
-    calcLeafIndex(Tid) {
-    //calc leaflocation  
-        this.index = parseInt(keccak256(Tid.toString()).substring(0,12),16);
+    }   
+
+    calcLeafIndex(tid) { // calc leaflocation  
+        this.index = parseInt(keccak256(tid.toString()).substring(0,12),16);
         //calc the leaf node id
         return (1 << (this.height - 1)) + Math.abs(this.index) % (1 << (this.height - 1));
-    }
-  
+    } 
+    
     leafTotalNode(height) {
         return 1 << (height -1);
     }
 
-    putTransactionInTree(order) {
-    //將交易放進樹當中
-       
+    putTransactionInTree(order) { // 將交易放進樹當中
         let tid = order.tid || '';
         let contentUser = order.contentUser || '';
         let contentCp = order.contentCp || ''; 
@@ -45,8 +40,7 @@ class MerkleTree {
         this.nodes[this.index].put(contentUser, contentCp);         
         for (let i = this.index; i > 0; i >>= 1) {
             this.nodes[i].updateContentDigest();
-        }
-       
+        }       
     }
 
     getRootHash () {
@@ -54,24 +48,26 @@ class MerkleTree {
         return this.nodes[1].getContentDigest();
     }
 
-    getTransactionHashSet(Tid) {
+    getTransactionHashSet(tid) {
     //拿到交易內容的雜湊值(包含其他collision的雜湊)
-        this.index = this.calcLeafIndex(Tid);
+        this.index = this.calcLeafIndex(tid);
         return this.nodes[this.index].getContent();
     }
-    getTransactionSetUser(Tid) {
+    
+    getTransactionSetUser(tid) {
     //拿到用戶公鑰加密的交易內容(包含其他collision的交易)
-        this.index = this.calcLeafIndex(Tid);
+        this.index = this.calcLeafIndex(tid);
         return this.nodes[this.index].getContentUser();
     }
-    getTransactionSetCp(Tid) {
+
+    getTransactionSetCp(tid) {
         //拿到ＣＰ公鑰加密的交易內容(包含其他collision的交易)
-        this.index = this.calcLeafIndex(Tid);
+        this.index = this.calcLeafIndex(tid);
         return this.nodes[this.index].getContentCp();
     }
-    extractSlice(Tid) {
-    //拿到證據切片
-        this.index = this.calcLeafIndex(Tid);
+
+    extractSlice(tid) { //拿到證據切片
+        this.index = this.calcLeafIndex(tid);
         this.slice = new Array();
         let left = '';
         let right = '';
@@ -90,15 +86,9 @@ class MerkleTree {
         return this.slice;
     }
 
-
-
-    //restore merkleTree
-    reputData(id, content, contentUser, contentCp, contentDigest){
+    reputData(id, content, contentUser, contentCp, contentDigest){ // restore merkleTree
         this.nodes[id].reput(content, contentUser, contentCp, contentDigest);
     }
-
-
-
 }
 
 class Node {
@@ -111,8 +101,6 @@ class Node {
         this.id = id;
         this.leftChild = leftChild;
         this.rightChild = rightChild;
-
-
         if(leftChild === null || rightChild === null) {
             // leaf node
             this.isLeaf = true;
@@ -138,7 +126,6 @@ class Node {
         this.content.push(keccak256(cipherUser.concat(cipherCp)));     
     }
     
-
     updateContentDigest() {
         let mergeT = '';
         if (this.isLeaf === true) {
@@ -158,19 +145,21 @@ class Node {
     getContent() {
         return this.content;
     }
+
     getContentUser() {
         return this.contentUser;
     }
+
     getContentCp() {
         return this.contentCp;
     }
+
     reput(content, contentUser, contentCp, contentDigest){//restore merkleTree
         this.content = content;
         this.contentUser = contentUser;
         this.contentCp = contentCp;
         this.contentDigest = contentDigest;
     }
-
 }
 
 module.exports = MerkleTree;

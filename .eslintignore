@@ -2,3 +2,4 @@ migrations/
 test/
 package.json
 package-lock.json
+truffle.js
