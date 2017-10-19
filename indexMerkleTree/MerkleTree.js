@@ -18,6 +18,7 @@ class MerkleTree {
                 this.nodes[i] = new Node(i, this.nodes[i * 2], this.nodes[(i * 2) + 1]);
             }
         } 
+<<<<<<< Updated upstream
     }   
 
     calcLeafIndex(tid) { // calc leaflocation  
@@ -30,14 +31,28 @@ class MerkleTree {
         this.scid = scid;
     }
 
+=======
+    }
+    
+    //functions
+    calcLeafIndex(tid) { // calc leaflocation  
+        this.index = parseInt(keccak256(tid.toString()).substring(0,12),16);
+        //calc the leaf node id
+        return (1 << (this.height - 1)) + Math.abs(this.index) % (1 << (this.height - 1));
+    } 
+    
+>>>>>>> Stashed changes
     leafTotalNode(height) {
         return 1 << (height -1);
     }
 
     putTransactionInTree(order) { // 將交易放進樹當中
+<<<<<<< Updated upstream
         if(!this.scid){
             throw new Error('you should set scid.');
         }
+=======
+>>>>>>> Stashed changes
         let tid = order.tid || '';
         let contentUser = order.contentUser || '';
         let contentCp = order.contentCp || ''; 
@@ -52,6 +67,7 @@ class MerkleTree {
     //拿到交易證據(代表所有交易紀錄256bits的唯一證據)
         return this.nodes[1].getContentDigest();
     }
+<<<<<<< Updated upstream
 
     getTransactionHashSet(tid) {
     //拿到交易內容的雜湊值(包含其他collision的雜湊)
@@ -79,6 +95,27 @@ class MerkleTree {
     extractSlice(tid) { //拿到證據切片
         let index = this.calcLeafIndex(tid);
         let slice = new Array();
+=======
+    getTransactionHashSet(tid) {
+    //拿到交易內容的雜湊值(包含其他collision的雜湊)
+        this.index = this.calcLeafIndex(tid);
+        return this.nodes[this.index].getContent();
+    }
+    getTransactionSetUser(tid) {
+    //拿到用戶公鑰加密的交易內容(包含其他collision的交易)
+        this.index = this.calcLeafIndex(tid);
+        return this.nodes[this.index].getContentUser();
+    }
+    getTransactionSetCp(tid) {
+        //拿到ＣＰ公鑰加密的交易內容(包含其他collision的交易)
+        this.index = this.calcLeafIndex(tid);
+        return this.nodes[this.index].getContentCp();
+    }
+    extractSlice(tid) {
+    //拿到證據切片
+        this.index = this.calcLeafIndex(tid);
+        this.slice = new Array();
+>>>>>>> Stashed changes
         let left = '';
         let right = '';
         for (;index > 1; index >>= 1) { 
