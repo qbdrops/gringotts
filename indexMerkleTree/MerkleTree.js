@@ -33,7 +33,10 @@ class MerkleTree {
     leafTotalNode(height) {
         return 1 << (height -1);
     }
-
+    
+    getHeight(){
+        return this.height;
+    }
     putTransactionInTree(order) { // 將交易放進樹當中
         if(!this.scid){
             throw new Error('you should set scid.');

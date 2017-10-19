@@ -10,6 +10,7 @@ const keccak256 = require('js-sha3').keccak256;
 
 let node = new Array(8) // a[0] not use , only use a[1-7]
 let tree = new MerkleTree(3);
+tree.setSCID(1);
 
 describe('#MerkleTree construct', function(){
     it('initial root hash checking', function(){
@@ -27,11 +28,11 @@ describe('#MerkleTree construct', function(){
 })
 
 describe('#MerkleTree put one transaction', function(){
-    it('Put one transaction and check leaf hash, root hash', function(){
+    it('Put one transaction and check(leaf hash, root hash)', function(){
         let tid = '0x123';
+        let tOrder = 'hello world';
         let index = parseInt(keccak256(tid.toString()).substring(0,12),16);
         let leafLocation =(1 << (3 - 1)) + Math.abs(index) % (1 << (3 - 1));
-        let tOrder = 'hello world';
         let tOrderHash = keccak256(tOrder.concat(tOrder));
         let leafNodeHash = keccak256(tOrderHash);
         node[leafLocation] = leafNodeHash;
@@ -40,14 +41,15 @@ describe('#MerkleTree put one transaction', function(){
                     'contentUser': ''+tOrder+'',
                     'contentCp': ''+tOrder+''
                 });
-        treeLeafHash = tree.getNodeHash('0x123');
-        treeLeafHash.should.equal(node[leafLocation]);// check leaf hash
-
         for(let i = 3 ; i > 0 ; i--){ //internal node update
             node[i] = keccak256(node[i*2].concat(node[i*2+1]));
         }
+
+        treeLeafHash = tree.getNodeHash('0x123');
+        treeLeafHash.should.equal(node[leafLocation]);// check leaf hash
         RH = tree.getRootHash();
         RH.should.equal(node[1]);// check root hash
     })
 })
+
 
