@@ -5,12 +5,19 @@ let cors = require('cors');
 let ethUtils = require('ethereumjs-util');
 let RSAencrypt = require('./indexMerkleTree/RSAencrypt.js');
 let connect = require('./db');
+
 let db;
 
 let app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({extended: false}));
 app.use(cors());
+
+var server = require('http').createServer(app);
+var io = require('socket.io')(server);
+io.on('connection', function (socket) {
+    socket.emit('transaction', {hello: 'world'});
+});
 
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
@@ -115,7 +122,7 @@ let saveKeys = async function () {
     return response;
 };
 
-app.listen(3000, function () {
+server.listen(3000, function () {
     console.log(privatekey);
     console.log(publickey);
     console.log(account);
