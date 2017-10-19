@@ -5,6 +5,7 @@ let cors = require('cors');
 let ethUtils = require('ethereumjs-util');
 let RSAencrypt = require('./indexMerkleTree/RSAencrypt.js');
 let connect = require('./db');
+let buildIFCTree = require('./makeTree');
 
 let db;
 
@@ -23,11 +24,9 @@ const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
 const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
 
-async function init() {
+async function connectDB() {
     db = await connect();
 }
-
-init();
 
 function queryStringToJSON(bill) {
     var pairs = bill.split('&');
@@ -95,7 +94,7 @@ app.post('/finish', function (req, res) {
     }
 });
 
-app.post('/slice', function (req, res) {
+app.get('/slice', function (req, res) {
     try {
         res.send({sliceHashes: []});
     } catch (e) {
@@ -104,11 +103,24 @@ app.post('/slice', function (req, res) {
     }
 });
 
-app.get('/save/keys', async function (req, res) {
+app.post('/save/keys', async function (req, res) {
     try {
         saveKeys();
         let keys = await db.getPublicKeys();
         res.send(keys);
+    } catch (e) {
+        console.log(e);
+        res.status(500, e.message);
+    }
+});
+
+app.post('/tree', async function (req, res) {
+    try {
+        let body = req.body;
+        let scid = body.scid;
+        let records = body.records;
+        let result = await buildIFCTree(scid, records);
+        res.send({ok: result});
     } catch (e) {
         console.log(e);
         res.status(500, e.message);
@@ -123,6 +135,7 @@ let saveKeys = async function () {
 };
 
 server.listen(3000, function () {
+    connectDB();
     console.log(privatekey);
     console.log(publickey);
     console.log(account);
