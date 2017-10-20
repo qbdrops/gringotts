@@ -128,9 +128,8 @@ contract SideChain {
         return string(bytesString);
     }
 
-    function hashOrder(address objector) constant returns (uint[]) {
+    function hashOrder(uint idx) constant returns (uint[]) {
         uint[] memory order = new uint[](treeHeight);
-        uint idx  = uint(bytes6(objections[objector].hashOfTID)) % (2**(treeHeight-1));
         order[0] = 2**(treeHeight-1) + idx;
         for(uint i = 1; i < treeHeight; i++) {
             order[i] = 2**(treeHeight-i) + ((idx >> 1) << 1) + ((idx % 2) ^ 1);
@@ -146,7 +145,7 @@ contract SideChain {
         for (uint i = 0; i < objectors.length; i++) {
             address objector = objectors[i];
             uint[] memory idxs = new uint[](treeHeight);
-            idxs = hashOrder(objector);
+            idxs = hashOrder(getObjectorIndex(objector));
             bytes32 result = indexMerkelTree[idxs[0]];
             require(inLFD(objector, idxs[0]));
             for(uint j = 1; j < idxs.length; j++) {
@@ -208,6 +207,10 @@ contract SideChain {
         } else {
             return objectors[idx];
         }
+    }
+
+    function getObjectorIndex(address objector) constant returns (uint) {
+        return uint(bytes6(objections[objector].hashOfTID)) % (2**(treeHeight-1));
     }
 
     function getIndexMerkelTree(uint idx) constant returns (bytes32) {
