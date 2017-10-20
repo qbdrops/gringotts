@@ -1,14 +1,13 @@
 const keccak256 = require('js-sha3').keccak256;
 
 let auditSlice = function(slice, orderHashSet, order) {
-    let tid = order.tid || '';
     let contentUser = order.orderCipherUser || '';
     let contentCp = order.orderCipherCp || '';
     let mergeT = '';
     let leftChild = '';
     let rightChild = '';
     if(orderHashSet.indexOf(keccak256(contentUser.concat(contentCp))) >= 0) {// order的hash存在於一堆肉粽中？
-        console.log(tid+' order check ........ ok!');
+        console.log(' order check ........ ok!');
         for( let i = 0 ; i < orderHashSet.length ; i++){
             mergeT = mergeT.concat(orderHashSet[i]);// 串肉粽
         }
@@ -21,12 +20,12 @@ let auditSlice = function(slice, orderHashSet, order) {
                     return 'auditing have problem at : ' + leftChild + ' and ' + rightChild;
                 }
             }
-            return tid+' slice audit ........ ok!';
+            return ' slice audit ........ ok!';
         } else {
             return 'Leaf hash error, data incorrect.';
         }
     } else {
-        return tid+' order check ........ order hash not in the leaf.';
+        return ' order check ........ order hash not in the leaf.';
     }
 };
 module.exports = {

@@ -7,7 +7,7 @@ async function restore () {
     let tree = new MerkleTree(3);
     let RH1 = tree.getRootHash();
     console.log('Initial Roothash : ' +RH1);
-    let content = 'to : cp4 , from : U0x123 , video : xx212311 , time : 5 minutes , XPA : 500000 , scid, tid';
+    let content = 'to : cp4 , from : U0x123 , video : xx212311 , time : 5 minutes , XPA : 500000 , scid = 1, tid = T002';
     let publicUser = await RSAencrypt.readPublic('./indexMerkleTree/keypair/userPublicKey.json');
     let publicCp = await RSAencrypt.readPublic('./indexMerkleTree/keypair/cpPublicKey.json');    
     let ciphertextUser = await RSAencrypt.encrypt(content, publicUser.publicKey);// encrypt by user key
