@@ -1,6 +1,6 @@
 const CircularJSON = require('circular-json');
 const fs = require('fs');
-const MerkleTree = require('./MerkleTree.js');
+const merkleTree = require('./MerkleTree.js');
 
 let writeMerkle = function(tree, path){
     fs.writeFile(path.toString(), CircularJSON.stringify(tree), ()=> {
@@ -18,7 +18,7 @@ let readJSONfile = function(path){
 
 let restoreMerkle = function(refile){
     return new Promise((resolve) => {     
-        let restoreTree = new MerkleTree(refile.height);
+        let restoreTree = new merkleTree(refile.height);
         for(let i = 1 ; i < (1 << refile.height) ; i++){
             restoreTree.reputData(i,refile.nodes[i].content, refile.nodes[i].contentUser, refile.nodes[i].contentCp, refile.nodes[i].contentDigest);
         }                
