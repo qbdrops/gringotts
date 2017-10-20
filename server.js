@@ -6,6 +6,7 @@ let ethUtils = require('ethereumjs-util');
 let RSAencrypt = require('./indexMerkleTree/RSAencrypt.js');
 let connect = require('./db');
 let buildIFCTree = require('./makeTree');
+let faker = require('faker');
 
 let db;
 
@@ -16,8 +17,35 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-io.on('connection', function (socket) {
-    socket.emit('transaction', {hello: 'world'});
+io.on('connection', async function (socket) {
+    let scid = 18;
+    let recordsLength = 5;
+    let records = [];
+    for (let i = 0; i < recordsLength; i++) {
+        let tid = faker.random.uuid();
+        let content = {
+            'tid': tid,
+            'uid': faker.random.number(),
+            'cp': faker.company.companyName(),
+            'from': faker.date.past(),
+            'to': faker.date.recent(),
+            'price': faker.commerce.price(),
+            'scid': scid
+        };
+
+        let orderContent = Buffer.from(JSON.stringify(content)).toString('hex');
+        let order = {
+            tid: tid,
+            content: orderContent
+        };
+        console.log(order);
+
+        socket.emit('transaction', order);
+        records.push(order);
+    }
+
+    let result = await buildIFCTree(scid, records);
+    console.log(result);
 });
 
 const privatekey = env.coinbasePrivateKey;
