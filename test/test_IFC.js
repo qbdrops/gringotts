@@ -7,7 +7,7 @@ var scid = "0x63d7db5ce060b288ecf5390594d5969bc1a206ceeb24df31cffcc8876df5e44b",
 contract('SideChain', function(accounts) {
 	var instance;
 
-	it("construc test", function() {
+	it("construct test", function() {
 		return SideChain.deployed().then(function(i) {
 			instance = i;
 			var getSCID;

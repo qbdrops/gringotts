@@ -75,13 +75,13 @@ let deploySideChainContract = function (scid, rootHash, treeHeight) {
     });
 };
 
-async function buildIFCTree(scid, records) {
+async function buildSideChainTree(scid, records) {
     try {
         db = await DB();
         keys = await db.getPublicKeys();
         console.log(keys);
         const tree = await makeTree(scid, records);
-        await db.insertIFCTree(tree);
+        await db.insertSideChainTree(scid, tree.export());
         const rootHash = '0x' + tree.getRootHash();
         console.log('Root Hash: ' + rootHash);
         const result = await deploySideChainContract(scid, rootHash, tree.getHeight());
@@ -108,4 +108,4 @@ async function buildIFCTree(scid, records) {
     return false;
 }
 
-module.exports = buildIFCTree;
+module.exports = buildSideChainTree;

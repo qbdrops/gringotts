@@ -102,6 +102,23 @@ class MerkleTree {
     reputData(id, content, contentUser, contentCp, contentDigest){ // restore merkleTree
         this.nodes[id].reput(content, contentUser, contentCp, contentDigest);
     }
+
+    export() {
+        return JSON.parse(JSON.stringify({
+            nodes: this.nodes,
+            scid: this.scid,
+            height: this.height
+        }));
+    }
+
+    static import(tree) {
+        console.log(tree);
+        let restoreTree = new MerkleTree(tree.height);
+        for(let i = 1 ; i < (1 << tree.height) ; i++) {
+            restoreTree.reputData(i,tree.nodes[i].content, tree.nodes[i].contentUser, tree.nodes[i].contentCp, tree.nodes[i].contentDigest);
+        }                
+        return restoreTree;         
+    }
 }
 
 class Node {

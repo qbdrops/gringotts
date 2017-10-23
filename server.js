@@ -4,8 +4,9 @@ let bodyParser = require('body-parser');
 let cors = require('cors');
 let ethUtils = require('ethereumjs-util');
 let RSAencrypt = require('./indexMerkleTree/RSAencrypt.js');
+let MerkleTree = require('./indexMerkleTree/MerkleTree.js');
 let connect = require('./db');
-let buildIFCTree = require('./makeTree');
+let buildSideChainTree = require('./makeTree');
 let faker = require('faker');
 
 let db;
@@ -17,8 +18,9 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
+let scid = 25;
+
 io.on('connection', async function (socket) {
-    let scid = 18;
     let recordsLength = 5;
     let records = [];
     for (let i = 0; i < recordsLength; i++) {
@@ -44,7 +46,8 @@ io.on('connection', async function (socket) {
         records.push(order);
     }
 
-    let result = await buildIFCTree(scid, records);
+    let result = await buildSideChainTree(scid, records);
+    scid++;
     console.log(result);
 });
 
@@ -122,9 +125,21 @@ app.post('/finish', function (req, res) {
     }
 });
 
-app.get('/slice', function (req, res) {
+app.get('/slice', async function (req, res) {
     try {
-        res.send({sliceHashes: []});
+        let query = req.query;
+        let scid = query.scid;
+        let tid = query.tid;
+
+        let treeJson = await db.getSideChainTree(scid);
+        let tree = await MerkleTree.import(treeJson.tree);
+        let slice = tree.extractSlice(tid);
+        let leafNodeHashSet = tree.getTransactionHashSet(tid);
+
+        res.send({
+            slice: slice,
+            leafNodeHashSet: leafNodeHashSet
+        });
     } catch (e) {
         console.log(e);
         res.status(500, e.message);
@@ -147,7 +162,7 @@ app.post('/tree', async function (req, res) {
         let body = req.body;
         let scid = body.scid;
         let records = body.records;
-        let result = await buildIFCTree(scid, records);
+        let result = await buildSideChainTree(scid, records);
         res.send({ok: result});
     } catch (e) {
         console.log(e);
