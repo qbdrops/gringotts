@@ -78,7 +78,7 @@ app.put('/rsa/publickey', async function (req, res) {
         res.send({result: command.result.ok});
     } catch (e) {
         console.log(e);
-        res.status(500, e.message);
+        res.status(500).send({errors: e.message});
     }
 });
 
@@ -89,7 +89,7 @@ app.put('/ecc/publickey', async function (req, res) {
         res.send({result: command.result.ok});
     } catch (e) {
         console.log(e);
-        res.status(500, e.message);
+        res.status(500).send({errors: e.message});
     }
 });
 
@@ -104,7 +104,7 @@ app.post('/finish', function (req, res) {
         let messageString = message.content;
         let messageDetail = queryStringToJSON(message.content);
         console.log(messageDetail);
-    
+
         let msgHash = ethUtils.sha3(messageString);
         console.log(msgHash);
     
@@ -121,7 +121,7 @@ app.post('/finish', function (req, res) {
         });
     } catch (e) {
         console.log(e);
-        res.status(500, e.message);
+        res.status(500).send({errors: e.message});
     }
 });
 
@@ -142,7 +142,7 @@ app.get('/slice', async function (req, res) {
         });
     } catch (e) {
         console.log(e);
-        res.status(500, e.message);
+        res.status(500).send({errors: e.message});
     }
 });
 
@@ -153,7 +153,7 @@ app.post('/save/keys', async function (req, res) {
         res.send(keys);
     } catch (e) {
         console.log(e);
-        res.status(500, e.message);
+        res.status(500).send({errors: e.message});
     }
 });
 
@@ -166,7 +166,7 @@ app.post('/tree', async function (req, res) {
         res.send({ok: result});
     } catch (e) {
         console.log(e);
-        res.status(500, e.message);
+        res.status(500).send({errors: e.message});
     }
 });
 
