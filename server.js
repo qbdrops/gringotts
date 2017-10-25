@@ -25,7 +25,7 @@ io.on('connection', async function (socket) {
     let records = [];
     for (let i = 0; i < recordsLength; i++) {
         let tid = faker.random.uuid();
-        let content = {
+        let order = {
             'tid': tid,
             'uid': faker.random.number(),
             'cp': faker.company.companyName(),
@@ -35,15 +35,27 @@ io.on('connection', async function (socket) {
             'scid': scid
         };
 
-        let orderContent = Buffer.from(JSON.stringify(content)).toString('hex');
-        let order = {
-            tid: tid,
-            content: orderContent
-        };
-        console.log(order);
+        let content = Buffer.from(JSON.stringify(order)).toString('hex');
+        let contentHash = ethUtils.sha3(content);
+        let msgHash = ethUtils.sha3(tid + scid + contentHash);
+        console.log(msgHash);
+    
+        let signature = ethUtils.ecsign(msgHash, Buffer.from(privatekey, 'hex'));
+        console.log(signature);
 
-        socket.emit('transaction', order);
-        records.push(order);
+        let res = {
+            tid: tid,
+            scid: scid,
+            content: content,
+            digest: msgHash.toString('hex'),
+            r: '0x' + signature.r.toString('hex'),
+            s: '0x' + signature.s.toString('hex'),
+            v: signature.v,
+        };
+        console.log(res);
+
+        socket.emit('transaction', res);
+        records.push(res);
     }
 
     let result = await buildSideChainTree(scid, records);
