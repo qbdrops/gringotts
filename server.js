@@ -18,7 +18,11 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let scid = 25;
+let scid = '3500';
+
+const privatekey = env.coinbasePrivateKey;
+const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
+const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
 
 io.on('connection', async function (socket) {
     let recordsLength = 5;
@@ -35,24 +39,27 @@ io.on('connection', async function (socket) {
             'scid': scid
         };
 
+        let txHash = ethUtils.sha3(tid).toString('hex');
+        let scidHash = ethUtils.sha3(scid).toString('hex');
         let content = Buffer.from(JSON.stringify(order)).toString('hex');
-        let contentHash = ethUtils.sha3(content);
-        let msgHash = ethUtils.sha3(tid + scid + contentHash);
-        console.log(msgHash);
-    
-        let signature = ethUtils.ecsign(msgHash, Buffer.from(privatekey, 'hex'));
-        console.log(signature);
+        let contentHash = ethUtils.sha3(content).toString('hex');
+        let msgHash = ethUtils.sha3(txHash + scidHash + contentHash);
+        let prefix = new Buffer('\x19Ethereum Signed Message:\n');
+        let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+        let signature = ethUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
 
         let res = {
             tid: tid,
+            tidHash: '0x' + txHash,
             scid: scid,
+            scidHash: '0x' + scidHash,
             content: content,
-            digest: msgHash.toString('hex'),
+            contentHash: '0x' + contentHash,
+            digest: '0x' + msgHash.toString('hex'),
             r: '0x' + signature.r.toString('hex'),
             s: '0x' + signature.s.toString('hex'),
             v: signature.v,
         };
-        console.log(res);
 
         socket.emit('transaction', res);
         records.push(res);
@@ -62,10 +69,6 @@ io.on('connection', async function (socket) {
     scid++;
     console.log(result);
 });
-
-const privatekey = env.coinbasePrivateKey;
-const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
-const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
 
 async function connectDB() {
     db = await connect();
@@ -122,7 +125,7 @@ app.post('/finish', function (req, res) {
     
         let signature = ethUtils.ecsign(msgHash, Buffer.from(privatekey, 'hex'));
         console.log(signature);
-    
+
         res.send({
             digest: msgHash.toString('hex'),
             r: '0x' + signature.r.toString('hex'),

@@ -112,7 +112,6 @@ class MerkleTree {
     }
 
     static import(tree) {
-        console.log(tree);
         let restoreTree = new MerkleTree(tree.height);
         for(let i = 1 ; i < (1 << tree.height) ; i++) {
             restoreTree.reputData(i,tree.nodes[i].content, tree.nodes[i].contentUser, tree.nodes[i].contentCp, tree.nodes[i].contentDigest);
