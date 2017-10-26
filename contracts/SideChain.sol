@@ -17,43 +17,36 @@ contract SideChain {
     mapping (uint => bytes32[]) leafNodeData;
 
     struct ObjectionInfo {
-        bytes32 hashOfReq;
         bytes32 hashOfTID;
-        bytes32 hashOfReceipt;
+        bytes32 hashOfContent;
         bool objectionSuccess;
     }
 
     function SideChain(bytes32 scid, bytes32 rh, uint th) payable {
+        require(msg.value >= (2 ** (th - 1)) * deposit);
         sideChainOwner = msg.sender;
         sideChainID = scid;
         sideChainRootHash = rh;
         treeHeight = th;
         completed = false;
-        uint transactions = 2 ** (treeHeight - 1);
-        if (msg.value < (transactions * deposit)) {
-            revert();
-        }
         expire = now + 1 days; 
     }
 
     function takeObjection(
-        bytes32 req,
         bytes32 tid,
         bytes32 scid,
-        bytes32 rpt,
+        bytes32 content,
         uint8 v,
         bytes32 r,
-        bytes32 s) payable returns (bool) {
-        // if objection time is expire
+        bytes32 s) returns (bool) {
         if (now + 1 hours > expire) { revert(); }
         string memory str;
-        str = strConcat(bytes32ToString(req), bytes32ToString(tid));
-        str = strConcat(str, bytes32ToString(scid));
-        str = strConcat(str, bytes32ToString(rpt));
+        str = strConcat(bytes32ToString(tid), bytes32ToString(scid));
+        str = strConcat(str, bytes32ToString(content));
         bytes32 hashMsg = sha3(str);
         address signer = verify(hashMsg, v, r, s);
         if (signer != sideChainOwner) { return false; }
-        objections[msg.sender] = ObjectionInfo(req, tid, rpt, true);
+        objections[msg.sender] = ObjectionInfo(tid, content, true);
         objectors.push(msg.sender);
         return true;
     }
@@ -160,13 +153,13 @@ contract SideChain {
 
     function inLFD(address objector, uint num) constant returns (bool) {
         if (leafNodeData[num].length < 2) {
-            if (objections[objector].hashOfReceipt == leafNodeData[num][0]) {
+            if (objections[objector].hashOfContent == leafNodeData[num][0]) {
                 return (indexMerkelTree[num] == sha3(bytes32ToString(leafNodeData[num][0])));
             }
             return false;
         } else {
             for (uint i = 0; i < leafNodeData[num].length; i++) {
-                if(objections[objector].hashOfReceipt == leafNodeData[num][i]) {
+                if(objections[objector].hashOfContent == leafNodeData[num][i]) {
                     string memory dataStr = bytes32ToString(leafNodeData[num][0]);
                     for (uint j = 1; j < leafNodeData[num].length; j++) {
                         dataStr = strConcat(dataStr, bytes32ToString(leafNodeData[num][j]));
