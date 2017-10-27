@@ -123,7 +123,7 @@ contract SideChain {
 
     function hashOrder(uint idx) constant returns (uint[]) {
         uint[] memory order = new uint[](treeHeight);
-        order[0] = idx;
+        order[0] = ((idx >> 1) << 1);
         for(uint i = 1; i < treeHeight; i++) {
             order[i] = ((idx >> 1) << 1) + ((idx % 2) ^ 1);
             idx = idx >> 1;
@@ -140,7 +140,7 @@ contract SideChain {
             uint[] memory idxs = new uint[](treeHeight);
             idxs = hashOrder(getObjectorNodeIndex(objector));
             bytes32 result = indexMerkelTree[idxs[0]];
-            require(inLFD(objector, idxs[0]));
+            require(inLFD(objector));
             for(uint j = 1; j < idxs.length; j++) {
                 result = sha3(strConcat(bytes32ToString(result), bytes32ToString(indexMerkelTree[idxs[j]])));
             }
@@ -151,7 +151,8 @@ contract SideChain {
         return true;
     }
 
-    function inLFD(address objector, uint num) constant returns (bool) {
+    function inLFD(address objector) constant returns (bool) {
+        uint num = getObjectorNodeIndex(objector); 
         if (leafNodeData[num].length < 2) {
             if (objections[objector].hashOfContent == leafNodeData[num][0]) {
                 return (indexMerkelTree[num] == sha3(bytes32ToString(leafNodeData[num][0])));
@@ -180,9 +181,14 @@ contract SideChain {
         return true;
     }
 
-    function setLFD(uint idx, bytes32[] lfd) returns (bool) {
-        if (msg.sender != sideChainOwner) { return false; }
-        leafNodeData[idx] = lfd;
+    function setLFD(uint[] idxs, bytes32[] lfd) returns (bool) {
+        uint index_lfd = 0;
+        for (uint i = 0; i < idxs.length; i += 2) {
+            for (uint j = 0; j < idxs[i+1]; j++) {
+                leafNodeData[idxs[i]].push(lfd[index_lfd + j]);
+            }
+            index_lfd += idxs[i+1];
+        }
     }
 
     function isObjector(address objector) constant returns (bool) {
