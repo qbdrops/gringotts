@@ -78,6 +78,7 @@ class MerkleTree {
         let index = this.calcLeafIndex(tid);
         return this.nodes[index].getContentDigest();
     }
+    
 
     extractSlice(tid) { //拿到證據切片
         let index = this.calcLeafIndex(tid);
@@ -118,7 +119,79 @@ class MerkleTree {
         }                
         return restoreTree;         
     }
+
+
+    collectSlices(tidSet){
+        let nodeSet = {};
+        let idReduce = new Array();
+        nodeSet[1] = {
+            'id' : this.nodes[1].id,
+            'nodeHash' : this.nodes[1].getContentDigest(),
+            'hashSet' : this.nodes[1].getContent(),
+            'isLeaf' : this.nodes[1].getIsLeaf()
+        };
+        for(let i = 0 ; i<tidSet.length ; i++){
+            let tid = tidSet.shift();
+            let index = this.calcLeafIndex(tid);
+            if(idReduce.indexOf(index) >= 0){// leaf 抓過直接跳出
+                //重複不紀錄
+            }else{
+                for (;index > 1; index >>= 1) { 
+                    if (index % 2 == 0) {
+                        if(idReduce.indexOf(index) >= 0) {
+                            //重複不紀錄
+                        }else{
+                            nodeSet[index] = {
+                                'id' : this.nodes[index].id,
+                                'nodeHash' : this.nodes[index].getContentDigest(),
+                                'hashSet' : this.nodes[index].getContent(),
+                                'isLeaf' : this.nodes[index].getIsLeaf()
+                            };
+                            idReduce.push(index);
+                        }
+                        if(idReduce.indexOf(index + 1) >= 0) {
+                            //重複不紀錄
+                        }else{
+                            nodeSet[index + 1] = {
+                                'id' : this.nodes[index + 1].id,
+                                'nodeHash' : this.nodes[index + 1].getContentDigest(),
+                                'hashSet' : this.nodes[index + 1].getContent(),
+                                'isLeaf' : this.nodes[index + 1].getIsLeaf()
+                            };
+                            idReduce.push(index + 1);
+                        }
+                    } else {
+                        if(idReduce.indexOf(index - 1) >= 0) {
+                            //重複不紀錄
+                        }else {
+                            nodeSet[index - 1] = {
+                                'id' : this.nodes[index - 1].id,
+                                'nodeHash' : this.nodes[index - 1].getContentDigest(),
+                                'hashSet' : this.nodes[index - 1].getContent(),
+                                'isLeaf' : this.nodes[index - 1].getIsLeaf()
+                            };
+                            idReduce.push(index - 1);
+                        }
+                        if(idReduce.indexOf(index) >= 0) {
+                            //重複不紀錄
+                        }else{
+                            nodeSet[index] = {
+                                'id' : this.nodes[index].id,
+                                'nodeHash' : this.nodes[index].getContentDigest(),
+                                'hashSet' : this.nodes[index].getContent(),
+                                'isLeaf' : this.nodes[index].getIsLeaf()
+                            };
+                            idReduce.push(index + 1);
+                        }
+                    }
+                }
+            }
+        }
+        return nodeSet;
+    }
+
 }
+
 
 class Node {
     constructor(id,leftChild,rightChild) {
@@ -169,6 +242,9 @@ class Node {
 
     getContentDigest() {
         return this.contentDigest;
+    }
+    getIsLeaf(){
+        return this.isLeaf;
     }
 
     getContent() {
