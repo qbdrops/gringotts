@@ -3,7 +3,7 @@ const MerkleTree = require('./MerkleTree.js');
 const RSAencrypt = require('./RSAencrypt.js');
 
 async function restore () {
-    let tree = new MerkleTree(3);
+    let tree = new MerkleTree(4);
     // let RH1 = tree.getRootHash();
     tree.setSCID(10);
     // console.log('Initial Roothash : ' +RH1);
@@ -62,6 +62,7 @@ async function restore () {
         // console.log(result3);
         // console.log(result4);
         console.log(restoreTree.getLeafIds());
+        console.log(restoreTree.getIds());
     }catch(e){
         console.log(e);
     }

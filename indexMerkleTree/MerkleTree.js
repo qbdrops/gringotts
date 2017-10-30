@@ -113,9 +113,15 @@ class MerkleTree {
         }
         return this.nodes[id].getContent();
     }
+    getIds(){
+        let idSet = new Array();
+        for(let i = 1 ; i < 1 << this.height ; i++){
+            idSet.push(i);
+        }
+        return idSet;
+    }
 
     getLeafIds(){
-        // (1 << this.height) - 1
         let idSet = new Array();
         for(let i = 1 << (this.height - 1) ; i < 1 << this.height ; i++){
             idSet.push(i);
