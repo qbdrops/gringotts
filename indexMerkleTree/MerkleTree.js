@@ -171,10 +171,10 @@ class MerkleTree {
     }
 
 
-    collectSlices(tidSet){
+    collectSlices(idSet){
         let nodeSet = {};
         let idReduce = new Array();
-        let tidLength = tidSet.length;
+        let tidLength = idSet.length;
         nodeSet[1] = {
             'id' : this.nodes[1].id,
             'nodeHash' : this.nodes[1].getContentDigest(),
@@ -182,8 +182,8 @@ class MerkleTree {
             'isLeaf' : this.nodes[1].getIsLeaf()
         };
         for(let i = 0 ; i<tidLength ; i++){
-            let tid = tidSet.shift();
-            let index = this.calcLeafIndex(tid);
+            let id = idSet.shift();
+            let index = id;
             if(idReduce.indexOf(index) >= 0){// leaf 抓過直接跳出
                 //重複不紀錄
             }else{

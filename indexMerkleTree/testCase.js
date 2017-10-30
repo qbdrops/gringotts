@@ -86,10 +86,10 @@ async function restore () {
     }catch(e){
         console.log(e);
     }
-    let tidSet = ['ewqewqdwq', 'dkiviiewifwe', 'deqjjoomdlqdqw', 'dovoeifewkfqk', 'dwqcewfekkkhu'];
-    for(let i = 0 ; i < tidSet.length ; i++){
-        console.log(restoreTree.calcLeafIndex(tidSet[i]));
-    }
+    let tidSet = [4, 6, 4, 5, 4];
+    // for(let i = 0 ; i < tidSet.length ; i++){
+    //     console.log(restoreTree.calcLeafIndex(tidSet[i]));
+    // }
     let result = restoreTree.collectSlices(tidSet);
     console.log(result);
 
