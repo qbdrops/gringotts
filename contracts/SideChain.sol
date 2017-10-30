@@ -1,10 +1,11 @@
-pragma solidity ^0.4.13;
+pragma solidity ^0.4.15;
 
 contract SideChain {
     bytes32 public sideChainRootHash;
     bytes32 public sideChainID;
     address public sideChainOwner;
     bool public completed;
+    string public version = "0.1.0";
 
     uint deposit = 100;
     uint treeHeight;
