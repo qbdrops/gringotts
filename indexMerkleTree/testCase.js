@@ -37,6 +37,26 @@ async function restore () {
         'contentUser': ''+ciphertextUser+'',
         'contentCp': ''+ciphertextCp+''
     });
+    tree.putTransactionInTree({
+        'tid': 'T002',
+        'contentUser': ''+ciphertextUser+'',
+        'contentCp': ''+ciphertextCp+''
+    });
+    tree.putTransactionInTree({
+        'tid': 'T002',
+        'contentUser': ''+ciphertextUser+'',
+        'contentCp': ''+ciphertextCp+''
+    });
+    tree.putTransactionInTree({
+        'tid': 'T002',
+        'contentUser': ''+ciphertextUser+'',
+        'contentCp': ''+ciphertextCp+''
+    });
+    tree.putTransactionInTree({
+        'tid': 'T002',
+        'contentUser': ''+ciphertextUser+'',
+        'contentCp': ''+ciphertextCp+''
+    });
     // let RH2 = tree.getRootHash();
     // console.log('Update Roothash : '+RH1+' --> '+RH2);
     // console.log('Get TransactionHashSet from tree: '+tree.getTransactionHashSet('T002'));
@@ -54,11 +74,11 @@ async function restore () {
 
     try{
         // let result1 = restoreTree.getNodeHashesByIndex([1,2,3,4]);
-        let result2 = restoreTree.getTransactionHashesByIndex([4,5,6,7]);
+        // let result2 = restoreTree.getTransactionHashesByIndex([4,5,6,7]);
         // let result3 = restoreTree.getNodeHashByIndex(1);
         // let result4 = restoreTree.getTransactionHashByIndex(18);
         // console.log(result1);
-        console.log(result2);
+        // console.log(result2);
         // console.log(result3);
         // console.log(result4);
         // console.log(restoreTree.getLeafIds());
@@ -66,17 +86,12 @@ async function restore () {
     }catch(e){
         console.log(e);
     }
-    // let tidSet = new Array();
-    // tidSet.push('T002');
-    // tidSet.push('T0021232131');
-    // tidSet.push('T0023213122');
-    // tidSet.push('T002122wq2');
-    // tidSet.push('T124324wd002');
-    // tidSet.push('T002');
-    // tidSet.push('T012412ddfewr2r1302');
-    // tidSet.push('T00ewqe2e2');
-    // let result = restoreTree.collectSlices(tidSet);
-    // console.log(result);
+    let tidSet = ['ewqewqdwq', 'dkiviiewifwe', 'deqjjoomdlqdqw', 'dovoeifewkfqk', 'dwqcewfekkkhu'];
+    for(let i = 0 ; i < tidSet.length ; i++){
+        console.log(restoreTree.calcLeafIndex(tidSet[i]));
+    }
+    let result = restoreTree.collectSlices(tidSet);
+    console.log(result);
 
 
 

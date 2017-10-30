@@ -174,13 +174,14 @@ class MerkleTree {
     collectSlices(tidSet){
         let nodeSet = {};
         let idReduce = new Array();
+        let tidLength = tidSet.length;
         nodeSet[1] = {
             'id' : this.nodes[1].id,
             'nodeHash' : this.nodes[1].getContentDigest(),
             'hashSet' : this.nodes[1].getContent(),
             'isLeaf' : this.nodes[1].getIsLeaf()
         };
-        for(let i = 0 ; i<tidSet.length ; i++){
+        for(let i = 0 ; i<tidLength ; i++){
             let tid = tidSet.shift();
             let index = this.calcLeafIndex(tid);
             if(idReduce.indexOf(index) >= 0){// leaf 抓過直接跳出
@@ -231,7 +232,7 @@ class MerkleTree {
                                 'hashSet' : this.nodes[index].getContent(),
                                 'isLeaf' : this.nodes[index].getIsLeaf()
                             };
-                            idReduce.push(index + 1);
+                            idReduce.push(index);
                         }
                     }
                 }
