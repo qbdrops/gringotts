@@ -16,6 +16,8 @@ contract SideChain {
     mapping (uint => bytes32) indexMerkelTree;
     mapping (uint => bytes32[]) leafNodeData;
 
+    event SideChainEvent(address indexed _owner, bytes32 indexed _scid, bytes4 _func);
+
     struct ObjectionInfo {
         bytes32 hashOfTID;
         bytes32 hashOfContent;
@@ -48,6 +50,7 @@ contract SideChain {
         require (signer == sideChainOwner);
         objections[msg.sender] = ObjectionInfo(tid, content, true);
         objectors.push(msg.sender);
+        SideChainEvent(sideChainOwner, sideChainID, 0x7f2585d7);
         return true;
     }
 
@@ -123,7 +126,7 @@ contract SideChain {
 
     function hashOrder(uint idx) constant returns (uint[]) {
         uint[] memory order = new uint[](treeHeight);
-        order[0] = ((idx >> 1) << 1);
+        order[0] = idx;
         for(uint i = 1; i < treeHeight; i++) {
             order[i] = ((idx >> 1) << 1) + ((idx % 2) ^ 1);
             idx = idx >> 1;
@@ -140,7 +143,11 @@ contract SideChain {
             bytes32 result = indexMerkelTree[idxs[0]];
             require(inLFD(objector));
             for(uint j = 1; j < idxs.length; j++) {
-                result = sha3(strConcat(bytes32ToString(result), bytes32ToString(indexMerkelTree[idxs[j]])));
+                if (idxs[j] % 2 == 1) {
+                    result = sha3(strConcat(bytes32ToString(result), bytes32ToString(indexMerkelTree[idxs[j]])));
+                } else {
+                    result = sha3(strConcat(bytes32ToString(indexMerkelTree[idxs[j]]), bytes32ToString(result)));
+                }
             }
             if (result == sideChainRootHash) {
                 objections[objector].objectionSuccess = false;
@@ -176,6 +183,7 @@ contract SideChain {
         for (uint i = 0; i < idxs.length; i++) {
             indexMerkelTree[idxs[i]] = nodeHash[i];
         }
+        SideChainEvent(sideChainOwner, sideChainID, 0x7b527e2f);
         return true;
     }
 
@@ -188,6 +196,7 @@ contract SideChain {
             }
             index_lfd += idxs[i+1];
         }
+        SideChainEvent(sideChainOwner, sideChainID, 0xd8e820e8);
         return true;
     }
 
