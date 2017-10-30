@@ -3,7 +3,6 @@
 // npm install should --save-dev
 
 const MerkleTree = require('../indexMerkleTree/MerkleTree.js');
-// const mocha = require('../node_modules/mocha/mocha.js');
 const should = require('should');
 const keccak256 = require('js-sha3').keccak256;
 const clientAudit = require('../indexMerkleTree/clientAudit.js');
@@ -71,6 +70,25 @@ describe('#MerkleTree test', function(){
         // Assert
         treeLeafHash.should.equal(node[leafLocation]);// check leaf hash
         RH.should.equal(node[1]);// check root hash
+    })
+    it('collectSlices in tree height 5', function(){
+        // Arrange
+        let tidSet = new Array();
+        let idSet = new Array();
+        for(let i = 0 ; i < 16 ; i++) { // 隨機產生16筆tid抓交集切片
+            tidSet.push('' + i + (i + 1) + (2 * i) + '');
+        }
+        let tree5 = new MerkleTree(5);
+        // Act
+        let nodeSet = tree5.collectSlices(tidSet);
+        for(let i = 0 ; i < 16 ; i++) {// 得到所有leaf node id
+          idSet.push(tree5.calcLeafIndex(tidSet[i]));
+        }
+        // Assert
+        for(let i = 0 ; i < 16 ; i++) {// audit leaf node id 在nodeSet中？
+            let id = idSet.shift();
+            id.should.equal(nodeSet[i].id);
+          }
     })
 })
 describe('#ClientAudit test', function(){

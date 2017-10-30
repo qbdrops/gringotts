@@ -3,10 +3,10 @@ const MerkleTree = require('./MerkleTree.js');
 const RSAencrypt = require('./RSAencrypt.js');
 
 async function restore () {
-    let tree = new MerkleTree(5);
-    let RH1 = tree.getRootHash();
+    let tree = new MerkleTree(3);
+    // let RH1 = tree.getRootHash();
     tree.setSCID(10);
-    console.log('Initial Roothash : ' +RH1);
+    // console.log('Initial Roothash : ' +RH1);
     let content = 'to : cp4 , from : U0x123 , video : xx212311 , time : 5 minutes , XPA : 500000 , scid = 1, tid = T002';
     let publicUser = await RSAencrypt.readPublic('./indexMerkleTree/keypair/userPublicKey.json');
     let publicCp = await RSAencrypt.readPublic('./indexMerkleTree/keypair/cpPublicKey.json');    
@@ -45,17 +45,37 @@ async function restore () {
     let restoreTree = MerkleTree.import(tJson);
     // console.log(restoreTree);
     // console.log('肉粽 ： ', restoreTree.getTransactionHashSet('T002'));
-    let tidSet = new Array();
-    tidSet.push('T002');
-    tidSet.push('T0021232131');
-    tidSet.push('T0023213122');
-    tidSet.push('T002122wq2');
-    tidSet.push('T124324wd002');
-    tidSet.push('T002');
-    tidSet.push('T012412ddfewr2r1302');
-    tidSet.push('T00ewqe2e2');
-    let result = restoreTree.collectSlices(tidSet);
-    console.log(result);
+
+
+
+
+
+
+
+    try{
+        // let result1 = restoreTree.getNodeHashesByIndex([1,2,3,4]);
+        // let result2 = restoreTree.getTransactionHashesByIndex([16]);
+        // let result3 = restoreTree.getNodeHashByIndex(1);
+        // let result4 = restoreTree.getTransactionHashByIndex(18);
+        // console.log(result1);
+        // console.log(result2);
+        // console.log(result3);
+        // console.log(result4);
+        console.log(restoreTree.getLeafIds());
+    }catch(e){
+        console.log(e);
+    }
+    // let tidSet = new Array();
+    // tidSet.push('T002');
+    // tidSet.push('T0021232131');
+    // tidSet.push('T0023213122');
+    // tidSet.push('T002122wq2');
+    // tidSet.push('T124324wd002');
+    // tidSet.push('T002');
+    // tidSet.push('T012412ddfewr2r1302');
+    // tidSet.push('T00ewqe2e2');
+    // let result = restoreTree.collectSlices(tidSet);
+    // console.log(result);
 
 
 

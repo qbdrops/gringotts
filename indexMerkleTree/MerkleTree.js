@@ -74,11 +74,54 @@ class MerkleTree {
         return this.nodes[index].getContentCp();
     }
 
-    getNodeHash(tid){
+    getNodeHashByTid(tid){
         let index = this.calcLeafIndex(tid);
         return this.nodes[index].getContentDigest();
     }
     
+    getNodeHashesByIndex(idSet){
+        let nodeHash = {};
+        let idLength = idSet.length;
+        for(let i = 0 ; i < idLength ; i ++){
+            let node = idSet.shift();
+            nodeHash[node] = {
+                'hash' : this.nodes[node].getContentDigest()
+            }; 
+        }
+        return nodeHash;
+    }
+    getNodeHashByIndex(id){
+        return this.nodes[id].getContentDigest();
+    }
+
+    getTransactionHashesByIndex(idSet){
+        let nodeHashSet = {};
+        for(let i = 0 ; i <idSet.length ; i ++){
+            let node = idSet.shift();
+            if(node < (1 << (this.height - 1))){
+                throw new Error('Node ['+node+'] is not leaf.');
+            }
+            nodeHashSet[node] = {
+                'transactionHash' : this.nodes[node].getContent()
+            }; 
+        }
+        return nodeHashSet;
+    }
+    getTransactionHashByIndex(id){
+        if(id < (1 << (this.height - 1))){
+            throw new Error('Node ['+id+'] is not leaf.');
+        }
+        return this.nodes[id].getContent();
+    }
+
+    getLeafIds(){
+        // (1 << this.height) - 1
+        let idSet = new Array();
+        for(let i = 1 << (this.height - 1) ; i < 1 << this.height ; i++){
+            idSet.push(i);
+        }
+        return idSet;
+    }
 
     extractSlice(tid) { //拿到證據切片
         let index = this.calcLeafIndex(tid);
