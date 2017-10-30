@@ -18,7 +18,7 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let scid = '3500';
+let scid = '6000';
 
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');

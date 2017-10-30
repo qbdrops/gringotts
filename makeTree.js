@@ -55,8 +55,10 @@ let unlockCoinbase = function () {
 let deploySideChainContract = function (scid, rootHash, treeHeight) {
     unlockCoinbase();
     let wei = (2 ** (treeHeight - 1)) * 100;
+    let scidHash = web3.sha3(scid);
+    console.log('scidHash : ' + scidHash);
     return new Promise(function (resolve, reject) {
-        sidechainContractClass.new(scid, rootHash, treeHeight, {
+        sidechainContractClass.new(scidHash, rootHash, treeHeight, {
             data: sidechainBytecode,
             from: web3.eth.coinbase,
             value: wei,
