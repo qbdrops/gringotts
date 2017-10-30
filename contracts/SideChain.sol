@@ -45,7 +45,7 @@ contract SideChain {
         str = strConcat(str, bytes32ToString(content));
         bytes32 hashMsg = sha3(str);
         address signer = verify(hashMsg, v, r, s);
-        if (signer != sideChainOwner) { return false; }
+        require (signer == sideChainOwner);
         objections[msg.sender] = ObjectionInfo(tid, content, true);
         objectors.push(msg.sender);
         return true;
@@ -132,9 +132,7 @@ contract SideChain {
     }
 
     function exonerate() returns (bool) {
-        if (msg.sender != sideChainOwner) {
-            return false;
-        }
+        require (msg.sender == sideChainOwner);
         for (uint i = 0; i < objectors.length; i++) {
             address objector = objectors[i];
             uint[] memory idxs = new uint[](treeHeight);
@@ -173,8 +171,8 @@ contract SideChain {
     }
 
     function setIMT(uint[] idxs, bytes32[] nodeHash) returns (bool) {
-        if (msg.sender != sideChainOwner) { return false; }
-        if(idxs.length != nodeHash.length) {revert();}
+        require (msg.sender == sideChainOwner);
+        require (idxs.length == nodeHash.length);
         for (uint i = 0; i < idxs.length; i++) {
             indexMerkelTree[idxs[i]] = nodeHash[i];
         }
@@ -182,6 +180,7 @@ contract SideChain {
     }
 
     function setLFD(uint[] idxs, bytes32[] lfd) returns (bool) {
+        require (msg.sender == sideChainOwner);
         uint index_lfd = 0;
         for (uint i = 0; i < idxs.length; i += 2) {
             for (uint j = 0; j < idxs[i+1]; j++) {
@@ -189,6 +188,7 @@ contract SideChain {
             }
             index_lfd += idxs[i+1];
         }
+        return true;
     }
 
     function isObjector(address objector) constant returns (bool) {
