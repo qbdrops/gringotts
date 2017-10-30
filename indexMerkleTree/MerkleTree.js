@@ -96,7 +96,8 @@ class MerkleTree {
 
     getTransactionHashesByIndex(idSet){
         let nodeHashSet = {};
-        for(let i = 0 ; i <idSet.length ; i ++){
+        let idLength = idSet.length;
+        for(let i = 0 ; i < idLength ; i ++){
             let node = idSet.shift();
             if(node < (1 << (this.height - 1))){
                 throw new Error('Node ['+node+'] is not leaf.');
@@ -113,7 +114,7 @@ class MerkleTree {
         }
         return this.nodes[id].getContent();
     }
-    getIds(){
+    getTreeIds(){
         let idSet = new Array();
         for(let i = 1 ; i < 1 << this.height ; i++){
             idSet.push(i);
