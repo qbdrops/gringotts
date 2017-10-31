@@ -1,9 +1,9 @@
 const MerkleTree = require('./MerkleTree.js');
 // const Client = require('./clientAudit.js');
 const RSAencrypt = require('./RSAencrypt.js');
-const keccak256 = require('js-sha3').keccak256;
+// const keccak256 = require('js-sha3').keccak256;
 async function restore () {
-    let tree = new MerkleTree(3);
+    let tree = new MerkleTree(4);
     // let RH1 = tree.getRootHash();
     tree.setSCID(10);
     // console.log('Initial Roothash : ' +RH1);
@@ -63,7 +63,7 @@ async function restore () {
 
     let tJson = tree.export();
     let restoreTree = MerkleTree.import(tJson);
-    console.log(restoreTree);
+    // console.log(restoreTree);
     // console.log('肉粽 ： ', restoreTree.getTransactionHashSet('T002'));
 
 
@@ -73,13 +73,14 @@ async function restore () {
 
 
     try{
-        let tidSet = new Array();
-        for(let i = 0 ; i < 10 ; i++) {
-            tidSet.push(keccak256('1412dwd' + i+ 'wefewfjewlifjeo'));
-        }
-        let idSet = restoreTree.calcLeafIndexByTidHash(tidSet);
-        console.log(idSet);
-        let result = restoreTree.collectSlices(idSet);
+        // let tidSet = new Array();
+        // for(let i = 0 ; i < 10 ; i++) {
+        //     tidSet.push(keccak256('1412dwd' + i+ 'wefewfjewlifjeo'));
+        // }
+        // let idSet = restoreTree.calcLeafIndexByTidHash(tidSet);
+        // console.log(idSet);
+        let idSet = [ 14,10 ];
+        let result = tree.collectSlices(idSet);
         console.log(result);
     }catch(e){
         console.log(e);

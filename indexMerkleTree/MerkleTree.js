@@ -85,10 +85,11 @@ class MerkleTree {
     }
     
     getNodeHashesByIndex(idSet){
+        let ids = idSet.slice();
         let nodeHash = {};
-        let idLength = idSet.length;
+        let idLength = ids.length;
         for(let i = 0 ; i < idLength ; i ++){
-            let node = idSet.shift();
+            let node = ids.shift();
             nodeHash[node] = {
                 'hash' : this.nodes[node].getContentDigest()
             }; 
@@ -100,10 +101,11 @@ class MerkleTree {
     }
 
     getTransactionHashesByIndex(idSet){
+        let ids = idSet.slice();
         let nodeHashSet = {};
-        let idLength = idSet.length;
+        let idLength = ids.length;
         for(let i = 0 ; i < idLength ; i ++){
-            let node = idSet.shift();
+            let node = ids.shift();
             if(node < (1 << (this.height - 1))){
                 throw new Error('Node ['+node+'] is not leaf.');
             }
@@ -193,17 +195,12 @@ class MerkleTree {
     }
 
     collectSlices(idSet){
+        let ids = idSet.slice();
         let nodeSet = {};
         let idReduce = new Array();
-        let tidLength = idSet.length;
-        nodeSet[1] = {
-            'id' : this.nodes[1].id,
-            'nodeHash' : this.nodes[1].getContentDigest(),
-            'hashSet' : this.nodes[1].getContent(),
-            'isLeaf' : this.nodes[1].getIsLeaf()
-        };
-        for(let i = 0 ; i<tidLength ; i++){
-            let id = idSet.shift();
+        let tidLength = ids.length;
+        for(let i = 0 ; i < tidLength ; i++){
+            let id = ids.shift();
             let index = id;
             if(idReduce.indexOf(index) >= 0){// leaf 抓過直接跳出
                 //重複不紀錄
@@ -213,13 +210,15 @@ class MerkleTree {
                         if(idReduce.indexOf(index) >= 0) {
                             //重複不紀錄
                         }else{
-                            nodeSet[index] = {
-                                'id' : this.nodes[index].id,
-                                'nodeHash' : this.nodes[index].getContentDigest(),
-                                'hashSet' : this.nodes[index].getContent(),
-                                'isLeaf' : this.nodes[index].getIsLeaf()
-                            };
-                            idReduce.push(index);
+                            if(index >= (1 << (this.height - 1))) {
+                                nodeSet[index] = {
+                                    'id' : this.nodes[index].id,
+                                    'nodeHash' : this.nodes[index].getContentDigest(),
+                                    'hashSet' : this.nodes[index].getContent(),
+                                    'isLeaf' : this.nodes[index].getIsLeaf()
+                                };
+                                idReduce.push(index);
+                            }
                         }
                         if(idReduce.indexOf(index + 1) >= 0) {
                             //重複不紀錄
@@ -247,13 +246,15 @@ class MerkleTree {
                         if(idReduce.indexOf(index) >= 0) {
                             //重複不紀錄
                         }else{
-                            nodeSet[index] = {
-                                'id' : this.nodes[index].id,
-                                'nodeHash' : this.nodes[index].getContentDigest(),
-                                'hashSet' : this.nodes[index].getContent(),
-                                'isLeaf' : this.nodes[index].getIsLeaf()
-                            };
-                            idReduce.push(index);
+                            if(index >= (1 << (this.height - 1))) {
+                                nodeSet[index] = {
+                                    'id' : this.nodes[index].id,
+                                    'nodeHash' : this.nodes[index].getContentDigest(),
+                                    'hashSet' : this.nodes[index].getContent(),
+                                    'isLeaf' : this.nodes[index].getIsLeaf()
+                                };
+                                idReduce.push(index);
+                            }
                         }
                     }
                 }
