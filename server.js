@@ -18,7 +18,7 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let scid = '6000';
+let scid = 10000;
 
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
@@ -40,7 +40,7 @@ io.on('connection', async function (socket) {
         };
 
         let txHash = ethUtils.sha3(tid).toString('hex');
-        let scidHash = ethUtils.sha3(scid).toString('hex');
+        let scidHash = ethUtils.sha3(scid.toString()).toString('hex');
         let content = Buffer.from(JSON.stringify(order)).toString('hex');
         let contentHash = ethUtils.sha3(content).toString('hex');
         let msgHash = ethUtils.sha3(txHash + scidHash + contentHash);

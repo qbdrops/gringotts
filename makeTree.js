@@ -1,6 +1,7 @@
 let env = require('./env');
 let MerkleTree = require('./indexMerkleTree/MerkleTree');
 let RSA = require('./indexMerkleTree/RSAencrypt');
+let ethUtils = require('ethereumjs-util');
 let Web3 = require('web3');
 let fs = require('fs');
 let DB = require('./db');
@@ -55,7 +56,7 @@ let unlockCoinbase = function () {
 let deploySideChainContract = function (scid, rootHash, treeHeight) {
     unlockCoinbase();
     let wei = (2 ** (treeHeight - 1)) * 100;
-    let scidHash = web3.sha3(scid);
+    let scidHash = '0x' + ethUtils.sha3(scid.toString()).toString('hex');
     console.log('scidHash : ' + scidHash);
     return new Promise(function (resolve, reject) {
         sidechainContractClass.new(scidHash, rootHash, treeHeight, {
@@ -83,7 +84,9 @@ async function buildSideChainTree(scid, records) {
         keys = await db.getPublicKeys();
         console.log(keys);
         const tree = await makeTree(scid, records);
-        await db.insertSideChainTree(scid, tree.export());
+        console.log('scid' + scid);
+        let dbResult = await db.insertSideChainTree(parseInt(scid), tree.export());
+        console.log(dbResult);
         const rootHash = '0x' + tree.getRootHash();
         console.log('Root Hash: ' + rootHash);
         const result = await deploySideChainContract(scid, rootHash, tree.getHeight());

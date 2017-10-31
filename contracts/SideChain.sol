@@ -7,15 +7,15 @@ contract SideChain {
     bool public completed;
     string public version = "0.1.0";
 
-    uint deposit = 100;
-    uint treeHeight;
-    uint expire;
+    uint public deposit = 100;
+    uint public treeHeight;
+    uint public expire;
 
-    mapping (address => ObjectionInfo) objections;
-    address[] objectors;
+    mapping (address => ObjectionInfo) public objections;
+    address[] public objectors;
 
-    mapping (uint => bytes32) indexMerkelTree;
-    mapping (uint => bytes32[]) leafNodeData;
+    mapping (uint => bytes32) public indexMerkelTree;
+    mapping (uint => bytes32[]) public leafNodeData;
 
     event SideChainEvent(address indexed _owner, bytes32 indexed _scid, bytes4 _func);
 
@@ -158,7 +158,7 @@ contract SideChain {
     }
 
     function inLFD(address objector) constant returns (bool) {
-        uint num = getObjectorNodeIndex(objector); 
+        uint num = getObjectorNodeIndex(objector);
         if (leafNodeData[num].length < 2) {
             if (objections[objector].hashOfContent == leafNodeData[num][0]) {
                 return (indexMerkelTree[num] == sha3(bytes32ToString(leafNodeData[num][0])));
@@ -232,6 +232,11 @@ contract SideChain {
 
     function getLFD(uint idx) constant returns (bytes32[]) {
         return leafNodeData[idx];
+    }
+
+    function getObjectionHashOfTID(address objector) constant returns (bytes32) {
+        if (!isObjector(objector)) { revert(); }
+        return objections[objector].hashOfTID;
     }
 
     function getObjectionResult(address objector) constant returns (bool) {
