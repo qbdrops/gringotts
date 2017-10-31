@@ -73,25 +73,25 @@ describe('#MerkleTree test', function(){
         RH.should.equal(node[1]);// check root hash
     })
 
-    it('collectSlices in tree height 5', function(){
-        // Arrange
-        let tree5 = new MerkleTree(5);
-        let tidSet = new Array();
-        let idSet = new Array();
-        for(let i = 0 ; i < 16 ; i++) { // 隨機產生16筆tid抓交集切片
-            tidSet.push('' + i + (i + 1) + (2 * i) + '');
-            idSet.push(tree5.calcLeafIndex('' + i + (i + 1) + (2 * i) + ''));
-        }
-        // Act
-        console.log(idSet);
-        let nodeSet = tree5.collectSlices(tidSet);
-        console.log(nodeSet);
-        // Assert
-        for(let i = 0 ; i < 16 ; i++) { // audit leaf node id 在nodeSet中？
-            let id = idSet.shift();
-           // id.should.equal(nodeSet[i].id);
-          }
-    })
+    // it('collectSlices in tree height 5', function(){
+    //     // Arrange
+    //     let tree5 = new MerkleTree(5);
+    //     let idSet = [];
+    //     let idSetCopy = [];
+    //     for(let i = 0 ; i < 16 ; i++) { // 隨機產生16筆tid抓交集切片
+    //         let faket = 'qdqdq' + i + (i + 1) + (2 * i) + 'qdqwdq';
+    //         idSet.push(tree5.calcLeafIndex(faket));
+    //         idSetCopy.push(tree5.calcLeafIndex(faket));
+    //     }
+    //     // Act
+    //     let nodeSet = tree5.collectSlices(idSet);
+    //     // Assert
+    //     let idSetLength = idSetCopy.length;
+    //     for(let i = 0 ; i < idSetLength ; i++) { // audit leaf node id 在nodeSet中？
+    //         let id = idSetCopy.shift();
+    //             id.should.equal(nodeSet[i]);      
+    //       }
+    // })
 })
 
 describe('#ClientAudit test', function(){

@@ -1,7 +1,7 @@
 const MerkleTree = require('./MerkleTree.js');
 // const Client = require('./clientAudit.js');
 const RSAencrypt = require('./RSAencrypt.js');
-
+const keccak256 = require('js-sha3').keccak256;
 async function restore () {
     let tree = new MerkleTree(3);
     // let RH1 = tree.getRootHash();
@@ -13,7 +13,32 @@ async function restore () {
     let ciphertextUser = await RSAencrypt.encrypt(content, publicUser.publicKey);// encrypt by user key
     let ciphertextCp = await RSAencrypt.encrypt(content, publicCp.publicKey);// encrypt by user key
     tree.putTransactionInTree({
-        'tid': 'T002',
+        'tid': 'T00kdopsckpkopqwwqopd2',
+        'contentUser': ''+ciphertextUser+'',
+        'contentCp': ''+ciphertextCp+''
+    });
+    tree.putTransactionInTree({
+        'tid': 'T06666602',
+        'contentUser': ''+ciphertextUser+'',
+        'contentCp': ''+ciphertextCp+''
+    });
+    tree.putTransactionInTree({
+        'tid': 'T0cdwvwegretrwqcvweefw02',
+        'contentUser': ''+ciphertextUser+'',
+        'contentCp': ''+ciphertextCp+''
+    });
+    tree.putTransactionInTree({
+        'tid': 'T0loowowqodwqodkqmk02',
+        'contentUser': ''+ciphertextUser+'',
+        'contentCp': ''+ciphertextCp+''
+    });
+    tree.putTransactionInTree({
+        'tid': 'T00qowdpowqfpwqjdqwjd2',
+        'contentUser': ''+ciphertextUser+'',
+        'contentCp': ''+ciphertextCp+''
+    });
+    tree.putTransactionInTree({
+        'tid': 'T0dfgdfgegwre02',
         'contentUser': ''+ciphertextUser+'',
         'contentCp': ''+ciphertextCp+''
     });
@@ -23,37 +48,12 @@ async function restore () {
         'contentCp': ''+ciphertextCp+''
     });
     tree.putTransactionInTree({
-        'tid': 'T002',
+        'tid': 'T00w21w122',
         'contentUser': ''+ciphertextUser+'',
         'contentCp': ''+ciphertextCp+''
     });
     tree.putTransactionInTree({
-        'tid': 'T002',
-        'contentUser': ''+ciphertextUser+'',
-        'contentCp': ''+ciphertextCp+''
-    });
-    tree.putTransactionInTree({
-        'tid': 'T002',
-        'contentUser': ''+ciphertextUser+'',
-        'contentCp': ''+ciphertextCp+''
-    });
-    tree.putTransactionInTree({
-        'tid': 'T002',
-        'contentUser': ''+ciphertextUser+'',
-        'contentCp': ''+ciphertextCp+''
-    });
-    tree.putTransactionInTree({
-        'tid': 'T002',
-        'contentUser': ''+ciphertextUser+'',
-        'contentCp': ''+ciphertextCp+''
-    });
-    tree.putTransactionInTree({
-        'tid': 'T002',
-        'contentUser': ''+ciphertextUser+'',
-        'contentCp': ''+ciphertextCp+''
-    });
-    tree.putTransactionInTree({
-        'tid': 'T002',
+        'tid': 'T0jwqodjwqoidwqj02',
         'contentUser': ''+ciphertextUser+'',
         'contentCp': ''+ciphertextCp+''
     });
@@ -63,7 +63,7 @@ async function restore () {
 
     let tJson = tree.export();
     let restoreTree = MerkleTree.import(tJson);
-    // console.log(restoreTree);
+    console.log(restoreTree);
     // console.log('肉粽 ： ', restoreTree.getTransactionHashSet('T002'));
 
 
@@ -73,25 +73,17 @@ async function restore () {
 
 
     try{
-        // let result1 = restoreTree.getNodeHashesByIndex([1,2,3,4]);
-        // let result2 = restoreTree.getTransactionHashesByIndex([4,5,6,7]);
-        // let result3 = restoreTree.getNodeHashByIndex(1);
-        // let result4 = restoreTree.getTransactionHashByIndex(18);
-        // console.log(result1);
-        // console.log(result2);
-        // console.log(result3);
-        // console.log(result4);
-        // console.log(restoreTree.getLeafIds());
-        // console.log(restoreTree.getIds());
+        let tidSet = new Array();
+        for(let i = 0 ; i < 10 ; i++) {
+            tidSet.push(keccak256('1412dwd' + i+ 'wefewfjewlifjeo'));
+        }
+        let idSet = restoreTree.calcLeafIndexByTidHash(tidSet);
+        console.log(idSet);
+        let result = restoreTree.collectSlices(idSet);
+        console.log(result);
     }catch(e){
         console.log(e);
     }
-    let tidSet = [4, 6, 4, 5, 4];
-    // for(let i = 0 ; i < tidSet.length ; i++){
-    //     console.log(restoreTree.calcLeafIndex(tidSet[i]));
-    // }
-    let result = restoreTree.collectSlices(tidSet);
-    console.log(result);
 
 
 

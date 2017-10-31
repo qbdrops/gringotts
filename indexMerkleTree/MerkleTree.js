@@ -24,7 +24,8 @@ class MerkleTree {
         let index = parseInt(keccak256(tid.toString()).substring(0,12),16);
         //calc the leaf node id
         return (1 << (this.height - 1)) + Math.abs(index) % (1 << (this.height - 1));
-    } 
+    }
+
 
     setSCID(scid) {
         this.scid = scid;
@@ -60,6 +61,10 @@ class MerkleTree {
     //拿到交易內容的雜湊值(包含其他collision的雜湊)
         let index = this.calcLeafIndex(tid);
         return this.nodes[index].getContent();
+    }
+    getNodeHashSet(id) {
+        //拿到交易內容的雜湊值(包含其他collision的雜湊)
+        return this.nodes[id].getContent();
     }
     
     getTransactionSetUser(tid) {
@@ -170,6 +175,22 @@ class MerkleTree {
         return restoreTree;         
     }
 
+    calcLeafIndexByTidHash(tidHashSet) { // 自清專用
+        let idSet = new Array();
+        let tidLength = tidHashSet.length;
+        for(let i = 0 ; i < tidLength ; i++) {
+            let tidHash = tidHashSet.shift();
+            let index = parseInt(tidHash.toString().substring(0,12),16);
+            let leafLocation = (1 << (this.height - 1)) + Math.abs(index) % (1 << (this.height - 1));
+            if(this.getNodeHashSet(leafLocation) === null) {
+                // 底下沒肉粽
+                throw new Error('Node ['+leafLocation+'] dont have hashSet.');
+            }else{
+                idSet.push((1 << (this.height - 1)) + Math.abs(index) % (1 << (this.height - 1)));
+            }
+        }
+        return idSet;
+    }
 
     collectSlices(idSet){
         let nodeSet = {};
