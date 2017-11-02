@@ -5,9 +5,10 @@ let cors = require('cors');
 let ethUtils = require('ethereumjs-util');
 let RSAencrypt = require('./indexMerkleTree/RSAencrypt.js');
 let MerkleTree = require('./indexMerkleTree/MerkleTree.js');
-let connect = require('./db');
+let DB = require('./db');
 let buildSideChainTree = require('./makeTree');
 let faker = require('faker');
+let RSA = require('./indexMerkleTree/RSAencrypt');
 
 let db;
 
@@ -18,7 +19,7 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let scid = 10000;
+let scid = 50000;
 
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
@@ -27,6 +28,11 @@ const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
 io.on('connection', async function (socket) {
     let recordsLength = 5;
     let records = [];
+
+    let keys = await db.getPublicKeys();
+    let userPublicKey = keys.userPublicKey.publickey;
+    let cpsPublicKey = keys.cpsPublicKey.publickey;
+
     for (let i = 0; i < recordsLength; i++) {
         let tid = faker.random.uuid();
         let order = {
@@ -40,10 +46,26 @@ io.on('connection', async function (socket) {
         };
 
         let txHash = ethUtils.sha3(tid).toString('hex');
+        console.log(txHash);
         let scidHash = ethUtils.sha3(scid.toString()).toString('hex');
+        console.log(scidHash);
         let content = Buffer.from(JSON.stringify(order)).toString('hex');
-        let contentHash = ethUtils.sha3(content).toString('hex');
-        let msgHash = ethUtils.sha3(txHash + scidHash + contentHash);
+
+        let cipherUser = await RSA.encrypt(content, userPublicKey);
+        let cipherCP = await RSA.encrypt(content, cpsPublicKey);
+        console.log(typeof cipherUser);
+        console.log(cipherUser);
+        console.log(typeof cipherCP);
+        console.log(cipherCP);
+
+        let contentHash = ethUtils.sha3(cipherUser + cipherCP).toString('hex');
+        console.log(typeof contentHash);
+        console.log(contentHash);
+        let msg = txHash + scidHash + contentHash;
+        console.log(typeof msg);
+        console.log(msg);
+        let msgHash = ethUtils.sha3(msg);
+        console.log('0x' + msgHash.toString('hex'));
         let prefix = new Buffer('\x19Ethereum Signed Message:\n');
         let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
         let signature = ethUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
@@ -54,12 +76,15 @@ io.on('connection', async function (socket) {
             scid: scid,
             scidHash: '0x' + scidHash,
             content: content,
-            contentHash: '0x' + contentHash,
+            contentHash: '0x' + contentHash.toString('hex'),
             digest: '0x' + msgHash.toString('hex'),
             r: '0x' + signature.r.toString('hex'),
             s: '0x' + signature.s.toString('hex'),
             v: signature.v,
         };
+
+        console.log(res);
+        console.log('---------------------------');
 
         socket.emit('transaction', res);
         records.push(res);
@@ -71,7 +96,7 @@ io.on('connection', async function (socket) {
 });
 
 async function connectDB() {
-    db = await connect();
+    db = await DB();
 }
 
 function queryStringToJSON(bill) {

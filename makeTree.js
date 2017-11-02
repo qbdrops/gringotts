@@ -85,8 +85,8 @@ async function buildSideChainTree(scid, records) {
         console.log(keys);
         const tree = await makeTree(scid, records);
         console.log('scid' + scid);
-        let dbResult = await db.insertSideChainTree(parseInt(scid), tree.export());
-        console.log(dbResult);
+        let treeJson = tree.export();
+        await db.insertSideChainTree(parseInt(scid), treeJson);
         const rootHash = '0x' + tree.getRootHash();
         console.log('Root Hash: ' + rootHash);
         const result = await deploySideChainContract(scid, rootHash, tree.getHeight());
