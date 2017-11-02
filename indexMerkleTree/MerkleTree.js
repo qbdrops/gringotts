@@ -20,8 +20,13 @@ class MerkleTree {
         } 
     }   
 
-    calcLeafIndex(tid) { // calc leaflocation  
-        let index = parseInt(keccak256(tid.toString()).substring(0,12),16);
+    calcLeafIndex(tid) { // calc leaflocation
+        let index ;
+        if(keccak256(tid.toString()).substring(0,2) === '0x'){
+            index = parseInt(keccak256(tid.toString()).substring(2,14),16);
+        }else{
+            index = parseInt(keccak256(tid.toString()).substring(0,12),16);
+        }
         //calc the leaf node id
         return (1 << (this.height - 1)) + Math.abs(index) % (1 << (this.height - 1));
     }
@@ -181,8 +186,13 @@ class MerkleTree {
         let idSet = new Array();
         let tidLength = tidHashSet.length;
         for(let i = 0 ; i < tidLength ; i++) {
+            let index ;
             let tidHash = tidHashSet.shift();
-            let index = parseInt(tidHash.toString().substring(0,12),16);
+            if(tidHash.toString().substring(0,2) === '0x'){
+                index = parseInt(tidHash.toString().substring(2,14),16);
+            }else{
+                index = parseInt(tidHash.toString().substring(0,12),16);
+            }
             let leafLocation = (1 << (this.height - 1)) + Math.abs(index) % (1 << (this.height - 1));
             if(this.getNodeHashSet(leafLocation) === null) {
                 // 底下沒肉粽
