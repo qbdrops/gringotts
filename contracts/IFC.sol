@@ -7,6 +7,8 @@ contract IFC {
     mapping (bytes32 => address) sideChainAddress;
     bytes32[] scidInUse;
 
+    event SideChainAddEvent(bytes32 _scid, address _addr);
+
     modifier onlyOwner {
         require(msg.sender == owner);
         _;
@@ -28,6 +30,8 @@ contract IFC {
         }
         scidInUse.push(scid);
         sideChainAddress[scid] = addr;
+
+        SideChainAddEvent(scid, addr);
         return true;
     }
 
