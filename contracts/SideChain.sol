@@ -210,38 +210,8 @@ contract SideChain {
         return false;
     }
 
-    function getObjectorsNumber() constant returns (uint) {
-        return objectors.length;
-    }
-
-    function getObjectionAddress(uint idx) constant returns (address) {
-        if (idx >= objectors.length) {
-            revert();
-        } else {
-            return objectors[idx];
-        }
-    }
-
     function getObjectorNodeIndex(address objector) constant returns (uint) {
         return (uint(bytes6(objections[objector].hashOfTID)) % (2**(treeHeight-1))) + 2**(treeHeight-1);
-    }
-
-    function getIndexMerkelTree(uint idx) constant returns (bytes32) {
-        return indexMerkelTree[idx];
-    }
-
-    function getLFD(uint idx) constant returns (bytes32[]) {
-        return leafNodeData[idx];
-    }
-
-    function getObjectionHashOfTID(address objector) constant returns (bytes32) {
-        if (!isObjector(objector)) { revert(); }
-        return objections[objector].hashOfTID;
-    }
-
-    function getObjectionResult(address objector) constant returns (bool) {
-        if (!isObjector(objector)) { revert(); }
-        return objections[objector].objectionSuccess;
     }
 
     function judge() {
