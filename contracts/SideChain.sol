@@ -138,7 +138,7 @@ contract SideChain {
         return order;
     }
 
-    function exonerate() returns (bool) {
+    function exonerate() {
         require (msg.sender == sideChainOwner);
         for (uint i = 0; i < errorTIDs.length; i++) {
             bytes32 tid = errorTIDs[i];
@@ -157,7 +157,7 @@ contract SideChain {
                 objections[tid].objectionSuccess = false;
             }
         }
-        return true;
+        SideChainEvent(sideChainOwner, sideChainID, 0x01490ac1);
     }
 
     function inLFD(bytes32 tid) constant returns (bool) {
