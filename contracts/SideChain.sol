@@ -9,12 +9,13 @@ contract SideChain {
 
     uint public deposit = 100;
     uint public treeHeight;
-    uint public expire;
+    uint public obj_time;
+    uint public exr_time;
 
     mapping (bytes32 => ObjectionInfo) public objections;
     bytes32[] public errorTIDs;
 
-    mapping (uint => bytes32) public indexMerkelTree;
+    mapping (uint => bytes32) public indexMerkleTree;
     mapping (uint => bytes32[]) public leafNodeData;
 
     event SideChainEvent(address indexed _owner, bytes32 indexed _scid, bytes4 _func);
@@ -25,14 +26,15 @@ contract SideChain {
         bool objectionSuccess;
     }
 
-    function SideChain(bytes32 scid, bytes32 rh, uint th, uint time) payable {
+    function SideChain(bytes32 scid, bytes32 rh, uint th, uint objection_time, uint exonerate_time) payable {
         require(msg.value >= (2 ** (th - 1)) * deposit);
         sideChainOwner = msg.sender;
         sideChainID = scid;
         sideChainRootHash = rh;
         treeHeight = th;
         completed = false;
-        expire = now + time; 
+        obj_time = now + objection_time;
+        exr_time = obj_time + exonerate_time;
     }
 
     function takeObjection(
@@ -42,7 +44,7 @@ contract SideChain {
         uint8 v,
         bytes32 r,
         bytes32 s) returns (bool) {
-        require (now < expire);
+        require (now < obj_time);
         require (inErrorTIDList(tid) == false);
         string memory str;
         str = strConcat(bytes32ToString(tid), bytes32ToString(scid));
@@ -146,9 +148,9 @@ contract SideChain {
             if(!inLFD(objector)) {continue;}
             for(uint j = 1; j < idxs.length; j++) {
                 if (idxs[j] % 2 == 1) {
-                    result = sha3(strConcat(bytes32ToString(result), bytes32ToString(indexMerkelTree[idxs[j]])));
+                    result = sha3(strConcat(bytes32ToString(result), bytes32ToString(indexMerkleTree[idxs[j]])));
                 } else {
-                    result = sha3(strConcat(bytes32ToString(indexMerkelTree[idxs[j]]), bytes32ToString(result)));
+                    result = sha3(strConcat(bytes32ToString(indexMerkleTree[idxs[j]]), bytes32ToString(result)));
                 }
             }
             if (result == sideChainRootHash) {
@@ -162,7 +164,7 @@ contract SideChain {
         uint idx = getObjectorNodeIndex(tid);
         if (leafNodeData[idx].length < 2) {
             if (objections[tid].hashOfContent == leafNodeData[idx][0]) {
-                return (indexMerkelTree[idx] == sha3(bytes32ToString(leafNodeData[idx][0])));
+                return (indexMerkleTree[idx] == sha3(bytes32ToString(leafNodeData[idx][0])));
             }
             return false;
         } else {
@@ -172,7 +174,7 @@ contract SideChain {
                     for (uint j = 1; j < leafNodeData[idx].length; j++) {
                         dataStr = strConcat(dataStr, bytes32ToString(leafNodeData[idx][j]));
                     }
-                    return (indexMerkelTree[idx] == sha3(dataStr));
+                    return (indexMerkleTree[idx] == sha3(dataStr));
                 }
             }
             return false;
@@ -183,7 +185,7 @@ contract SideChain {
         require (msg.sender == sideChainOwner);
         require (idxs.length == nodeHash.length);
         for (uint i = 0; i < idxs.length; i++) {
-            indexMerkelTree[idxs[i]] = nodeHash[i];
+            indexMerkleTree[idxs[i]] = nodeHash[i];
         }
         SideChainEvent(sideChainOwner, sideChainID, 0x7b527e2f);
         return true;
@@ -216,7 +218,7 @@ contract SideChain {
     }
 
     function judge() {
-        require (expire < now && completed == false);
+        require (exr_time < now && completed == false);
         for (uint i = 0; i < errorTIDs.length; i++) {
             bytes32 tid = errorTIDs[i];
             if (objections[tid].objectionSuccess) {
