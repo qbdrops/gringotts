@@ -25,14 +25,14 @@ contract SideChain {
         bool objectionSuccess;
     }
 
-    function SideChain(bytes32 scid, bytes32 rh, uint th) payable {
+    function SideChain(bytes32 scid, bytes32 rh, uint th, uint time) payable {
         require(msg.value >= (2 ** (th - 1)) * deposit);
         sideChainOwner = msg.sender;
         sideChainID = scid;
         sideChainRootHash = rh;
         treeHeight = th;
         completed = false;
-        expire = now + 1 days; 
+        expire = now + time; 
     }
 
     function takeObjection(
@@ -42,7 +42,7 @@ contract SideChain {
         uint8 v,
         bytes32 r,
         bytes32 s) returns (bool) {
-        if (now + 1 hours > expire) { revert(); }
+        require (now < expire);
         require (inErrorTIDList(tid) == false);
         string memory str;
         str = strConcat(bytes32ToString(tid), bytes32ToString(scid));
@@ -216,17 +216,14 @@ contract SideChain {
     }
 
     function judge() {
-        if (expire == 0 || expire > now || completed == true) {
-            revert();
-        } else {
-            for (uint i = 0; i < errorTIDs.length; i++) {
-                bytes32 tid = errorTIDs[i];
-                if (objections[tid].objectionSuccess) {
-                    objections[tid].customer.transfer(deposit);
-                }
+        require (expire < now && completed == false);
+        for (uint i = 0; i < errorTIDs.length; i++) {
+            bytes32 tid = errorTIDs[i];
+            if (objections[tid].objectionSuccess) {
+                objections[tid].customer.transfer(deposit);
             }
-            sideChainOwner.transfer(this.balance);
-            completed = true;
         }
+        sideChainOwner.transfer(this.balance);
+        completed = true;
     }
 }
