@@ -181,27 +181,23 @@ contract SideChain {
         }
     }
 
-    function setIMT(uint[] idxs, bytes32[] nodeHash) returns (bool) {
+    function setting(uint[] IMTidx, bytes32[] IMTnodeHash, uint[] LFDidx, bytes32[] lfd) {
         require (msg.sender == sideChainOwner);
-        require (idxs.length == nodeHash.length);
-        for (uint i = 0; i < idxs.length; i++) {
-            indexMerkleTree[idxs[i]] = nodeHash[i];
+        require (IMTidx.length == IMTnodeHash.length);
+        for (uint i = 0; i < IMTidx.length; i++) {
+            indexMerkleTree[IMTidx[i]] = IMTnodeHash[i];
         }
-        SideChainEvent(sideChainOwner, sideChainID, 0x7b527e2f);
-        return true;
-    }
-
-    function setLFD(uint[] idxs, bytes32[] lfd) returns (bool) {
-        require (msg.sender == sideChainOwner);
         uint index_lfd = 0;
-        for (uint i = 0; i < idxs.length; i += 2) {
-            for (uint j = 0; j < idxs[i+1]; j++) {
-                leafNodeData[idxs[i]].push(lfd[index_lfd + j]);
+        for (i = 0; i < LFDidx.length; i += 2) {
+            if (leafNodeData[LFDidx[i]].length != 0) {
+                delete leafNodeData[LFDidx[i]];
+            } 
+            for (uint j = 0; j < LFDidx[i+1]; j++) {
+                leafNodeData[LFDidx[i]].push(lfd[index_lfd + j]);
             }
-            index_lfd += idxs[i+1];
+            index_lfd += LFDidx[i+1];
         }
-        SideChainEvent(sideChainOwner, sideChainID, 0xd8e820e8);
-        return true;
+        SideChainEvent(sideChainOwner, sideChainID, 0x9d630d23);
     }
 
     function inErrorTIDList(bytes32 tid) constant returns (bool) {
