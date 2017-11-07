@@ -5,14 +5,14 @@ contract SideChain {
     bytes32 public sideChainID;
     address public sideChainOwner;
     bool public completed;
-    string public version = "0.1.0";
+    string public version = "0.2.0";
 
     uint public deposit = 100;
     uint public treeHeight;
     uint public expire;
 
-    mapping (address => ObjectionInfo) public objections;
-    address[] public objectors;
+    mapping (bytes32 => ObjectionInfo) public objections;
+    bytes32[] public errorTIDs;
 
     mapping (uint => bytes32) public indexMerkelTree;
     mapping (uint => bytes32[]) public leafNodeData;
@@ -20,7 +20,7 @@ contract SideChain {
     event SideChainEvent(address indexed _owner, bytes32 indexed _scid, bytes4 _func);
 
     struct ObjectionInfo {
-        bytes32 hashOfTID;
+        address customer;
         bytes32 hashOfContent;
         bool objectionSuccess;
     }
@@ -43,14 +43,15 @@ contract SideChain {
         bytes32 r,
         bytes32 s) returns (bool) {
         if (now + 1 hours > expire) { revert(); }
+        require (inErrorTIDList(tid) == false);
         string memory str;
         str = strConcat(bytes32ToString(tid), bytes32ToString(scid));
         str = strConcat(str, bytes32ToString(content));
         bytes32 hashMsg = sha3(str);
         address signer = verify(hashMsg, v, r, s);
         require (signer == sideChainOwner);
-        objections[msg.sender] = ObjectionInfo(tid, content, true);
-        objectors.push(msg.sender);
+        objections[tid] = ObjectionInfo(msg.sender, content, true);
+        errorTIDs.push(tid);
         SideChainEvent(sideChainOwner, sideChainID, 0x7f2585d7);
         return true;
     }
@@ -137,10 +138,10 @@ contract SideChain {
 
     function exonerate() returns (bool) {
         require (msg.sender == sideChainOwner);
-        for (uint i = 0; i < objectors.length; i++) {
-            address objector = objectors[i];
+        for (uint i = 0; i < errorTIDs.length; i++) {
+            bytes32 tid = errorTIDs[i];
             uint[] memory idxs = new uint[](treeHeight);
-            idxs = hashOrder(getObjectorNodeIndex(objector));
+            idxs = hashOrder(getObjectorNodeIndex(tid));
             bytes32 result = indexMerkelTree[idxs[0]];
             if(!inLFD(objector)) {continue;}
             for(uint j = 1; j < idxs.length; j++) {
@@ -151,27 +152,27 @@ contract SideChain {
                 }
             }
             if (result == sideChainRootHash) {
-                objections[objector].objectionSuccess = false;
+                objections[tid].objectionSuccess = false;
             }
         }
         return true;
     }
 
-    function inLFD(address objector) constant returns (bool) {
-        uint num = getObjectorNodeIndex(objector);
-        if (leafNodeData[num].length < 2) {
-            if (objections[objector].hashOfContent == leafNodeData[num][0]) {
-                return (indexMerkelTree[num] == sha3(bytes32ToString(leafNodeData[num][0])));
+    function inLFD(bytes32 tid) constant returns (bool) {
+        uint idx = getObjectorNodeIndex(tid);
+        if (leafNodeData[idx].length < 2) {
+            if (objections[tid].hashOfContent == leafNodeData[idx][0]) {
+                return (indexMerkelTree[idx] == sha3(bytes32ToString(leafNodeData[idx][0])));
             }
             return false;
         } else {
-            for (uint i = 0; i < leafNodeData[num].length; i++) {
-                if(objections[objector].hashOfContent == leafNodeData[num][i]) {
-                    string memory dataStr = bytes32ToString(leafNodeData[num][0]);
-                    for (uint j = 1; j < leafNodeData[num].length; j++) {
-                        dataStr = strConcat(dataStr, bytes32ToString(leafNodeData[num][j]));
+            for (uint i = 0; i < leafNodeData[idx].length; i++) {
+                if(objections[tid].hashOfContent == leafNodeData[idx][i]) {
+                    string memory dataStr = bytes32ToString(leafNodeData[idx][0]);
+                    for (uint j = 1; j < leafNodeData[idx].length; j++) {
+                        dataStr = strConcat(dataStr, bytes32ToString(leafNodeData[idx][j]));
                     }
-                    return (indexMerkelTree[num] == sha3(dataStr));
+                    return (indexMerkelTree[idx] == sha3(dataStr));
                 }
             }
             return false;
@@ -201,27 +202,27 @@ contract SideChain {
         return true;
     }
 
-    function isObjector(address objector) constant returns (bool) {
-        for (uint i = 0; i < objectors.length; i++) {
-            if (objector == objectors[i]) {
+    function inErrorTIDList(bytes32 tid) constant returns (bool) {
+        for (uint i = 0; i < errorTIDs.length; i++) {
+            if (tid == errorTIDs[i]) {
                 return true;
             }
         }
         return false;
     }
 
-    function getObjectorNodeIndex(address objector) constant returns (uint) {
-        return (uint(bytes6(objections[objector].hashOfTID)) % (2**(treeHeight-1))) + 2**(treeHeight-1);
+    function getObjectorNodeIndex(bytes32 tid) constant returns (uint) {
+        return (uint(bytes6(tid)) % (2**(treeHeight-1))) + 2**(treeHeight-1);
     }
 
     function judge() {
         if (expire == 0 || expire > now || completed == true) {
             revert();
         } else {
-            for (uint i = 0; i < objectors.length; i++) {
-                address objector = objectors[i];
-                if (objections[objector].objectionSuccess) {
-                    objector.transfer(deposit);
+            for (uint i = 0; i < errorTIDs.length; i++) {
+                bytes32 tid = errorTIDs[i];
+                if (objections[tid].objectionSuccess) {
+                    objections[tid].customer.transfer(deposit);
                 }
             }
             sideChainOwner.transfer(this.balance);
