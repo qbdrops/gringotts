@@ -19,14 +19,20 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let scid = 50000;
+let scid = 1512512;
 
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
 const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
 
 io.on('connection', async function (socket) {
-    let recordsLength = 5;
+    socket.on('fake', (numberOfData) => {
+        fakeRecords(socket, numberOfData);
+    });
+});
+
+async function fakeRecords(socket, numberOfData) {
+    let recordsLength = numberOfData;
     let records = [];
 
     let keys = await db.getPublicKeys();
@@ -38,10 +44,13 @@ io.on('connection', async function (socket) {
         let order = {
             'tid': tid,
             'uid': faker.random.number(),
+            'product': faker.commerce.productName(),
             'cp': faker.company.companyName(),
             'from': faker.date.past(),
             'to': faker.date.recent(),
+            'time': parseInt(Date.now() / 1000),
             'price': faker.commerce.price(),
+            'unit': 'XPA',
             'scid': scid
         };
 
@@ -93,7 +102,7 @@ io.on('connection', async function (socket) {
     let result = await buildSideChainTree(scid, records);
     scid++;
     console.log(result);
-});
+}
 
 async function connectDB() {
     db = await DB();
@@ -110,6 +119,15 @@ function queryStringToJSON(bill) {
 
     return JSON.parse(JSON.stringify(result));
 }
+
+app.post('/fake', async function (req, res) {
+    try {
+        res.send({ok: true});
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
 
 app.put('/rsa/publickey', async function (req, res) {
     try {
