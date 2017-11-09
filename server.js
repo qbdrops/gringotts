@@ -19,7 +19,7 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let scid = 6666666;
+let scid = 100;
 
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
@@ -110,7 +110,7 @@ async function fakeRecords(socket, numberOfData) {
         let order = JSON.parse(Buffer.from(content, 'hex'));
         order.product = faker.commerce.productName();
         order.unit = 'ETH';
-        content = Buffer.from(JSON.stringify(order)).toString('hex');        
+        content = Buffer.from(JSON.stringify(order)).toString('hex');
 
         let cipherUser = await RSA.encrypt(content, userPublicKey);
         let cipherCP = await RSA.encrypt(content, cpsPublicKey);
@@ -130,7 +130,7 @@ async function fakeRecords(socket, numberOfData) {
         let prefix = new Buffer('\x19Ethereum Signed Message:\n');
         let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
         let signature = ethUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
-        
+
         // put it back
         let wrongRecord = {
             tid: tid,
@@ -214,7 +214,7 @@ app.post('/finish', function (req, res) {
 
         let msgHash = ethUtils.sha3(messageString);
         console.log(msgHash);
-    
+
         let signature = ethUtils.ecsign(msgHash, Buffer.from(privatekey, 'hex'));
         console.log(signature);
 
