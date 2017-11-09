@@ -19,7 +19,7 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let scid = 1512512;
+let scid = 6666666;
 
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
@@ -97,6 +97,55 @@ async function fakeRecords(socket, numberOfData) {
 
         socket.emit('transaction', res);
         records.push(res);
+    }
+
+    if (records.length > 0) {
+        let record = records[0];
+        let content = record.content;
+        let tid = record.tid;
+        let txHash = record.txHash;
+        let scidHash = record.scidHash;
+
+        // decode and change the first record
+        let order = JSON.parse(Buffer.from(content, 'hex'));
+        order.product = faker.commerce.productName();
+        order.unit = 'ETH';
+        content = Buffer.from(JSON.stringify(order)).toString('hex');        
+
+        let cipherUser = await RSA.encrypt(content, userPublicKey);
+        let cipherCP = await RSA.encrypt(content, cpsPublicKey);
+        console.log(typeof cipherUser);
+        console.log(cipherUser);
+        console.log(typeof cipherCP);
+        console.log(cipherCP);
+
+        let contentHash = ethUtils.sha3(cipherUser + cipherCP).toString('hex');
+        console.log(typeof contentHash);
+        console.log(contentHash);
+        let msg = txHash + scidHash + contentHash;
+        console.log(typeof msg);
+        console.log(msg);
+        let msgHash = ethUtils.sha3(msg);
+        console.log('0x' + msgHash.toString('hex'));
+        let prefix = new Buffer('\x19Ethereum Signed Message:\n');
+        let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+        let signature = ethUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
+        
+        // put it back
+        let wrongRecord = {
+            tid: tid,
+            tidHash: '0x' + txHash,
+            scid: scid,
+            scidHash: '0x' + scidHash,
+            content: content,
+            contentHash: '0x' + contentHash.toString('hex'),
+            digest: '0x' + msgHash.toString('hex'),
+            r: '0x' + signature.r.toString('hex'),
+            s: '0x' + signature.s.toString('hex'),
+            v: signature.v,
+        };
+
+        records[0] = wrongRecord;
     }
 
     let result = await buildSideChainTree(scid, records);
