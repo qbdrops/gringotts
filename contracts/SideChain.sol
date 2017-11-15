@@ -1,9 +1,12 @@
 pragma solidity ^0.4.15;
 
+import "./ScTmp.sol"
+
 contract SideChain {
     bytes32 public sideChainRootHash;
     bytes32 public sideChainID;
     address public sideChainOwner;
+    address public sideChainTemplate;
     bool public completed;
     string public version = "0.2.0";
 
@@ -14,9 +17,10 @@ contract SideChain {
 
     mapping (bytes32 => ObjectionInfo) public objections;
     bytes32[] public errorTIDs;
-
     mapping (uint => bytes32) public indexMerkleTree;
     mapping (uint => bytes32[]) public leafNodeData;
+
+    bytes32[10] public list;
 
     event SideChainEvent(address indexed _owner, bytes32 indexed _scid, bytes4 _func);
 
@@ -26,9 +30,10 @@ contract SideChain {
         bool objectionSuccess;
     }
 
-    function SideChain(bytes32 scid, bytes32 rh, uint th, uint objection_time, uint exonerate_time) payable {
+    function SideChain(address _addr, bytes32 scid, bytes32 rh, uint th, uint objection_time, uint exonerate_time) payable {
         require(msg.value >= (2 ** (th - 1)) * deposit);
         sideChainOwner = msg.sender;
+        sideChainTemplate = _addr;
         sideChainID = scid;
         sideChainRootHash = rh;
         treeHeight = th;
@@ -43,19 +48,19 @@ contract SideChain {
         bytes32 content,
         uint8 v,
         bytes32 r,
-        bytes32 s) returns (bool) {
+        bytes32 s) {
         require (now < obj_time);
-        require (inErrorTIDList(tid) == false);
-        string memory str;
-        str = strConcat(bytes32ToString(tid), bytes32ToString(scid));
-        str = strConcat(str, bytes32ToString(content));
-        bytes32 hashMsg = sha3(str);
-        address signer = verify(hashMsg, v, r, s);
+        //require (inErrorTIDList(tid) == false);
+        require(ScTmp(sideChainTemplate).inBytes32Array(tid, errorTIDs) == false);
+        list[0] = tid;
+        list[1] = scid;
+        list[2] = content;
+        bytes32 hashMsg = ScTmp(sideChainTemplate).hashArray(list, 3);
+        address signer = ScTmp(sideChainTemplate).verify(hashMsg, v, r, s);
         require (signer == sideChainOwner);
         objections[tid] = ObjectionInfo(msg.sender, content, true);
         errorTIDs.push(tid);
         SideChainEvent(sideChainOwner, sideChainID, 0x7f2585d7);
-        return true;
     }
 
     function verify(bytes32 _message, uint8 _v, bytes32 _r, bytes32 _s) constant returns (address) {
