@@ -3,12 +3,11 @@ let express = require('express');
 let bodyParser = require('body-parser');
 let cors = require('cors');
 let ethUtils = require('ethereumjs-util');
-let RSAencrypt = require('./crypto/RSAencrypt.js');
+let RSA = require('./crypto/RSAencrypt.js');
 let MerkleTree = require('./indexMerkleTree/MerkleTree.js');
 let DB = require('./db');
 let buildSideChainTree = require('./makeTree');
 let faker = require('faker');
-let RSA = require('./crypto/RSAencrypt');
 
 let db;
 
@@ -264,6 +263,18 @@ app.post('/save/keys', async function (req, res) {
     }
 });
 
+app.put('/cp/publickey', async function (req, res) {
+    try {
+        let publicCp = req.body.publicKey;
+        console.log(publicCp);
+        let result = await db.insertCpPublicKey(publicCp);
+        res.send(result);
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
 app.post('/tree', async function (req, res) {
     try {
         let body = req.body;
@@ -319,8 +330,8 @@ app.get('/trees', async function (req, res) {
 });
 
 let saveKeys = async function () {
-    let publicUser = await RSAencrypt.readPublic('./indexMerkleTree/keypair/userPublicKey.json');
-    let publicCp = await RSAencrypt.readPublic('./indexMerkleTree/keypair/cpPublicKey.json');
+    let publicUser = await RSA.readPublic('./indexMerkleTree/keypair/userPublicKey.json');
+    let publicCp = await RSA.readPublic('./indexMerkleTree/keypair/cpPublicKey.json');
     let response = await db.insertPublicKeys(publicUser, publicCp);
     return response;
 };

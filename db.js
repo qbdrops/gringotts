@@ -48,6 +48,19 @@ async function connect() {
             });
         },
     
+        insertCpPublicKey(cpPublicKey) {
+            return new Promise(async function(resolve, reject) {
+                try {
+                    let cps = await db.collection('cp_publickeys');
+                    let result = await cps.save({_id: 1, publickey: cpPublicKey});
+                    resolve(result);
+                } catch (e) {
+                    console.log(e);
+                    reject(e);
+                }
+            }); 
+        },
+
         getPublicKeys () {
             return new Promise(async function (resolve, reject) {
                 try {
