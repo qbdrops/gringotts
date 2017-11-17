@@ -22,7 +22,7 @@ const sidechainBytecode = sidechain.unlinked_binary;
 const sidechainABI = sidechain.abi;
 const sidechainContractClass = web3.eth.contract(sidechainABI);
 
-let makeTree = async function (scid, records) {
+let makeTree = async function (time, scid, records) {
     let userPublicKey = keys.userPublicKey.publickey;
     let cpsPublicKey = keys.cpsPublicKey.publickey;
 
@@ -30,7 +30,7 @@ let makeTree = async function (scid, records) {
     let height = parseInt(Math.log2(recordLength)) + 1;
     let tree = new MerkleTree(height);
     tree.setSCID(scid);
-
+    tree.setTime(time);
     for (let i = 0; i < recordLength; i++) {
         let tid = records[i].tid;
         let message = records[i].content;
@@ -78,15 +78,16 @@ let deploySideChainContract = function (scid, rootHash, treeHeight) {
     });
 };
 
-async function buildSideChainTree(scid, records) {
+async function buildSideChainTree(time, scid, records) {
     try {
         db = await DB();
         keys = await db.getPublicKeys();
         console.log(keys);
-        const tree = await makeTree(scid, records);
+        const tree = await makeTree(time, scid, records);
         console.log('scid' + scid);
+        console.log('time' + time);
         let treeJson = tree.export();
-        await db.insertSideChainTree(parseInt(scid), treeJson);
+        await db.insertSideChainTree(parseInt(time), parseInt(scid), treeJson);
         const rootHash = '0x' + tree.getRootHash();
         console.log('Root Hash: ' + rootHash);
         const result = await deploySideChainContract(scid, rootHash, tree.getHeight());

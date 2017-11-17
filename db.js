@@ -63,11 +63,11 @@ async function connect() {
             });
         },
 
-        insertSideChainTree (scid, treeJson) {
+        insertSideChainTree (time, scid, treeJson) {
             return new Promise(async function(resolve, reject) {
                 try {
                     let tree = await db.collection('records_tree');
-                    let result = await tree.save({_id: parseInt(scid), tree: treeJson});
+                    let result = await tree.save({_id: parseInt(scid), tree: treeJson, time: parseInt(time)});
                     resolve(result);
                 } catch (e) {
                     console.log(e);
@@ -81,6 +81,24 @@ async function connect() {
                 try {
                     let treeCollection = await db.collection('records_tree');
                     let result = await treeCollection.findOne({_id: parseInt(scid)});
+                    resolve(result);
+                } catch (e) {
+                    console.log(e);
+                    reject(e);
+                }
+            });
+        },
+
+        async getSideChainTrees (timeRange) {
+            return new Promise(async function (resolve, reject) {
+                try {
+                    let nowTime = parseInt(Date.now() / 1000);
+                    let timeStart = nowTime - parseInt(timeRange);
+                    console.log(timeStart);                    
+                    console.log(timeRange);                                        
+                    let result = await db.collection('records_tree').find({time: {$gt: parseInt(timeStart), $lt: parseInt(nowTime)}}).toArray();
+                    
+                    console.log(result);
                     resolve(result);
                 } catch (e) {
                     console.log(e);

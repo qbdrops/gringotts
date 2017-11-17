@@ -147,10 +147,10 @@ async function fakeRecords(socket, numberOfData) {
 
         records[0] = wrongRecord;
     }
-
-    let result = await buildSideChainTree(scid, records);
+    let makeTreeTime = parseInt(Date.now() / 1000);
+    let result = await buildSideChainTree(makeTreeTime, scid, records);
     scid++;
-    console.log(result);
+    console.log(result);    
 }
 
 async function connectDB() {
@@ -246,6 +246,29 @@ app.get('/slice', async function (req, res) {
         res.send({
             slice: slice,
             leafNodeHashSet: leafNodeHashSet
+        });
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
+app.get('/getSideChainTrees', async function (req, res) {
+    try {
+        let time = req.query.time;
+        let trees = await db.getSideChainTrees(time);
+        let allTreeLeaves = trees.map((ele) => {
+            trees = [];
+            return ele.tree;
+        }).map(MerkleTree.import).
+            reduce((cur, next) => {
+                let leaves = next.getAllTransactionCiperCp();
+                return cur.concat(leaves);
+            }, []);
+
+        console.log(allTreeLeaves);
+        res.send({
+            cipherSet: allTreeLeaves
         });
     } catch (e) {
         console.log(e);
