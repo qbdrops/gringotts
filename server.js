@@ -8,7 +8,7 @@ let MerkleTree = require('./indexMerkleTree/MerkleTree.js');
 let DB = require('./db');
 let buildSideChainTree = require('./makeTree');
 let faker = require('faker');
-let RSA = require('./indexMerkleTree/RSAencrypt');
+let RSA = require('./crypto/RSAencrypt');
 
 let db;
 
@@ -150,7 +150,7 @@ async function fakeRecords(socket, numberOfData) {
     let makeTreeTime = parseInt(Date.now() / 1000);
     let result = await buildSideChainTree(makeTreeTime, scid, records);
     scid++;
-    console.log(result);    
+    console.log(result);
 }
 
 async function connectDB() {
@@ -253,29 +253,6 @@ app.get('/slice', async function (req, res) {
     }
 });
 
-app.get('/getSideChainTrees', async function (req, res) {
-    try {
-        let time = req.query.time;
-        let trees = await db.getSideChainTrees(time);
-        let allTreeLeaves = trees.map((ele) => {
-            trees = [];
-            return ele.tree;
-        }).map(MerkleTree.import).
-            reduce((cur, next) => {
-                let leaves = next.getAllTransactionCiperCp();
-                return cur.concat(leaves);
-            }, []);
-
-        console.log(allTreeLeaves);
-        res.send({
-            cipherSet: allTreeLeaves
-        });
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
-
 app.post('/save/keys', async function (req, res) {
     try {
         saveKeys();
@@ -294,6 +271,47 @@ app.post('/tree', async function (req, res) {
         let records = body.records;
         let result = await buildSideChainTree(scid, records);
         res.send({ok: result});
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
+// Content Provider API
+app.get('/tree', async function (req, res) {
+    try {
+        let query = req.query;
+        let scid = query.scid;
+
+        let treeJson = await db.getSideChainTree(scid);
+        let tree = await MerkleTree.import(treeJson.tree);
+        let leaves = tree.getAllTransactionCiperCp()
+        res.send({
+            leaves: leaves
+        });
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
+app.get('/trees', async function (req, res) {
+    try {
+        let time = req.query.timeDiff;
+        let trees = await db.getSideChainTrees(time);
+        let allTreeLeaves = trees.map((ele) => {
+            trees = [];
+            return ele.tree;
+        }).map(MerkleTree.import).
+            reduce((cur, next) => {
+                let leaves = next.getAllTransactionCiperCp();
+                return cur.concat(leaves);
+            }, []);
+
+        console.log(allTreeLeaves);
+        res.send({
+            cipherSet: allTreeLeaves
+        });
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
