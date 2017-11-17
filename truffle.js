@@ -17,7 +17,7 @@ const coinbase = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
 module.exports = {
     networks: {
         development: {
-            host: 'localhost',
+            host: env.web3Url,
             port: 8545,
             network_id: '*',
             from: coinbase
