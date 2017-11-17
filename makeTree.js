@@ -1,6 +1,6 @@
 let env = require('./env');
 let MerkleTree = require('./indexMerkleTree/MerkleTree');
-let RSA = require('./indexMerkleTree/RSAencrypt');
+let RSA = require('./crypto/RSAencrypt');
 let ethUtils = require('ethereumjs-util');
 let Web3 = require('web3');
 let fs = require('fs');
