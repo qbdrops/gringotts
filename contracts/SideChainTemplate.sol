@@ -10,6 +10,15 @@ contract SideChainTemplate {
         return false;
     }
 
+    function inBytes32Array10(bytes32 data, bytes32[10] dataArray) constant returns (bool){
+        for (uint i = 0; i < 10; i++) {
+            if (data == dataArray[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function hashArray(bytes32[10] dataArray, uint num) constant returns (bytes32) {
         require(num > 0);
         string memory str = bytes32ToString(dataArray[0]);
