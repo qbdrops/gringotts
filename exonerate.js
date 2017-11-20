@@ -27,7 +27,7 @@ let unlockCoinbase = function () {
     web3.personal.unlockAccount(web3.eth.coinbase, env.coinbasePassword);
 };
 
-let scid = 6666667;
+let scid = 222224444;
 
 async function exonerate() {
     try {
