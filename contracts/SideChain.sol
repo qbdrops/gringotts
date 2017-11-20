@@ -142,7 +142,7 @@ contract SideChain {
             uint[] memory idxs = new uint[](treeHeight);
             idxs = hashOrder(getObjectorNodeIndex(objector));
             bytes32 result = indexMerkelTree[idxs[0]];
-            require(inLFD(objector));
+            if(!inLFD(objector)) {continue;}
             for(uint j = 1; j < idxs.length; j++) {
                 if (idxs[j] % 2 == 1) {
                     result = sha3(strConcat(bytes32ToString(result), bytes32ToString(indexMerkelTree[idxs[j]])));
