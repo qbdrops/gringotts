@@ -18,7 +18,7 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let scid = 222224444;
+let scid = 12412515154;
 
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
@@ -54,26 +54,15 @@ async function fakeRecords(socket, numberOfData) {
         };
 
         let txHash = ethUtils.sha3(tid).toString('hex');
-        console.log(txHash);
         let scidHash = ethUtils.sha3(scid.toString()).toString('hex');
-        console.log(scidHash);
         let content = Buffer.from(JSON.stringify(order)).toString('hex');
 
         let cipherUser = await RSA.encrypt(content, userPublicKey);
         let cipherCP = await RSA.encrypt(content, cpsPublicKey);
-        console.log(typeof cipherUser);
-        console.log(cipherUser);
-        console.log(typeof cipherCP);
-        console.log(cipherCP);
 
         let contentHash = ethUtils.sha3(cipherUser + cipherCP).toString('hex');
-        console.log(typeof contentHash);
-        console.log(contentHash);
         let msg = txHash + scidHash + contentHash;
-        console.log(typeof msg);
-        console.log(msg);
         let msgHash = ethUtils.sha3(msg);
-        console.log('0x' + msgHash.toString('hex'));
         let prefix = new Buffer('\x19Ethereum Signed Message:\n');
         let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
         let signature = ethUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
@@ -90,9 +79,6 @@ async function fakeRecords(socket, numberOfData) {
             s: '0x' + signature.s.toString('hex'),
             v: signature.v,
         };
-
-        console.log(res);
-        console.log('---------------------------');
 
         socket.emit('transaction', res);
         records.push(res);
