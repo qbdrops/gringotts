@@ -1,6 +1,6 @@
 pragma solidity ^0.4.15;
 
-import "./ScTmp.sol"
+import "./ScTmp.sol";
 
 contract SideChain {
     bytes32 public sideChainRootHash;
