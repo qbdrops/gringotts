@@ -1,38 +1,50 @@
 pragma solidity ^0.4.15;
 
+import "./ScTmp.sol"
+
 contract SideChain {
     bytes32 public sideChainRootHash;
     bytes32 public sideChainID;
     address public sideChainOwner;
+    address public sideChainTemplate;
     bool public completed;
-    string public version = "0.1.0";
+    string public version = "0.2.0";
 
     uint public deposit = 100;
     uint public treeHeight;
-    uint public expire;
+    uint public obj_time;
+    uint public exr_time;
 
-    mapping (address => ObjectionInfo) public objections;
-    address[] public objectors;
+    mapping (bytes32 => ObjectionInfo) public objections;
+    bytes32[] public errorTIDs;
+    mapping (uint => bytes32) public indexMerkleTree;
+    mapping (uint => leafNodeData) public leafNode;
 
-    mapping (uint => bytes32) public indexMerkelTree;
-    mapping (uint => bytes32[]) public leafNodeData;
+    bytes32[10] public list;
 
     event SideChainEvent(address indexed _owner, bytes32 indexed _scid, bytes4 _func);
 
     struct ObjectionInfo {
-        bytes32 hashOfTID;
+        address customer;
         bytes32 hashOfContent;
         bool objectionSuccess;
     }
 
-    function SideChain(bytes32 scid, bytes32 rh, uint th) payable {
+    struct leafNodeData {
+        uint dataLength;
+        bytes32[10] data;
+    }
+
+    function SideChain(address _addr, bytes32 scid, bytes32 rh, uint th, uint objection_time, uint exonerate_time) payable {
         require(msg.value >= (2 ** (th - 1)) * deposit);
         sideChainOwner = msg.sender;
+        sideChainTemplate = _addr;
         sideChainID = scid;
         sideChainRootHash = rh;
         treeHeight = th;
         completed = false;
-        expire = now + 1 days; 
+        obj_time = now + objection_time;
+        exr_time = obj_time + exonerate_time;
     }
 
     function takeObjection(
@@ -41,221 +53,80 @@ contract SideChain {
         bytes32 content,
         uint8 v,
         bytes32 r,
-        bytes32 s) returns (bool) {
-        if (now + 1 hours > expire) { revert(); }
-        string memory str;
-        str = strConcat(bytes32ToString(tid), bytes32ToString(scid));
-        str = strConcat(str, bytes32ToString(content));
-        bytes32 hashMsg = sha3(str);
-        address signer = verify(hashMsg, v, r, s);
+        bytes32 s) {
+        require (now < obj_time);
+        //require (inErrorTIDList(tid) == false);
+        require(ScTmp(sideChainTemplate).inBytes32Array(tid, errorTIDs) == false);
+        list[0] = tid;
+        list[1] = scid;
+        list[2] = content;
+        bytes32 hashMsg = ScTmp(sideChainTemplate).hashArray(list, 3);
+        address signer = ScTmp(sideChainTemplate).verify(hashMsg, v, r, s);
         require (signer == sideChainOwner);
-        objections[msg.sender] = ObjectionInfo(tid, content, true);
-        objectors.push(msg.sender);
+        objections[tid] = ObjectionInfo(msg.sender, content, true);
+        errorTIDs.push(tid);
         SideChainEvent(sideChainOwner, sideChainID, 0x7f2585d7);
-        return true;
     }
 
-    function verify(bytes32 _message, uint8 _v, bytes32 _r, bytes32 _s) constant returns (address) {
-        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
-        bytes32 prefixedHash = sha3(prefix, _message);
-        address signer = ecrecover(prefixedHash, _v, _r, _s);
-        return signer;
-    }
-
-    function strConcat(string _a, string _b) constant returns (string) {
-        bytes memory bytes_a = bytes(_a);
-        bytes memory bytes_b = bytes(_b);
-        string memory length_ab = new string(bytes_a.length + bytes_b.length);
-        bytes memory bytes_c = bytes(length_ab);
-        uint k = 0;
-        for (uint i = 0; i < bytes_a.length; i++) {bytes_c[k++] = bytes_a[i];}
-        for (i = 0; i < bytes_b.length; i++) {bytes_c[k++] = bytes_b[i];}
-        return string(bytes_c);
-    }
-
-    function uintToAscii(uint number) constant returns(byte) {
-        if (number < 10) {
-            return byte(48 + number);
-        } else if (number < 16) {
-            // asciicode a = 97 return 10
-            return byte(87 + number);
-        } else {
-            revert();
-        }
-    }
-    
-    function asciiToUint(byte char) constant returns (uint) {
-        uint asciiNum = uint(char);
-        if (asciiNum > 47 && asciiNum < 58) {
-            return asciiNum - 48;
-        } else if (asciiNum > 96 && asciiNum < 103) {
-            return asciiNum - 87;
-        } else {
-            revert();
-        }
-    }
-
-    function stringToBytes32(string str) constant returns (bytes32) {
-        bytes memory bString = bytes(str);
-        uint uintString;
-        if (bString.length != 64) { revert(); }
-        for (uint i = 0; i < 64; i++) {
-            uintString = uintString*16 + uint(asciiToUint(bString[i]));
-        }
-        return bytes32(uintString);
-    }
-
-    function bytes32ToString (bytes32 b32) constant returns (string) {
-        bytes memory bytesString = new bytes(64);
-        for (uint i = 0; i < 32; i++) {
-            byte char = byte(bytes32(uint(b32) * 2 ** (8 * i)));
-            bytesString[i*2+0] = uintToAscii(uint(char) / 16);
-            bytesString[i*2+1] = uintToAscii(uint(char) % 16);
-        }
-        return string(bytesString);
-    }
-
-    function addressToString(address addr) constant returns (string) {
-        bytes memory bytesString = new bytes(40);
-        for (uint i = 0; i < 20; i++) {
-            byte char = byte(bytes20(uint(addr) * 2 ** (8 * i)));
-            bytesString[i*2+0] = uintToAscii(uint(char) / 16);
-            bytesString[i*2+1] = uintToAscii(uint(char) % 16);
-        }
-        return string(bytesString);
-    }
-
-    function hashOrder(uint idx) constant returns (uint[]) {
-        uint[] memory order = new uint[](treeHeight);
-        order[0] = idx;
-        for(uint i = 1; i < treeHeight; i++) {
-            order[i] = ((idx >> 1) << 1) + ((idx % 2) ^ 1);
-            idx = idx >> 1;
-        }
-        return order;
-    }
-
-    function exonerate() returns (bool) {
+    function exonerate() {
         require (msg.sender == sideChainOwner);
-        for (uint i = 0; i < objectors.length; i++) {
-            address objector = objectors[i];
-            uint[] memory idxs = new uint[](treeHeight);
-            idxs = hashOrder(getObjectorNodeIndex(objector));
-            bytes32 result = indexMerkelTree[idxs[0]];
-            if(!inLFD(objector)) {continue;}
-            for(uint j = 1; j < idxs.length; j++) {
-                if (idxs[j] % 2 == 1) {
-                    result = sha3(strConcat(bytes32ToString(result), bytes32ToString(indexMerkelTree[idxs[j]])));
-                } else {
-                    result = sha3(strConcat(bytes32ToString(indexMerkelTree[idxs[j]]), bytes32ToString(result)));
-                }
+        for (uint i = 0; i < errorTIDs.length; i++) {
+            bytes32 tid = errorTIDs[i];
+            uint idx = getObjectorNodeIndex(tid);
+            bytes32 result = indexMerkleTree[idx];
+            if (ScTmp(sideChainTemplate).inBytes32Array10(objections[tid].hashOfContent, leafNode[idx].data) != true) {
+                continue;
+            }
+            if (result != ScTmp(sideChainTemplate).hashArray(leafNode[idx].data, leafNode[idx].dataLength)) {
+                continue;
+            }
+            while (idx > 1) {
+                list[idx % 2] = result;
+                list[(idx % 2) ^ 1] = indexMerkleTree[getSibling(idx)];
+                result = ScTmp(sideChainTemplate).hashArray(list, 2);
+                idx = idx >> 1;
             }
             if (result == sideChainRootHash) {
-                objections[objector].objectionSuccess = false;
+                objections[tid].objectionSuccess = false;
             }
         }
-        return true;
+        SideChainEvent(sideChainOwner, sideChainID, 0x01490ac1);
     }
 
-    function inLFD(address objector) constant returns (bool) {
-        uint num = getObjectorNodeIndex(objector);
-        if (leafNodeData[num].length < 2) {
-            if (objections[objector].hashOfContent == leafNodeData[num][0]) {
-                return (indexMerkelTree[num] == sha3(bytes32ToString(leafNodeData[num][0])));
-            }
-            return false;
-        } else {
-            for (uint i = 0; i < leafNodeData[num].length; i++) {
-                if(objections[objector].hashOfContent == leafNodeData[num][i]) {
-                    string memory dataStr = bytes32ToString(leafNodeData[num][0]);
-                    for (uint j = 1; j < leafNodeData[num].length; j++) {
-                        dataStr = strConcat(dataStr, bytes32ToString(leafNodeData[num][j]));
-                    }
-                    return (indexMerkelTree[num] == sha3(dataStr));
-                }
-            }
-            return false;
-        }
-    }
-
-    function setIMT(uint[] idxs, bytes32[] nodeHash) returns (bool) {
+    function setting(uint[] IMTidx, bytes32[] IMTnodeHash, uint[] LFDidx, bytes32[] lfd) {
         require (msg.sender == sideChainOwner);
-        require (idxs.length == nodeHash.length);
-        for (uint i = 0; i < idxs.length; i++) {
-            indexMerkelTree[idxs[i]] = nodeHash[i];
+        require (IMTidx.length == IMTnodeHash.length);
+        for (uint i = 0; i < IMTidx.length; i++) {
+            indexMerkleTree[IMTidx[i]] = IMTnodeHash[i];
         }
-        SideChainEvent(sideChainOwner, sideChainID, 0x7b527e2f);
-        return true;
-    }
-
-    function setLFD(uint[] idxs, bytes32[] lfd) returns (bool) {
-        require (msg.sender == sideChainOwner);
         uint index_lfd = 0;
-        for (uint i = 0; i < idxs.length; i += 2) {
-            for (uint j = 0; j < idxs[i+1]; j++) {
-                leafNodeData[idxs[i]].push(lfd[index_lfd + j]);
+        for (i = 0; i < LFDidx.length; i += 2) {
+            leafNode[LFDidx[i]].dataLength = LFDidx[i+1];
+            for (uint j = 0; j < LFDidx[i+1]; j++) {
+                leafNode[LFDidx[i]].data[j] = lfd[index_lfd + j];
             }
-            index_lfd += idxs[i+1];
+            index_lfd += LFDidx[i+1];
         }
-        SideChainEvent(sideChainOwner, sideChainID, 0xd8e820e8);
-        return true;
+        SideChainEvent(sideChainOwner, sideChainID, 0x9d630d23);
     }
 
-    function isObjector(address objector) constant returns (bool) {
-        for (uint i = 0; i < objectors.length; i++) {
-            if (objector == objectors[i]) {
-                return true;
-            }
-        }
-        return false;
+    function getObjectorNodeIndex(bytes32 tid) constant returns (uint) {
+        return (uint(bytes6(tid)) % (2**(treeHeight-1))) + 2**(treeHeight-1);
     }
 
-    function getObjectorsNumber() constant returns (uint) {
-        return objectors.length;
-    }
-
-    function getObjectionAddress(uint idx) constant returns (address) {
-        if (idx >= objectors.length) {
-            revert();
-        } else {
-            return objectors[idx];
-        }
-    }
-
-    function getObjectorNodeIndex(address objector) constant returns (uint) {
-        return (uint(bytes6(objections[objector].hashOfTID)) % (2**(treeHeight-1))) + 2**(treeHeight-1);
-    }
-
-    function getIndexMerkelTree(uint idx) constant returns (bytes32) {
-        return indexMerkelTree[idx];
-    }
-
-    function getLFD(uint idx) constant returns (bytes32[]) {
-        return leafNodeData[idx];
-    }
-
-    function getObjectionHashOfTID(address objector) constant returns (bytes32) {
-        if (!isObjector(objector)) { revert(); }
-        return objections[objector].hashOfTID;
-    }
-
-    function getObjectionResult(address objector) constant returns (bool) {
-        if (!isObjector(objector)) { revert(); }
-        return objections[objector].objectionSuccess;
+    function getSibling(uint idx) constant returns (uint) {
+        return ((idx >> 1) << 1) + ((idx % 2) ^ 1);
     }
 
     function judge() {
-        if (expire == 0 || expire > now || completed == true) {
-            revert();
-        } else {
-            for (uint i = 0; i < objectors.length; i++) {
-                address objector = objectors[i];
-                if (objections[objector].objectionSuccess) {
-                    objector.transfer(deposit);
-                }
+        require (exr_time < now && completed == false);
+        for (uint i = 0; i < errorTIDs.length; i++) {
+            bytes32 tid = errorTIDs[i];
+            if (objections[tid].objectionSuccess) {
+                objections[tid].customer.transfer(deposit);
             }
-            sideChainOwner.transfer(this.balance);
-            completed = true;
         }
+        sideChainOwner.transfer(this.balance);
+        completed = true;
     }
 }
