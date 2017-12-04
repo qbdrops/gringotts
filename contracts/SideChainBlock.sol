@@ -1,8 +1,8 @@
 pragma solidity ^0.4.15;
 
-import "./ScTmp.sol";
+import "./SideChainStandard.sol";
 
-contract SideChain {
+contract SideChainBlock {
     bytes32 public sideChainRootHash;
     bytes32 public sideChainID;
     address public sideChainOwner;
@@ -56,12 +56,12 @@ contract SideChain {
         bytes32 s) {
         require (now < obj_time);
         //require (inErrorTIDList(tid) == false);
-        require(ScTmp(sideChainTemplate).inBytes32Array(tid, errorTIDs) == false);
+        require(SideChainStandard(sideChainTemplate).inBytes32Array(tid, errorTIDs) == false);
         list[0] = tid;
         list[1] = scid;
         list[2] = content;
-        bytes32 hashMsg = ScTmp(sideChainTemplate).hashArray(list, 3);
-        address signer = ScTmp(sideChainTemplate).verify(hashMsg, v, r, s);
+        bytes32 hashMsg = SideChainStandard(sideChainTemplate).hashArray(list, 3);
+        address signer = SideChainStandard(sideChainTemplate).verify(hashMsg, v, r, s);
         require (signer == sideChainOwner);
         objections[tid] = ObjectionInfo(msg.sender, content, true);
         errorTIDs.push(tid);
@@ -74,16 +74,16 @@ contract SideChain {
             bytes32 tid = errorTIDs[i];
             uint idx = getObjectorNodeIndex(tid);
             bytes32 result = indexMerkleTree[idx];
-            if (ScTmp(sideChainTemplate).inBytes32Array10(objections[tid].hashOfContent, leafNode[idx].data) != true) {
+            if (SideChainStandard(sideChainTemplate).inBytes32Array10(objections[tid].hashOfContent, leafNode[idx].data) != true) {
                 continue;
             }
-            if (result != ScTmp(sideChainTemplate).hashArray(leafNode[idx].data, leafNode[idx].dataLength)) {
+            if (result != SideChainStandard(sideChainTemplate).hashArray(leafNode[idx].data, leafNode[idx].dataLength)) {
                 continue;
             }
             while (idx > 1) {
                 list[idx % 2] = result;
                 list[(idx % 2) ^ 1] = indexMerkleTree[getSibling(idx)];
-                result = ScTmp(sideChainTemplate).hashArray(list, 2);
+                result = SideChainStandard(sideChainTemplate).hashArray(list, 2);
                 idx = idx >> 1;
             }
             if (result == sideChainRootHash) {

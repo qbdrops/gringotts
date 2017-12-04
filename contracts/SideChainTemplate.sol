@@ -1,6 +1,8 @@
 pragma solidity ^0.4.15;
 
-contract SideChainTemplate {
+import "./SideChainStandard.sol";
+
+contract SideChainTemplate is SideChainStandard{
     function inBytes32Array(bytes32 data, bytes32[] dataArray) constant returns (bool){
         for (uint i = 0; i < dataArray.length; i++) {
             if (data == dataArray[i]) {

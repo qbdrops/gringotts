@@ -1,6 +1,6 @@
 pragma solidity ^0.4.15;
 
-contract ScTmp {
+contract SideChainStandard {
     function inBytes32Array(bytes32 data, bytes32[] dataArray) constant returns (bool);
     function inBytes32Array10(bytes32 data, bytes32[10] dataArray) constant returns (bool);
     function hashArray(bytes32[10] dataArray, uint num) constant returns (bytes32);
