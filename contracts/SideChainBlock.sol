@@ -35,7 +35,7 @@ contract SideChainBlock {
         bytes32[10] data;
     }
 
-    function SideChain(address _addr, bytes32 scid, bytes32 rh, uint th, uint objection_time, uint exonerate_time) payable {
+    function SideChainBlock(address _addr, bytes32 scid, bytes32 rh, uint th, uint objection_time, uint exonerate_time) payable {
         require(msg.value >= (2 ** (th - 1)) * deposit);
         sideChainOwner = msg.sender;
         sideChainTemplate = _addr;
