@@ -9,6 +9,7 @@ let db;
 let keys;
 
 const IFCContractAddress = env.IFCContractAddress;
+const SidechainTemplateAddress = env.SidechainTemplateAddress
 
 let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
 const IFC = JSON.parse(fs.readFileSync('./build/contracts/IFC.json'));
@@ -53,7 +54,7 @@ let unlockCoinbase = function () {
     web3.personal.unlockAccount(web3.eth.coinbase, env.coinbasePassword);
 };
 
-let deploySideChainContract = function (scid, rootHash, treeHeight) {
+let deploySideChainContract = function (SidechainTemplateAddress, scid, rootHash, treeHeight, 300, 0) {
     unlockCoinbase();
     let wei = (2 ** (treeHeight - 1)) * 100;
     let scidHash = '0x' + ethUtils.sha3(scid.toString()).toString('hex');

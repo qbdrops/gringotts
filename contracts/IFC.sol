@@ -1,13 +1,13 @@
 pragma solidity ^0.4.13;
 
-import "./SideChain.sol";
+import "./SideChainBlock.sol";
 
 contract IFC {
     address public owner;
-    mapping (bytes32 => address) sideChainAddress;
-    bytes32[] scidInUse;
+    mapping (bytes32 => address) public BlockAddress;
+    bytes32[] public blockID;
 
-    event SideChainAddEvent(bytes32 _scid, address _addr);
+    event SideChainAddEvent(bytes32 _blkID, address _addr);
 
     modifier onlyOwner {
         require(msg.sender == owner);
@@ -18,24 +18,18 @@ contract IFC {
         owner = msg.sender;
     }
 
-    function addSideChainAddress(address addr) onlyOwner returns (bool) {
-        bytes32 scid;
-        SideChain sc = SideChain(addr);
-        scid = sc.sideChainID();
-        if (scid == 0x0) {
-            return false;
-        }
-        if (sideChainAddress[scid] != 0x0) {
-            return false;
-        }
-        scidInUse.push(scid);
-        sideChainAddress[scid] = addr;
+    function addBlockAddress(address addr) onlyOwner {
+        bytes32 blkID;
+        SideChainBlock sc = SideChainBlock(addr);
+        blkID = sc.sideChainID();
+        require(blkID != 0x0 && BlockAddress[blkID] == 0x0);
+        blockID.push(blkID);
+        BlockAddress[blkID] = addr;
 
-        SideChainAddEvent(scid, addr);
-        return true;
+        SideChainAddEvent(blkID, addr);
     }
 
-    function getSideChainAddress(bytes32 scid) constant returns (address) {
-        return sideChainAddress[scid];
+    function getBlockAddress(bytes32 blkID) constant returns (address) {
+        return BlockAddress[blkID];
     }
 }
