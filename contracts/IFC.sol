@@ -32,4 +32,12 @@ contract IFC {
     function getBlockAddress(bytes32 blkID) constant returns (address) {
         return BlockAddress[blkID];
     }
+
+    // for test
+    function reset() onlyOwner {
+        for(uint i = 0; i < blockID.length; i++) {
+            BlockAddress[blockID[i]] = 0x0;
+        }
+        delete blockID;
+    }
 }

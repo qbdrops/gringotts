@@ -118,6 +118,10 @@ contract SideChainBlock {
         return ((idx >> 1) << 1) + ((idx % 2) ^ 1);
     }
 
+    function getErrorTIDs() constant returns (bytes32[]) {
+        return errorTIDs;
+    }
+
     function judge() {
         require (exr_time < now && completed == false);
         for (uint i = 0; i < errorTIDs.length; i++) {
