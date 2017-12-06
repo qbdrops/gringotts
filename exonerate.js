@@ -14,7 +14,7 @@ const IFCContractAddress = env.IFCContractAddress;
 
 let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
 const IFC = JSON.parse(fs.readFileSync('./build/contracts/IFC.json'));
-const sidechain = JSON.parse(fs.readFileSync('./build/contracts/SideChain.json'));
+const sidechain = JSON.parse(fs.readFileSync('./build/contracts/SideChainBlock.json'));
 
 const IFCABI = IFC.abi;
 const IFCContractClass = web3.eth.contract(IFCABI);
@@ -36,29 +36,12 @@ async function exonerate() {
 
         if (treeJson) {
             let scidHash = '0x' + ethUtils.sha3(scid.toString()).toString('hex');
-            let sideChainAddress = await IFCContract.getSideChainAddress(scidHash.toString());
+            let sideChainAddress = await IFCContract.getBlockAddress(scidHash.toString());
             let sidechainInstance = sidechainContractClass.at(sideChainAddress);
-            let objectorNumber = sidechainInstance.getObjectorsNumber();
-            let objectorAddresses = [];
+            let objectionTidHashes = sidechainInstance.getErrorTIDs();
+            console.log(objectionTidHashes);
 
-            console.log(objectorNumber);
-
-            if (objectorNumber > 0) {
-                for (let i = 0; i < objectorNumber; i++) {
-                    let address = sidechainInstance.getObjectionAddress(i);
-                    objectorAddresses.push(address);
-                }
-
-                let objectionTidHashes = [];
-
-                for (let objectorAddress of objectorAddresses) {
-                    let objectionInfo = sidechainInstance.objections(objectorAddress.toString());
-                    let tidHash = objectionInfo[0];
-                    objectionTidHashes.push(tidHash);
-                }
-
-                console.log(objectionTidHashes);
-
+            if (objectionTidHashes > 0) {
                 let tree = await MerkleTree.import(treeJson.tree);
                 let targetIds = tree.calcLeafIndexByTidHash(objectionTidHashes);
                 let sliceHashes = tree.collectSlices(targetIds);
@@ -102,8 +85,6 @@ async function exonerate() {
                 console.log(leafHashes);
 
                 unlockCoinbase();
-                let waitForIMT = false;
-                let waitForLFD = false;
 
                 let event = sidechainInstance.SideChainEvent();
                 event.watch(function (err, result) {
@@ -114,23 +95,9 @@ async function exonerate() {
                         let args = result.args;
                         let func = args._func;
 
-                        let setIMT = '0x7b527e2f';
-                        let setLFD = '0xd8e820e8';
+                        let setting = '0x9d630d23';
 
-                        if (args._scid == scidHash) {
-                            switch(func) {
-                            case setIMT:
-                                waitForIMT = true;
-                                break;
-                            case setLFD:
-                                waitForLFD = true;
-                                break;
-                            default:
-                                new Error('Not supported event.');
-                            }
-                        }
-
-                        if (waitForIMT && waitForLFD) {
+                        if (args._scid === scidHash && func === setting) {
                             let isComplete = sidechainInstance.exonerate({from: account, to: sidechainInstance.address, gas: 4700000});
                             console.log('exonerate', isComplete);
                             event.stopWatching();
@@ -138,8 +105,7 @@ async function exonerate() {
                     }
                 });
 
-                sidechainInstance.setIMT(idxsIMT, nodeHashes, {from: account, to:sidechainInstance.address, gas: 4700000});
-                sidechainInstance.setLFD(idxsLFD, leafHashes, {from: account, to:sidechainInstance.address, gas: 4700000});
+                sidechainInstance.setting(idxsIMT, nodeHashes, idxsLFD, leafHashes, {from: account, to:sidechainInstance.address, gas: 4700000});
             }
         }
         return true;

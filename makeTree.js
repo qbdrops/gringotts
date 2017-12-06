@@ -9,11 +9,11 @@ let db;
 let keys;
 
 const IFCContractAddress = env.IFCContractAddress;
-const SidechainTemplateAddress = env.SidechainTemplateAddress
+const SidechainTemplateAddress = env.SidechainTemplateAddress;
 
 let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
 const IFC = JSON.parse(fs.readFileSync('./build/contracts/IFC.json'));
-const sidechain = JSON.parse(fs.readFileSync('./build/contracts/SideChain.json'));
+const sidechain = JSON.parse(fs.readFileSync('./build/contracts/SideChainBlock.json'));
 
 const IFCABI = IFC.abi;
 const IFCContractClass = web3.eth.contract(IFCABI);
@@ -54,13 +54,13 @@ let unlockCoinbase = function () {
     web3.personal.unlockAccount(web3.eth.coinbase, env.coinbasePassword);
 };
 
-let deploySideChainContract = function (SidechainTemplateAddress, scid, rootHash, treeHeight, 300, 0) {
+let deploySideChainContract = function (scid, rootHash, treeHeight) {
     unlockCoinbase();
     let wei = (2 ** (treeHeight - 1)) * 100;
     let scidHash = '0x' + ethUtils.sha3(scid.toString()).toString('hex');
     console.log('scidHash : ' + scidHash);
     return new Promise(function (resolve, reject) {
-        sidechainContractClass.new(scidHash, rootHash, treeHeight, {
+        sidechainContractClass.new(SidechainTemplateAddress, scidHash, rootHash, treeHeight, 300, 0, {
             data: sidechainBytecode,
             from: web3.eth.coinbase,
             value: wei,
@@ -100,7 +100,7 @@ async function buildSideChainTree(time, scid, records) {
         console.log('Tx hash: ' + txHash);
 
         unlockCoinbase();
-        let addSideChainTxHash = IFCContract.addSideChainAddress(contractAddress, {
+        let addSideChainTxHash = IFCContract.addBlockAddress(contractAddress, {
             from: web3.eth.coinbase,
             gas: 3000000
         });
