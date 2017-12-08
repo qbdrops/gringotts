@@ -8,6 +8,7 @@ let MerkleTree = require('./indexMerkleTree/MerkleTree.js');
 let DB = require('./db');
 let buildSideChainTree = require('./makeTree');
 let faker = require('faker');
+let exonerate = require('./exonerate');
 
 let db;
 
@@ -18,7 +19,7 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let scid = 12412515154;
+let scid = 12412414;
 
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
@@ -31,111 +32,90 @@ io.on('connection', async function (socket) {
 });
 
 async function fakeRecords(socket, numberOfData) {
-    let recordsLength = numberOfData;
-    let records = [];
+    try {
+        let recordsLength = numberOfData;
+        let records = [];
 
-    let keys = await db.getPublicKeys();
-    let userPublicKey = keys.userPublicKey.publickey;
-    let cpsPublicKey = keys.cpsPublicKey.publickey;
+        let keys = await db.getPublicKeys();
+        let userAddress = await db.getUserAddress();
+        let userPublicKey = keys.userPublicKey.publickey;
+        let cpsPublicKey = keys.cpsPublicKey.publickey;
+        let userRecords = [];
+        for (let i = 0; i < recordsLength; i++) {
+            let tid = faker.random.uuid();
+            let fromPrivateKey = ethUtils.sha3(faker.company.companyName()).toString('hex');
+            let fromPublickey = '0x' + ethUtils.privateToPublic('0x' + fromPrivateKey).toString('hex');
+            let fromAccount = '0x' + ethUtils.pubToAddress(fromPublickey).toString('hex');
+        
+            let toPrivateKey = ethUtils.sha3(faker.company.companyName()).toString('hex');
+            let toPublickey = '0x' + ethUtils.privateToPublic('0x' + toPrivateKey).toString('hex');
+            let toAccount = '0x' + ethUtils.pubToAddress(toPublickey).toString('hex');
+        
+            let order = {
+                'tid': tid,
+                'from': fromAccount,
+                'to': toAccount,
+                'value': faker.commerce.price(),
+                'scid': scid
+            };
 
-    for (let i = 0; i < recordsLength; i++) {
-        let tid = faker.random.uuid();
-        let order = {
-            'tid': tid,
-            'uid': faker.random.number(),
-            'product': faker.commerce.productName(),
-            'cp': faker.company.companyName(),
-            'from': faker.date.past(),
-            'to': faker.date.recent(),
-            'time': parseInt(Date.now() / 1000),
-            'price': faker.commerce.price(),
-            'unit': 'XPA',
-            'scid': scid
-        };
+            if (i == (recordsLength - 1) || 
+                i == (recordsLength - 2) ||
+                i == (recordsLength - 3)) {
+                order = {
+                    'tid': tid,
+                    'from': userAddress,
+                    'to': toAccount,
+                    'value': faker.commerce.price(),
+                    'scid': scid
+                };
+            }
 
-        let txHash = ethUtils.sha3(tid).toString('hex');
-        let scidHash = ethUtils.sha3(scid.toString()).toString('hex');
-        let content = Buffer.from(JSON.stringify(order)).toString('hex');
+            let txHash = ethUtils.sha3(tid).toString('hex');
+            let scidHash = ethUtils.sha3(scid.toString()).toString('hex');
+            let content = Buffer.from(JSON.stringify(order)).toString('hex');
 
-        let cipherUser = await RSA.encrypt(content, userPublicKey);
-        let cipherCP = await RSA.encrypt(content, cpsPublicKey);
+            let cipherUser = await RSA.encrypt(content, userPublicKey);
+            let cipherCP = await RSA.encrypt(content, cpsPublicKey);
 
-        let contentHash = ethUtils.sha3(cipherUser + cipherCP).toString('hex');
-        let msg = txHash + scidHash + contentHash;
-        let msgHash = ethUtils.sha3(msg);
-        let prefix = new Buffer('\x19Ethereum Signed Message:\n');
-        let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
-        let signature = ethUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
+            let contentHash = ethUtils.sha3(cipherUser + cipherCP).toString('hex');
+            let msg = txHash + scidHash + contentHash;
+            let msgHash = ethUtils.sha3(msg);
+            let prefix = new Buffer('\x19Ethereum Signed Message:\n');
+            let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+            let signature = ethUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
 
-        let res = {
-            tid: tid,
-            tidHash: '0x' + txHash,
-            scid: scid,
-            scidHash: '0x' + scidHash,
-            content: content,
-            contentHash: '0x' + contentHash.toString('hex'),
-            digest: '0x' + msgHash.toString('hex'),
-            r: '0x' + signature.r.toString('hex'),
-            s: '0x' + signature.s.toString('hex'),
-            v: signature.v,
-        };
+            let res = {
+                tid: tid,
+                tidHash: '0x' + txHash,
+                scid: scid,
+                scidHash: '0x' + scidHash,
+                content: content,
+                contentHash: '0x' + contentHash.toString('hex'),
+                digest: '0x' + msgHash.toString('hex'),
+                r: '0x' + signature.r.toString('hex'),
+                s: '0x' + signature.s.toString('hex'),
+                v: signature.v,
+            };
 
-        socket.emit('transaction', res);
-        records.push(res);
+            if (i == (recordsLength - 1) || 
+                i == (recordsLength - 2) ||
+                i == (recordsLength - 3)) {
+                userRecords.push(res);
+            }
+
+            records.push(res);
+        }
+
+        socket.emit('transaction', userRecords);
+
+        let makeTreeTime = parseInt(Date.now() / 1000);
+        let result = await buildSideChainTree(makeTreeTime, scid, records);
+        scid++;
+        console.log(result);
+    } catch(e) {
+        console.log(e);
     }
-
-    if (records.length > 0) {
-        let record = records[0];
-        let content = record.content;
-        let tid = record.tid;
-        let txHash = record.txHash;
-        let scidHash = record.scidHash;
-
-        // decode and change the first record
-        let order = JSON.parse(Buffer.from(content, 'hex'));
-        order.product = faker.commerce.productName();
-        order.unit = 'ETH';
-        content = Buffer.from(JSON.stringify(order)).toString('hex');
-
-        let cipherUser = await RSA.encrypt(content, userPublicKey);
-        let cipherCP = await RSA.encrypt(content, cpsPublicKey);
-        console.log(typeof cipherUser);
-        console.log(cipherUser);
-        console.log(typeof cipherCP);
-        console.log(cipherCP);
-
-        let contentHash = ethUtils.sha3(cipherUser + cipherCP).toString('hex');
-        console.log(typeof contentHash);
-        console.log(contentHash);
-        let msg = txHash + scidHash + contentHash;
-        console.log(typeof msg);
-        console.log(msg);
-        let msgHash = ethUtils.sha3(msg);
-        console.log('0x' + msgHash.toString('hex'));
-        let prefix = new Buffer('\x19Ethereum Signed Message:\n');
-        let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
-        let signature = ethUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
-
-        // put it back
-        let wrongRecord = {
-            tid: tid,
-            tidHash: '0x' + txHash,
-            scid: scid,
-            scidHash: '0x' + scidHash,
-            content: content,
-            contentHash: '0x' + contentHash.toString('hex'),
-            digest: '0x' + msgHash.toString('hex'),
-            r: '0x' + signature.r.toString('hex'),
-            s: '0x' + signature.s.toString('hex'),
-            v: signature.v,
-        };
-
-        records[0] = wrongRecord;
-    }
-    let makeTreeTime = parseInt(Date.now() / 1000);
-    let result = await buildSideChainTree(makeTreeTime, scid, records);
-    scid++;
-    console.log(result);
 }
 
 async function connectDB() {
@@ -243,6 +223,17 @@ app.post('/save/keys', async function (req, res) {
         saveKeys();
         let keys = await db.getPublicKeys();
         res.send(keys);
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
+app.post('/exonerate', async function (req, res) {
+    try {
+        let scid = req.body.scid;
+        let result = await exonerate(scid);
+        res.send({ok: result});
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});

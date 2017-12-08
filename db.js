@@ -1,5 +1,6 @@
 let env = require('./env');
 let MongoClient = require('mongodb').MongoClient;
+let ethUtils = require('ethereumjs-util');
 
 let url = env.mongodbUrl;
 
@@ -25,6 +26,20 @@ async function connect() {
                     let collection = await db.collection('ecc_publickeys');
                     let result = await collection.save({_id: 1, publickey: publickey});
                     resolve(result);
+                } catch (e) {
+                    console.log(e);
+                    reject(e);
+                }
+            });
+        },
+
+        getUserAddress () {
+            return new Promise(async function (resolve, reject) {
+                try {
+                    let users = await db.collection('ecc_publickeys');
+                    let userPublicKey = await users.findOne({'_id' : 1});
+                    let account = '0x' + ethUtils.pubToAddress(userPublicKey.publickey).toString('hex');
+                    resolve(account);
                 } catch (e) {
                     console.log(e);
                     reject(e);

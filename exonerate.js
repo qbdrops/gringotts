@@ -27,13 +27,10 @@ let unlockCoinbase = function () {
     web3.personal.unlockAccount(web3.eth.coinbase, env.coinbasePassword);
 };
 
-let scid = 12412515154;
-
-async function exonerate() {
+async function exonerate(scid) {
     try {
         db = await DB();
         let treeJson = await db.getSideChainTree(scid);
-
         if (treeJson) {
             let scidHash = '0x' + ethUtils.sha3(scid.toString()).toString('hex');
             let sideChainAddress = await IFCContract.getBlockAddress(scidHash.toString());
@@ -116,4 +113,4 @@ async function exonerate() {
     }
 }
 
-exonerate();
+module.exports = exonerate;
