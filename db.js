@@ -7,6 +7,37 @@ let url = env.mongodbUrl;
 async function connect() {
     let db = await MongoClient.connect(url);
     return {
+        async getOrNewBlockHeight () {
+            try {
+                let collection = await db.collection('block_height');
+                let lastestBlock = await collection.findOne({_id: 1});
+                if (lastestBlock) {
+                    let height = lastestBlock.blockHeight;
+                    return height;
+                } else {
+                    let result = await collection.save({_id: 1, blockHeight: 0});
+                    if (result) {
+                        return 0;
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        },
+
+        async increaseBlockHeight () {
+            try {
+                let height = await this.getOrNewBlockHeight();
+                height = parseInt(height) + 1;
+                let collection = await db.collection('block_height');
+                let result = await collection.save({_id: 1, blockHeight: height});
+                console.log(result);
+                return height;
+            } catch (e) {
+                console.error(e);
+            }
+        },
+
         insertRSAPublickey (publickey) {
             return new Promise(async function(resolve, reject) {
                 try {
@@ -105,34 +136,28 @@ async function connect() {
         },
 
         async getSideChainTree (scid) {
-            return new Promise(async function (resolve, reject) {
-                try {
-                    let treeCollection = await db.collection('records_tree');
-                    let result = await treeCollection.findOne({_id: parseInt(scid)});
-                    resolve(result);
-                } catch (e) {
-                    console.log(e);
-                    reject(e);
-                }
-            });
+            try {
+                let treeCollection = await db.collection('records_tree');
+                let result = await treeCollection.findOne({_id: parseInt(scid)});
+                return result;
+            } catch (e) {
+                console.error(e);
+            }
         },
 
         async getSideChainTrees (timeRange) {
-            return new Promise(async function (resolve, reject) {
-                try {
-                    let nowTime = parseInt(Date.now() / 1000);
-                    let timeStart = nowTime - parseInt(timeRange);
-                    console.log(timeStart);                    
-                    console.log(timeRange);                                        
-                    let result = await db.collection('records_tree').find({time: {$gt: parseInt(timeStart), $lt: parseInt(nowTime)}}).toArray();
-                    
-                    console.log(result);
-                    resolve(result);
-                } catch (e) {
-                    console.log(e);
-                    reject(e);
-                }
-            });
+            try {
+                let nowTime = parseInt(Date.now() / 1000);
+                let timeStart = nowTime - parseInt(timeRange);
+                console.log(timeStart);                    
+                console.log(timeRange);                                        
+                let result = await db.collection('records_tree').find({time: {$gt: parseInt(timeStart), $lt: parseInt(nowTime)}}).toArray();
+                
+                console.log(result);
+                return result;
+            } catch (e) {
+                console.error(e);
+            }
         },
 
         async saveTransactions (records) {
@@ -141,7 +166,7 @@ async function connect() {
                 let result = await txs.insertMany(records);
                 return result;
             } catch (e) {
-                console.log(e);
+                console.error(e);
             }
         },
 
@@ -151,7 +176,7 @@ async function connect() {
                 let result = await txs.find({scid: {$eq: parseInt(scid)}}).toArray();
                 return result;
             } catch (e) {
-                console.log(e);
+                console.error(e);
             }
         },
 

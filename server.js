@@ -19,7 +19,7 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let scid = 15125;
+let scid;
 
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
@@ -33,6 +33,9 @@ io.on('connection', async function (socket) {
 
 async function fakeRecords(socket, numberOfData) {
     try {
+        if (scid !== 0 || scid) {
+            throw new Error('Block hash has not been initialized.');
+        }
         let recordsLength = numberOfData;
         let records = [];
 
@@ -107,17 +110,13 @@ async function fakeRecords(socket, numberOfData) {
             records.push(res);
         }
 
-        socket.emit('transaction', userRecords);
         let dbResult = await db.saveTransactions(records);
+        socket.emit('transaction', userRecords);
         console.log(dbResult);
-        scid++;
+        scid = await db.increaseBlockHeight();
     } catch(e) {
         console.log(e);
     }
-}
-
-async function connectDB() {
-    db = await DB();
 }
 
 function queryStringToJSON(bill) {
@@ -267,8 +266,8 @@ app.post('/tree', async function (req, res) {
         let scid = req.body.scid;
         let makeTreeTime = parseInt(Date.now() / 1000);
         let records = await db.getTransactions(scid);
-        let result = await buildSideChainTree(makeTreeTime, scid, records);
-        res.send(result);
+        buildSideChainTree(makeTreeTime, scid, records);
+        res.send({ok: true});
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
@@ -322,8 +321,15 @@ let saveKeys = async function () {
     return response;
 };
 
-server.listen(3000, function () {
-    connectDB();
+async function connectDB() {
+    let instance = await DB();
+    return instance;
+}
+
+server.listen(3000, async function () {
+    db = await connectDB();
+    scid = await db.getOrNewBlockHeight();
+    console.log(scid);
     console.log(privatekey);
     console.log(publickey);
     console.log(account);
