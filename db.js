@@ -30,8 +30,7 @@ async function connect() {
                 let height = await this.getOrNewBlockHeight();
                 height = parseInt(height) + 1;
                 let collection = await db.collection('block_height');
-                let result = await collection.save({_id: 1, blockHeight: height});
-                console.log(result);
+                await collection.save({_id: 1, blockHeight: height});
                 return height;
             } catch (e) {
                 console.error(e);

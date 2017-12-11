@@ -26,14 +26,15 @@ const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('h
 const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
 
 io.on('connection', async function (socket) {
-    socket.on('fake', (numberOfData) => {
-        fakeRecords(socket, numberOfData);
+    console.log('connected');
+    socket.on('disconnect', function() {
+        console.log('disconnected');
     });
 });
 
-async function fakeRecords(socket, numberOfData) {
+async function fakeRecords(numberOfData) {
     try {
-        if (scid !== 0 || scid) {
+        if (!scid && scid !== 0) {
             throw new Error('Block hash has not been initialized.');
         }
         let recordsLength = numberOfData;
@@ -110,10 +111,10 @@ async function fakeRecords(socket, numberOfData) {
             records.push(res);
         }
 
-        let dbResult = await db.saveTransactions(records);
-        socket.emit('transaction', userRecords);
-        console.log(dbResult);
+        await db.saveTransactions(records);
+        io.sockets.emit('transaction', userRecords);
         scid = await db.increaseBlockHeight();
+        return scid;
     } catch(e) {
         console.log(e);
     }
@@ -133,6 +134,8 @@ function queryStringToJSON(bill) {
 
 app.post('/fake', async function (req, res) {
     try {
+        let size = req.body.size;
+        fakeRecords(parseInt(size));
         res.send({ok: true});
     } catch (e) {
         console.log(e);
@@ -167,7 +170,7 @@ app.put('/ecc/publickey', async function (req, res) {
  * 觀影暫停或停止上傳建立一小段收費資料
  * 並回傳相關稽核資料
  */
-app.post('/finish', function (req, res) {
+app.post('/fake', function (req, res) {
     try {
         let message = req.body;
         let messageString = message.content;
@@ -266,7 +269,9 @@ app.post('/tree', async function (req, res) {
         let scid = req.body.scid;
         let makeTreeTime = parseInt(Date.now() / 1000);
         let records = await db.getTransactions(scid);
-        buildSideChainTree(makeTreeTime, scid, records);
+        if (records.length > 0) {
+            buildSideChainTree(makeTreeTime, scid, records);
+        }
         res.send({ok: true});
     } catch (e) {
         console.log(e);
