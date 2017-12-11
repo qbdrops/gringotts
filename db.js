@@ -135,6 +135,26 @@ async function connect() {
             });
         },
 
+        async saveTransactions (records) {
+            try {
+                let txs = await db.collection('txs');
+                let result = await txs.insertMany(records);
+                return result;
+            } catch (e) {
+                console.log(e);
+            }
+        },
+
+        async getTransactions (scid) {
+            try {
+                let txs = await db.collection('txs');
+                let result = await txs.find({scid: {$eq: parseInt(scid)}}).toArray();
+                return result;
+            } catch (e) {
+                console.log(e);
+            }
+        },
+
         close () {
             db.close();
         },

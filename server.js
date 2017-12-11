@@ -19,7 +19,7 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let scid = 12412414;
+let scid = 15125;
 
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
@@ -108,11 +108,9 @@ async function fakeRecords(socket, numberOfData) {
         }
 
         socket.emit('transaction', userRecords);
-
-        let makeTreeTime = parseInt(Date.now() / 1000);
-        let result = await buildSideChainTree(makeTreeTime, scid, records);
+        let dbResult = await db.saveTransactions(records);
+        console.log(dbResult);
         scid++;
-        console.log(result);
     } catch(e) {
         console.log(e);
     }
@@ -252,13 +250,25 @@ app.put('/cp/publickey', async function (req, res) {
     }
 });
 
+app.get('/txs', async function (req, res) {
+    try {
+        let scid = req.query.scid;
+        console.log(scid);
+        let result = await db.getTransactions(scid);
+        res.send(result);
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
 app.post('/tree', async function (req, res) {
     try {
-        let body = req.body;
-        let scid = body.scid;
-        let records = body.records;
-        let result = await buildSideChainTree(scid, records);
-        res.send({ok: result});
+        let scid = req.body.scid;
+        let makeTreeTime = parseInt(Date.now() / 1000);
+        let records = await db.getTransactions(scid);
+        let result = await buildSideChainTree(makeTreeTime, scid, records);
+        res.send(result);
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
@@ -270,10 +280,9 @@ app.get('/tree', async function (req, res) {
     try {
         let query = req.query;
         let scid = query.scid;
-
         let treeJson = await db.getSideChainTree(scid);
         let tree = await MerkleTree.import(treeJson.tree);
-        let leaves = tree.getAllTransactionCiperCp()
+        let leaves = tree.getAllTransactionCiperCp();
         res.send({
             leaves: leaves
         });
