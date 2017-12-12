@@ -30,8 +30,8 @@ let unlockCoinbase = function () {
 async function exonerate(scid) {
     try {
         db = await DB();
-        let treeJson = await db.getSideChainTree(scid);
-        if (treeJson) {
+        let txCiphers = await db.getSideChainTree(scid);
+        if (txCiphers.length > 0) {
             let scidHash = '0x' + ethUtils.sha3(scid.toString()).toString('hex');
             let sideChainAddress = await IFCContract.getBlockAddress(scidHash.toString());
             let sidechainInstance = sidechainContractClass.at(sideChainAddress);
@@ -39,7 +39,12 @@ async function exonerate(scid) {
             console.log(objectionTidHashes);
 
             if (objectionTidHashes > 0) {
-                let tree = await MerkleTree.import(treeJson.tree);
+                let height = parseInt(Math.log2(txCiphers.length)) + 1;
+                let tree = new MerkleTree(height);
+                tree.setSCID(scid);
+                txCiphers.forEach((tx) => {
+                    tree.putTransactionInTree(tx);
+                });
                 let targetIds = tree.calcLeafIndexByTidHash(objectionTidHashes);
                 let sliceHashes = tree.collectSlices(targetIds);
                 console.log(sliceHashes);

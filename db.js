@@ -37,6 +37,16 @@ async function connect() {
             }
         },
 
+        async saveTxCiphers(ciphers) {
+            try {
+                let collection = await db.collection('tx_ciphers');
+                let result = await collection.insertMany(ciphers);
+                return result;
+            } catch (e) {
+                console.error(e);
+            }
+        },
+
         insertRSAPublickey (publickey) {
             return new Promise(async function(resolve, reject) {
                 try {
@@ -136,8 +146,8 @@ async function connect() {
 
         async getSideChainTree (scid) {
             try {
-                let treeCollection = await db.collection('records_tree');
-                let result = await treeCollection.findOne({_id: parseInt(scid)});
+                let treeCollection = await db.collection('tx_ciphers');
+                let result = await treeCollection.find({scid: {$eq: parseInt(scid)}}).toArray();
                 return result;
             } catch (e) {
                 console.error(e);

@@ -32,20 +32,27 @@ let makeTree = async function (time, scid, records) {
     let tree = new MerkleTree(height);
     tree.setSCID(scid);
     tree.setTime(time);
+    let txs = [];
     for (let i = 0; i < recordLength; i++) {
         let tid = records[i].tid;
         let message = records[i].content;
         let cipherUser = await RSA.encrypt(message, userPublicKey);
         let cipherCP = await RSA.encrypt(message, cpsPublicKey);
 
-        let content = {
+        let tx = {
+            'scid': parseInt(scid),
             'tid': tid,
             'contentUser': cipherUser,
             'contentCp': cipherCP,
         };
-
-        tree.putTransactionInTree(content);
+        txs.push(tx);
     }
+
+    let result = await db.saveTxCiphers(txs);
+    console.log(result);
+    txs.forEach((tx) => {
+        tree.putTransactionInTree(tx);
+    });
 
     return tree;
 };
@@ -87,8 +94,6 @@ async function buildSideChainTree(time, scid, records) {
         const tree = await makeTree(time, scid, records);
         console.log('scid' + scid);
         console.log('time' + time);
-        let treeJson = tree.export();
-        await db.insertSideChainTree(parseInt(time), parseInt(scid), treeJson);
         const rootHash = '0x' + tree.getRootHash();
         console.log('Root Hash: ' + rootHash);
         const result = await deploySideChainContract(scid, rootHash, tree.getHeight());

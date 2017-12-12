@@ -20,6 +20,7 @@ app.use(cors());
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
 let scid;
+let cached = [];
 
 const privatekey = env.coinbasePrivateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
@@ -120,18 +121,6 @@ async function fakeRecords(numberOfData) {
     }
 }
 
-function queryStringToJSON(bill) {
-    var pairs = bill.split('&');
-
-    var result = {};
-    pairs.forEach(function(pair) {
-        pair = pair.split('=');
-        result[pair[0]] = decodeURIComponent(pair[1].replace(/\+/g, '%20') || '');
-    });
-
-    return JSON.parse(JSON.stringify(result));
-}
-
 app.post('/fake', async function (req, res) {
     try {
         let size = req.body.size;
@@ -165,53 +154,61 @@ app.put('/ecc/publickey', async function (req, res) {
     }
 });
 
-/**
- * XPA Http Server
- * 觀影暫停或停止上傳建立一小段收費資料
- * 並回傳相關稽核資料
- */
-app.post('/fake', function (req, res) {
-    try {
-        let message = req.body;
-        let messageString = message.content;
-        let messageDetail = queryStringToJSON(message.content);
-        console.log(messageDetail);
-
-        let msgHash = ethUtils.sha3(messageString);
-        console.log(msgHash);
-
-        let signature = ethUtils.ecsign(msgHash, Buffer.from(privatekey, 'hex'));
-        console.log(signature);
-
-        res.send({
-            digest: msgHash.toString('hex'),
-            r: '0x' + signature.r.toString('hex'),
-            s: '0x' + signature.s.toString('hex'),
-            v: signature.v,
-            content: messageString,
-            detail: messageDetail
-        });
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
-
 app.get('/slice', async function (req, res) {
     try {
         let query = req.query;
         let scid = query.scid;
         let tid = query.tid;
 
-        let treeJson = await db.getSideChainTree(scid);
-        let tree = await MerkleTree.import(treeJson.tree);
-        let slice = tree.extractSlice(tid);
-        let leafNodeHashSet = tree.getTransactionHashSet(tid);
+        let cachedTree = null;
 
-        res.send({
-            slice: slice,
-            leafNodeHashSet: leafNodeHashSet
-        });
+        for (let key in cached) {
+            let tree = cached[key];
+            if (tree.scid == scid) {
+                cachedTree = tree;
+            }
+        }
+
+        if (cachedTree) {
+            let slice = cachedTree.extractSlice(tid);
+            let leafNodeHashSet = cachedTree.getTransactionHashSet(tid);
+            
+            res.send({
+                slice: slice,
+                leafNodeHashSet: leafNodeHashSet
+            });
+        } else {
+            let txCiphers = await db.getSideChainTree(scid);
+            if (txCiphers.length > 0) {
+                let height = parseInt(Math.log2(txCiphers.length)) + 1;
+                let tree = new MerkleTree(height);
+                tree.setSCID(scid);
+
+                txCiphers.forEach((tx) => {
+                    tree.putTransactionInTree(tx);
+                });
+
+                let slice = tree.extractSlice(tid);
+                let leafNodeHashSet = tree.getTransactionHashSet(tid);
+                
+                if (cached.length >= 3) {
+                    cached.push(tree);
+                    cached.shift();
+                } else {
+                    cached.push(tree);
+                }
+                
+                res.send({
+                    slice: slice,
+                    leafNodeHashSet: leafNodeHashSet
+                });
+            } else {
+                res.send({
+                    slice: null,
+                    leafNodeHashSet: null
+                });
+            }
+        }
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
@@ -232,8 +229,8 @@ app.post('/save/keys', async function (req, res) {
 app.post('/exonerate', async function (req, res) {
     try {
         let scid = req.body.scid;
-        let result = await exonerate(scid);
-        res.send({ok: result});
+        exonerate(scid);
+        res.send({ok: true});
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
@@ -284,12 +281,25 @@ app.get('/tree', async function (req, res) {
     try {
         let query = req.query;
         let scid = query.scid;
-        let treeJson = await db.getSideChainTree(scid);
-        let tree = await MerkleTree.import(treeJson.tree);
-        let leaves = tree.getAllTransactionCiperCp();
-        res.send({
-            leaves: leaves
-        });
+        let txCiphers = await db.getSideChainTree(scid);
+        if (txCiphers.length > 0) {
+            let height = parseInt(Math.log2(txCiphers.length)) + 1;
+            let tree = new MerkleTree(height);
+            tree.setSCID(scid);
+
+            txCiphers.forEach((tx) => {
+                tree.putTransactionInTree(tx);
+            });
+
+            res.send(tree.export());
+        } else {
+            res.send({
+                nodes: [],
+                time: null,
+                scid: null,
+                height: null
+            });
+        }
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});

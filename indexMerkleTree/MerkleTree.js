@@ -59,9 +59,9 @@ class MerkleTree {
         if(!this.scid) {
             throw new Error('you should set scid.');
         }
-        if(!this.makeTreeTime) {
-            throw new Error('you should set tree making time.');
-        }
+        // if(!this.makeTreeTime) {
+        //     throw new Error('you should set tree making time.');
+        // }
         let tid = order.tid || '';
         let contentUser = order.contentUser || '';
         let contentCp = order.contentCp || ''; 
