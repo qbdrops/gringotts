@@ -6,7 +6,8 @@
   "scripts": {
     "test": "truffle test",
     "lint": "./node_modules/.bin/eslint .",
-    "start": "node server.js"
+    "start": "node server.js",
+    "key": "node info.js"
   },
   "author": "",
   "license": "ISC",
