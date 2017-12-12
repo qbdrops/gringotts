@@ -48,8 +48,7 @@ let makeTree = async function (time, scid, records) {
         txs.push(tx);
     }
 
-    let result = await db.saveTxCiphers(txs);
-    console.log(result);
+    db.saveTxCiphers(txs);
     txs.forEach((tx) => {
         tree.putTransactionInTree(tx);
     });
