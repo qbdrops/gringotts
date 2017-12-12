@@ -267,7 +267,14 @@ app.post('/tree', async function (req, res) {
         let makeTreeTime = parseInt(Date.now() / 1000);
         let records = await db.getTransactions(scid);
         if (records.length > 0) {
-            buildSideChainTree(makeTreeTime, scid, records);
+            buildSideChainTree(makeTreeTime, scid, records).then((tree) => {
+                if (cached.length >= 3) {
+                    cached.push(tree);
+                    cached.shift();
+                } else {
+                    cached.push(tree);
+                }
+            });
         }
         res.send({ok: true});
     } catch (e) {

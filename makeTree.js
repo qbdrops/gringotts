@@ -112,7 +112,7 @@ async function buildSideChainTree(time, scid, records) {
 
         console.log('Add sidechain tx hash: ' + addSideChainTxHash);
         db.close();
-        return true;
+        return tree;
     } catch (e) {
         console.log(e);
     }
