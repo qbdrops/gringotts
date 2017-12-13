@@ -274,7 +274,7 @@ app.get('/txs', async function (req, res) {
 
 app.get('/latest/txs', async function (req, res) {
     try {
-        let blockNumber = await SideChain.pendingBlockNumber();
+        let blockNumber = await SideChain.getLatestSideChainBlock();
         let result = await db.getTransactions(blockNumber);
         res.send(result);
     } catch (e) {

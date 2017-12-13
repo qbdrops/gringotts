@@ -35,7 +35,7 @@ let SideChain = function () {
     connectDB().then((db) => {
         this.db = db;
     });
-    
+
     this.chain = IFCContract;
     this.getBlock = (heightOrHash) => {
         let isHex = (web3.toHex(heightOrHash) === heightOrHash.toLowerCase());
@@ -57,7 +57,7 @@ let SideChain = function () {
         return blockInstance;
     };
 
-    this.pendingBlockNumber = async () => {
+    this.getLatestSideChainBlock = async () => {
         let nextBlockHeight = await this.db.getOrNewBlockHeight();
         nextBlockHeight = parseInt(nextBlockHeight);
         let lastestBlockHeight = 0;
