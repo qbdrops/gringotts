@@ -6,6 +6,7 @@ contract IFC {
     address public owner;
     mapping (bytes32 => address) public BlockAddress;
     bytes32[] public blockID;
+    uint public blockHeight;
 
     event SideChainAddEvent(bytes32 _blkID, address _addr);
 
@@ -25,7 +26,7 @@ contract IFC {
         require(blkID != 0x0 && BlockAddress[blkID] == 0x0);
         blockID.push(blkID);
         BlockAddress[blkID] = addr;
-
+        blockHeight += 1;
         SideChainAddEvent(blkID, addr);
     }
 

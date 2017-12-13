@@ -67,6 +67,21 @@ let SideChain = function () {
         return lastestBlockHeight;
     };
 
+    this.pendingBlocks = async () => {
+        let finalizedNumber = IFCContract.blockHeight();
+        let finalizedBlockHeight = finalizedNumber - 1;
+        let blockHeightInSidechain = await this.getLatestSideChainBlock();
+        if (blockHeightInSidechain > finalizedBlockHeight) {
+            let pendingBlocks = [];
+            for (let i = finalizedBlockHeight; i < blockHeightInSidechain; i++) {
+                pendingBlocks.push(i + 1);
+            }
+            return pendingBlocks;
+        } else {
+            return [];
+        }
+    };
+
     this.judge = (heightOrHash) => {
         let blockInstance = this.getBlock(heightOrHash);
         if (blockInstance) {

@@ -100,7 +100,7 @@ async function buildSideChainTree(time, scid, records) {
         console.log('Sidechain contract address: ' + contractAddress);
         console.log('Tx hash: ' + txHash);
 
-        web3.personal.unlockAccount(env.accout, env.password);        
+        web3.personal.unlockAccount(env.account, env.password);        
         let addSideChainTxHash = IFCContract.addBlockAddress(contractAddress, {
             from: env.account,
             gas: 3000000

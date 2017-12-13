@@ -283,6 +283,16 @@ app.get('/latest/txs', async function (req, res) {
     }
 });
 
+app.get('/pending/blocks', async function (req, res) {
+    try {
+        let pendingBlocks = await SideChain.pendingBlocks();
+        res.send(pendingBlocks);
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
 app.post('/tree', async function (req, res) {
     try {
         let scid = req.body.scid;
