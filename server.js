@@ -291,6 +291,16 @@ app.get('/agent/balance', async function (req, res) {
     }
 });
 
+app.get('/agent/address', async function (req, res) {
+    try {
+        let address = env.account;
+        res.send({address: address});
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
 app.get('/txs', async function (req, res) {
     try {
         let scid = req.query.scid;
