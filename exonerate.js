@@ -6,7 +6,7 @@ let fs = require('fs');
 let DB = require('./db');
 let db;
 
-const privatekey = env.coinbasePrivateKey;
+const privatekey = env.privateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
 const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
 
@@ -22,10 +22,6 @@ const IFCContract = IFCContractClass.at(IFCContractAddress);
 
 const sidechainABI = sidechain.abi;
 const sidechainContractClass = web3.eth.contract(sidechainABI);
-
-let unlockCoinbase = function () {
-    web3.personal.unlockAccount(web3.eth.coinbase, env.coinbasePassword);
-};
 
 async function exonerate(scid) {
     try {
@@ -86,7 +82,7 @@ async function exonerate(scid) {
                 console.log('LFD:');
                 console.log(leafHashes);
 
-                unlockCoinbase();
+                web3.personal.unlockAccount(account, env.password);
 
                 let event = sidechainInstance.SideChainEvent();
                 event.watch(function (err, result) {

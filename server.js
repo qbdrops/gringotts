@@ -9,6 +9,7 @@ let DB = require('./db');
 let buildSideChainTree = require('./makeTree');
 let faker = require('faker');
 let exonerate = require('./exonerate');
+let SideChain = require('./utils/SideChain');
 
 let db;
 
@@ -22,7 +23,7 @@ var io = require('socket.io')(server);
 let scid;
 let cached = [];
 
-const privatekey = env.coinbasePrivateKey;
+const privatekey = env.privateKey;
 const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
 const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
 
@@ -231,6 +232,17 @@ app.post('/exonerate', async function (req, res) {
         let scid = req.body.scid;
         exonerate(scid);
         res.send({ok: true});
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
+app.put('/judge', async function (req, res) {
+    try {
+        let scid = req.body.scid;
+        let result = SideChain.judge(scid);
+        res.send(result);
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
