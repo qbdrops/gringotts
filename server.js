@@ -20,7 +20,6 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let scid;
 let cached = [];
 
 const privatekey = env.privateKey;
@@ -36,6 +35,7 @@ io.on('connection', async function (socket) {
 
 async function fakeRecords(numberOfData) {
     try {
+        let scid = await db.getOrNewBlockHeight();
         if (!scid && scid !== 0) {
             throw new Error('Block hash has not been initialized.');
         }
@@ -115,8 +115,7 @@ async function fakeRecords(numberOfData) {
 
         await db.saveTransactions(records);
         io.sockets.emit('transaction', userRecords);
-        scid = await db.increaseBlockHeight();
-        return scid;
+        await db.increaseBlockHeight();
     } catch(e) {
         console.log(e);
     }
@@ -362,7 +361,7 @@ async function connectDB() {
 
 server.listen(3000, async function () {
     db = await connectDB();
-    scid = await db.getOrNewBlockHeight();
+    let scid = await db.getOrNewBlockHeight();
     console.log(scid);
     console.log(privatekey);
     console.log(publickey);
