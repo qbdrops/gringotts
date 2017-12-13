@@ -260,6 +260,37 @@ app.put('/cp/publickey', async function (req, res) {
     }
 });
 
+app.get('/latest/objections/count', async function (req, res) {
+    try {
+        let objections = SideChain.getLatestObjections();
+        console.log(objections);
+        res.send({objectionCount: objections.length});
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
+app.get('/latest/block/height', async function (req, res) {
+    try {
+        let height = SideChain.getLatestBlockHeight();
+        res.send({height: height});
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
+app.get('/agent/balance', async function (req, res) {
+    try {
+        let balance = SideChain.getAgentBalance();
+        res.send({balance: balance});
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
 app.get('/txs', async function (req, res) {
     try {
         let scid = req.query.scid;

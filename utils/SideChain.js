@@ -57,6 +57,37 @@ let SideChain = function () {
         return blockInstance;
     };
 
+    this.getAgentBalance = () => {
+        return web3.eth.getBalance(account);
+    };
+
+    this.getLatestObjections = () => {
+        let finalizedNumber = IFCContract.blockNumber();
+        if (finalizedNumber > 0) {
+            let blockID = IFCContract.blockID(finalizedNumber - 1);
+            let address = IFCContract.getBlockAddress(blockID);
+            let latestBlock = blockContractClass.at(address);
+            let objectionTidHashes = latestBlock.getErrorTIDs();
+            let validObjections = objectionTidHashes.filter((objectionTidHash) => {
+                let objection = latestBlock.objections(objectionTidHash);
+                return objection[2];
+            });
+
+            return validObjections;
+        }
+
+        return [];
+    };
+
+    this.getLatestBlockHeight = () => {
+        let finalizedNumber = IFCContract.blockNumber();
+        if (finalizedNumber > 0) {
+            return finalizedNumber - 1;
+        }
+
+        return null;
+    };
+    
     this.getLatestSideChainBlock = async () => {
         let nextBlockHeight = await this.db.getOrNewBlockHeight();
         nextBlockHeight = parseInt(nextBlockHeight);
@@ -68,7 +99,7 @@ let SideChain = function () {
     };
 
     this.pendingBlocks = async () => {
-        let finalizedNumber = IFCContract.blockHeight();
+        let finalizedNumber = IFCContract.blockNumber();
         let finalizedBlockHeight = finalizedNumber - 1;
         let blockHeightInSidechain = await this.getLatestSideChainBlock();
         if (blockHeightInSidechain > finalizedBlockHeight) {
