@@ -272,6 +272,17 @@ app.get('/txs', async function (req, res) {
     }
 });
 
+app.get('/latest/txs', async function (req, res) {
+    try {
+        let blockNumber = await SideChain.pendingBlockNumber();
+        let result = await db.getTransactions(blockNumber);
+        res.send(result);
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
 app.post('/tree', async function (req, res) {
     try {
         let scid = req.body.scid;

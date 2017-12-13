@@ -1,4 +1,5 @@
 let env = require('../env');
+let DB = require('../db');
 let Web3 = require('web3');
 let ethUtils = require('ethereumjs-util');
 let fs = require('fs');
@@ -20,7 +21,21 @@ const IFCContract = IFCContractClass.at(IFCContractAddress);
 const blockABI = block.abi;
 const blockContractClass = web3.eth.contract(blockABI);
 
+async function connectDB() {
+    try {
+        let db = await DB();
+        return db;
+    } catch (e) {
+        console.error(e);
+    }
+}
+
 let SideChain = function () {
+    this.db = null;
+    connectDB().then((db) => {
+        this.db = db;
+    });
+    
     this.chain = IFCContract;
     this.getBlock = (heightOrHash) => {
         let isHex = (web3.toHex(heightOrHash) === heightOrHash.toLowerCase());
@@ -40,6 +55,16 @@ let SideChain = function () {
         }
 
         return blockInstance;
+    };
+
+    this.pendingBlockNumber = async () => {
+        let nextBlockHeight = await this.db.getOrNewBlockHeight();
+        nextBlockHeight = parseInt(nextBlockHeight);
+        let lastestBlockHeight = 0;
+        if (nextBlockHeight > 0) {
+            lastestBlockHeight = nextBlockHeight - 1;
+        }
+        return lastestBlockHeight;
     };
 
     this.judge = (heightOrHash) => {
