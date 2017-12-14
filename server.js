@@ -336,6 +336,18 @@ app.get('/pending/blocks', async function (req, res) {
     }
 });
 
+app.get('/expiredtime', async function (req, res) {
+    try {
+        let result = SideChain.getLatestExpiredTime();
+        res.send({
+            expiredtime: result
+        });
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
 app.post('/tree', async function (req, res) {
     try {
         let scid = req.body.scid;

@@ -57,6 +57,12 @@ let SideChain = function () {
         return blockInstance;
     };
 
+    this.getLatestExpiredTime = () => {
+        let latestBlockHeight = this.getLatestBlockHeight();
+        console.log(latestBlockHeight);
+        let blockInstance = this.getBlock(latestBlockHeight.toString());
+        return blockInstance.exr_time();
+    };
     this.getAgentBalance = () => {
         return web3.eth.getBalance(account);
     };
