@@ -179,10 +179,15 @@ async function connect() {
             }
         },
 
-        async getTransactions (scid) {
+        async getTransactions (scid, limitSize = null) {
             try {
                 let txs = await db.collection('txs');
-                let result = await txs.find({scid: {$eq: parseInt(scid)}}).toArray();
+                let result = null;
+                if (limitSize) {
+                    result = await txs.find({scid: {$eq: parseInt(scid)}}).limit(limitSize).toArray();
+                } else {
+                    result = await txs.find({scid: {$eq: parseInt(scid)}}).toArray();
+                }
                 return result;
             } catch (e) {
                 console.error(e);

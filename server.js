@@ -315,8 +315,10 @@ app.get('/txs', async function (req, res) {
 
 app.get('/latest/txs', async function (req, res) {
     try {
+        let size = req.query.size;
+        size = parseInt(size);
         let blockNumber = await SideChain.getLatestSideChainBlock();
-        let result = await db.getTransactions(blockNumber);
+        let result = await db.getTransactions(blockNumber, size);
         res.send(result);
     } catch (e) {
         console.log(e);
