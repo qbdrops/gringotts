@@ -63,7 +63,7 @@ let deploySideChainContract = function (scid, rootHash, treeHeight) {
     let scidHash = '0x' + ethUtils.sha3(scid.toString()).toString('hex');
     console.log('scidHash : ' + scidHash);
     return new Promise(function (resolve, reject) {
-        sidechainContractClass.new(SidechainTemplateAddress, scidHash, rootHash, treeHeight, 300, 0, {
+        sidechainContractClass.new(SidechainTemplateAddress, scidHash, rootHash, treeHeight, 90, 0, {
             data: sidechainBytecode,
             from: env.account,
             value: wei,
