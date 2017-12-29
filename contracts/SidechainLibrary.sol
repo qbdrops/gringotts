@@ -1,8 +1,8 @@
 pragma solidity ^0.4.15;
 
-import "./SideChainStandard.sol";
+contract SidechainLibrary{
+    string public version = "1.0.0";
 
-contract SideChainTemplate is SideChainStandard{
     function inBytes32Array(bytes32 data, bytes32[] dataArray) constant returns (bool){
         for (uint i = 0; i < dataArray.length; i++) {
             if (data == dataArray[i]) {
@@ -12,22 +12,25 @@ contract SideChainTemplate is SideChainStandard{
         return false;
     }
 
-    function inBytes32Array10(bytes32 data, bytes32[10] dataArray) constant returns (bool){
-        for (uint i = 0; i < 10; i++) {
-            if (data == dataArray[i]) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function hashArray(bytes32[10] dataArray, uint num) constant returns (bytes32) {
-        require(num > 0);
+    function hashArray(bytes32[] dataArray) constant returns (bytes32) {
+        require(dataArray.length > 0);
         string memory str = bytes32ToString(dataArray[0]);
-        for (uint i = 1; i < num; i++) {
+        for (uint i = 1; i < dataArray.length; i++) {
             str = strConcat(str, bytes32ToString(dataArray[i]));
         }
         return sha3(str);
+    }
+
+    function calculateSliceRootHash(bytes32[] slice) constant returns (bytes32) {
+        require(slice.length > 0);
+        bytes32 rootHash = slice[0];
+        string memory str;
+        for (uint i = 1; i < slice.length; i++) {
+            str = bytes32ToString(rootHash);
+            str = strConcat(str, bytes32ToString(slice[i]));
+            rootHash = sha3(str);
+        }
+        return rootHash;
     }
 
     function strConcat(string _a, string _b) constant returns (string) {
