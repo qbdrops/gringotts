@@ -405,14 +405,10 @@ app.get('/pending/transactions', async function (req, res) {
         let pendingBlocks = await SideChain.pendingBlocks();
         if (pendingBlocks.length > 0) {
             let txCiphers = await db.getSideChainTree(pendingBlocks[0]);
-            if (txCiphers.length > 0) {
-                let txHashes = txCiphers.map((txCipher) => {
-                    return txCipher.tidHash;
-                });
-                res.send(txHashes);
-            } else {
-                res.send([]);
-            }
+            let txHashes = txCiphers.map((txCipher) => {
+                return txCipher.tidHash;
+            });
+            res.send(txHashes);
         } else {
             res.send([]);
         }
