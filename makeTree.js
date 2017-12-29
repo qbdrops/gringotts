@@ -42,6 +42,7 @@ let makeTree = async function (time, scid, records) {
         let tx = {
             'scid': parseInt(scid),
             'tid': tid,
+            'tidHash': '0x' + ethUtils.sha3(tid.toString()).toString('hex'),
             'contentUser': cipherUser,
             'contentCp': cipherCP,
         };

@@ -326,7 +326,7 @@ app.get('/latest/txs', async function (req, res) {
     }
 });
 
-app.get('/pending/blocks', async function (req, res) {
+app.get('/pending/stages', async function (req, res) {
     try {
         let pendingBlocks = await SideChain.pendingBlocks();
         res.send(pendingBlocks);
@@ -393,6 +393,28 @@ app.get('/tree', async function (req, res) {
                 scid: null,
                 height: null
             });
+        }
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
+app.get('/pending/transactions', async function (req, res) {
+    try {
+        let pendingBlocks = await SideChain.pendingBlocks();
+        if (pendingBlocks.length > 0) {
+            let txCiphers = await db.getSideChainTree(pendingBlocks[0]);
+            if (txCiphers.length > 0) {
+                let txHashes = txCiphers.map((txCipher) => {
+                    return txCipher.tidHash;
+                });
+                res.send(txHashes);
+            } else {
+                res.send([]);
+            }
+        } else {
+            res.send([]);
         }
     } catch (e) {
         console.log(e);
