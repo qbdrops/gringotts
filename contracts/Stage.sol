@@ -1,5 +1,7 @@
 pragma solidity ^0.4.15;
 
+import "./SidechainLibrary.sol";
+
 contract Stage {
     address public owner; //IFC contract
     bytes32 public stageID;
@@ -45,7 +47,7 @@ contract Stage {
 
     function addObjectionableTID(bytes32 _tid, address _customer, bytes32 _content) onlyOwner {
         require (now < objectionTime);
-        require(LibraryStandard(lib).inBytes32Array(_tid, objectionableTIDs) == false);
+        require(SidechainLibrary(lib).inBytes32Array(_tid, objectionableTIDs) == false);
         objections[_tid] = ObjectionInfo(_customer, _content, true, false);
         objectionableTIDs.push(_tid);
     }
@@ -60,6 +62,7 @@ contract Stage {
     }
 
     function setCompleted() onlyOwner {
+        //require(now > exonerateTime);
         completed = true;
     }
 }

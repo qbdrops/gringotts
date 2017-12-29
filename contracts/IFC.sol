@@ -10,9 +10,6 @@ contract IFC {
     mapping (bytes32 => address) public stageAddress;
     bytes32[] public stages;
 
-    bytes32[10] public list;
-    uint public debug;
-
     event AddStage(bytes32 indexed _stageID, address _stageAddress);
 
     modifier onlyOwner {
@@ -69,7 +66,7 @@ contract IFC {
         Stage(stageAddress[_stageID]).resolveObjections(_tid);
     }
 
-    function finalized(bytes32 _stageID) {
+    function finalize(bytes32 _stageID) {
         Stage(stageAddress[_stageID]).setCompleted();
     }
 }
