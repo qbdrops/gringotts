@@ -54,14 +54,14 @@ contract IFC {
         Stage(stageAddress[agentResponse[0]]).addObjectionableTID(agentResponse[1], msg.sender, agentResponse[2]);
     }
 
-    function exonerate(bytes32 _stageID, bytes32 _tid, bytes32[] slice, bytes32[] leaf) onlyOwner {
+    function exonerate(bytes32 _stageID, bytes32 _tid, uint idx, bytes32[] slice, bytes32[] leaf) onlyOwner {
         bytes32 hashResult;
         require (SidechainLibrary(lib).inBytes32Array(Stage(stageAddress[_stageID]).getContent(_tid), leaf));
         // content is in leaf array
         hashResult = SidechainLibrary(lib).hashArray(leaf);
-        require (hashResult == slice[0] || hashResult == slice[1]);
+        require (hashResult == slice[0]);
         // hash (content concat) = first node (or second one) hash in slice
-        hashResult = SidechainLibrary(lib).calculateSliceRootHash(slice);
+        hashResult = SidechainLibrary(lib).calculateSliceRootHash(idx, slice);
         require (hashResult == Stage(stageAddress[_stageID]).rootHash());
         Stage(stageAddress[_stageID]).resolveObjections(_tid);
     }

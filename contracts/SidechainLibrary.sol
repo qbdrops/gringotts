@@ -21,14 +21,19 @@ contract SidechainLibrary{
         return sha3(str);
     }
 
-    function calculateSliceRootHash(bytes32[] slice) constant returns (bytes32) {
+    function calculateSliceRootHash(uint idx, bytes32[] slice) constant returns (bytes32) {
         require(slice.length > 0);
         bytes32 rootHash = slice[0];
         string memory str;
         for (uint i = 1; i < slice.length; i++) {
             str = bytes32ToString(rootHash);
-            str = strConcat(str, bytes32ToString(slice[i]));
+            if (idx % 2 == 0) {
+                str = strConcat(str, bytes32ToString(slice[i]));
+            } else {
+                str = strConcat(bytes32ToString(slice[i]), str);
+            }
             rootHash = sha3(str);
+            idx = idx >> 1;
         }
         return rootHash;
     }
