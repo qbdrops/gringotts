@@ -48,7 +48,7 @@ async function connect() {
         async lastestStageHeight () {
             try {
                 let collection = await db.collection('tx_ciphers');
-                let result = await collection.find().sort({stageHeight: -1}).limit(1);
+                let result = await collection.find().sort({stageHeight: -1}).limit(1).next();
                 return result.stageHeight;
             } catch (e) {
                 console.error(e);

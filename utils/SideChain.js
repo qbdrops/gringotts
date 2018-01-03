@@ -56,8 +56,8 @@ let SideChain = function () {
         return stage;
     };
 
-    this.getFinalizedTime = () => {
-        let stageHeight = this.getLatestStageHeight();
+    this.getFinalizedTime = async () => {
+        let stageHeight = await this.getLatestStageHeight();
         if (stageHeight > 0) {
             let stage = this.getStage(stageHeight.toString());
             return stage.finalizedTime();

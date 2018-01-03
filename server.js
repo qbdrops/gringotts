@@ -337,7 +337,7 @@ app.get('/pending/stages', async function (req, res) {
 
 app.get('/finalized/time', async function (req, res) {
     try {
-        let finalizedTime = SideChain.getFinalizedTime();
+        let finalizedTime = await SideChain.getFinalizedTime();
         console.log(finalizedTime);
         res.send({
             finalizedTime: finalizedTime

@@ -69,7 +69,7 @@ async function buildStage(time, stageHeight, records) {
         console.log(keys);
         const tree = await makeTree(time, stageHeight, records);
         const rootHash = '0x' + tree.getRootHash();
-        console.log('time' + time);
+        console.log('time: ' + time);
         console.log('Root Hash: ' + rootHash);
         const txHash = addNewStage(stageHeight, rootHash);
         console.log('Add stage tx hash: ' + txHash);
