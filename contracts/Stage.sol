@@ -10,7 +10,7 @@ contract Stage {
     bool public completed;
     string public version = "1.0.0";
     uint public objectionTime;
-    uint public exonerateTime;
+    uint public finalizedTime;
 
     mapping (bytes32 => ObjectionInfo) public objections;
     bytes32[] public objectionableTIDs;
@@ -34,7 +34,7 @@ contract Stage {
         bytes32 _rootHash,
         address _lib,
         uint _objectionTimePeriod,
-        uint _exonerateTimePeriod) 
+        uint _finalizedTimePeriod)
     {
         owner = msg.sender;
         stageID = _stageID;
@@ -42,7 +42,7 @@ contract Stage {
         lib = _lib;
         completed = false;
         objectionTime = now + _objectionTimePeriod;
-        exonerateTime = objectionTime + _exonerateTimePeriod;
+        finalizedTime = objectionTime + _finalizedTimePeriod;
     }
 
     function addObjectionableTID(bytes32 _tid, address _customer, bytes32 _content) onlyOwner {
@@ -66,7 +66,7 @@ contract Stage {
     }
 
     function setCompleted() onlyOwner {
-        //require(now > exonerateTime);
+        require(now > finalizedTime);
         completed = true;
     }
 }
