@@ -57,8 +57,12 @@ contract Stage {
         objections[_tid].objectionSuccess = false;
     }
 
-    function getContent(bytes32 _tid) constant returns (bytes32){
+    function getContent(bytes32 _tid) constant returns (bytes32) {
         return objections[_tid].hashOfContent;
+    }
+
+    function getObjectionableTIDs() constant returns (bytes32[]) {
+        return objectionableTIDs;
     }
 
     function setCompleted() onlyOwner {
