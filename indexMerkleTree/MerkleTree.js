@@ -3,7 +3,7 @@ class MerkleTree {
     constructor(height) {
         this.nodes;
         this.height = height;
-        this.stageId;
+        this.stageHeight;
         this.makeTreeTime;
         if (this.height <= 0) {
             console.log('Tree height should be more than 1.');
@@ -43,8 +43,8 @@ class MerkleTree {
         this.makeTreeTime = makeTreeTime;
     }
 
-    setStageId(stageId) {
-        this.stageId = stageId;
+    setStageHeight(stageHeight) {
+        this.stageHeight = stageHeight;
     }
 
     leafTotalNode(height) {
@@ -56,8 +56,8 @@ class MerkleTree {
     }
     putTransactionInTree(order) {
         // 將交易放進樹當中
-        if(!this.stageId) {
-            throw new Error('you should set stageId.');
+        if(!this.stageHeight) {
+            throw new Error('you should set stageHeight.');
         }
         // if(!this.makeTreeTime) {
         //     throw new Error('you should set tree making time.');
@@ -194,7 +194,7 @@ class MerkleTree {
         return {
             nodes: this.nodes,
             time: this.makeTreeTime,
-            stageId: this.stageId,
+            stageHeight: this.stageHeight,
             height: this.height
         };
     }

@@ -23,12 +23,12 @@ const IFCContract = IFCContractClass.at(IFCContractAddress);
 const StageABI = Stage.abi;
 const StageClass = web3.eth.contract(StageABI);
 
-async function exonerate(stageId, tid) {
+async function exonerate(stageHeight, tid) {
     try {
         db = await DB();
-        let txCiphers = await db.getStage(stageId);
+        let txCiphers = await db.getStage(stageHeight);
         if (txCiphers.length > 0) {
-            let stageHash = '0x' + ethUtils.sha3(stageId.toString()).toString('hex');
+            let stageHash = '0x' + ethUtils.sha3(stageHeight.toString()).toString('hex');
             let tidHash = '0x' + ethUtils.sha3(tid.toString()).toString('hex');
             let stageAddress = await IFCContract.stageAddress(stageHash.toString());
             let stage = StageClass.at(stageAddress);
@@ -37,7 +37,7 @@ async function exonerate(stageId, tid) {
             if (objectionTidHashes > 0 && (objectionTidHashes.indexOf(tid) >= 0)) {
                 let height = parseInt(Math.log2(txCiphers.length)) + 1;
                 let tree = new MerkleTree(height);
-                tree.setStageId(stageHash);
+                tree.setStageHeight(stageHash);
                 txCiphers.forEach((tx) => {
                     tree.putTransactionInTree(tx);
                 });

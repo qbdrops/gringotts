@@ -35,10 +35,8 @@ io.on('connection', async function (socket) {
 
 async function fakeRecords(numberOfData) {
     try {
-        let stageId = await db.getOrNewStageHeight();
-        if (!stageId && stageId !== 0) {
-            throw new Error('Stage hash has not been initialized.');
-        }
+        let stageHeight = await SideChain.getContractStageHeight();
+        stageHeight = parseInt(stageHeight) + 1;
         let recordsLength = numberOfData;
         let records = [];
 
@@ -62,7 +60,7 @@ async function fakeRecords(numberOfData) {
                 'from': fromAccount,
                 'to': toAccount,
                 'value': faker.commerce.price(),
-                'stageId': stageId
+                'stageHeight': stageHeight
             };
 
             if (i == (recordsLength - 1) || 
@@ -73,12 +71,12 @@ async function fakeRecords(numberOfData) {
                     'from': userAddress,
                     'to': toAccount,
                     'value': faker.commerce.price(),
-                    'stageId': stageId
+                    'stageHeight': stageHeight
                 };
             }
 
             let txHash = ethUtils.sha3(tid).toString('hex');
-            let stageHash = ethUtils.sha3(stageId.toString()).toString('hex');
+            let stageHash = ethUtils.sha3(stageHeight.toString()).toString('hex');
             let content = Buffer.from(JSON.stringify(order)).toString('hex');
 
             let cipherUser = await RSA.encrypt(content, userPublicKey);
@@ -94,7 +92,7 @@ async function fakeRecords(numberOfData) {
             let res = {
                 tid: tid,
                 tidHash: '0x' + txHash,
-                stageId: stageId,
+                stageHeight: stageHeight,
                 stageHash: '0x' + stageHash,
                 content: content,
                 contentHash: '0x' + contentHash.toString('hex'),
@@ -156,14 +154,14 @@ app.put('/ecc/publickey', async function (req, res) {
 app.get('/slice', async function (req, res) {
     try {
         let query = req.query;
-        let stageId = query.stageId;
+        let stageHeight = query.stage_height;
         let tid = query.tid;
 
         let cachedTree = null;
 
         for (let key in cached) {
             let tree = cached[key];
-            if (tree.stageId == stageId) {
+            if (tree.stageHeight == stageHeight) {
                 cachedTree = tree;
             }
         }
@@ -177,11 +175,11 @@ app.get('/slice', async function (req, res) {
                 leafNodeHashSet: leafNodeHashSet
             });
         } else {
-            let txCiphers = await db.getStage(stageId);
+            let txCiphers = await db.getStage(stageHeight);
             if (txCiphers.length > 0) {
                 let height = parseInt(Math.log2(txCiphers.length)) + 1;
                 let tree = new MerkleTree(height);
-                tree.setStageId(stageId);
+                tree.setStageHeight(stageHeight);
 
                 txCiphers.forEach((tx) => {
                     tree.putTransactionInTree(tx);
@@ -227,9 +225,9 @@ app.post('/save/keys', async function (req, res) {
 
 app.post('/exonerate', async function (req, res) {
     try {
-        let stageId = req.body.stage_id;
+        let stageHeight = req.body.stage_id;
         let tid = req.body.tid;
-        exonerate(stageId, tid);
+        exonerate(stageHeight, tid);
         res.send({ok: true});
     } catch (e) {
         console.log(e);
@@ -239,8 +237,8 @@ app.post('/exonerate', async function (req, res) {
 
 app.put('/finalize', async function (req, res) {
     try {
-        let stageId = req.body.stage_id;
-        let result = SideChain.finalize(stageId);
+        let stageHeight = req.body.stage_id;
+        let result = SideChain.finalize(stageHeight);
         res.send(result);
     } catch (e) {
         console.log(e);
@@ -304,9 +302,9 @@ app.get('/agent/address', async function (req, res) {
 
 app.get('/txs', async function (req, res) {
     try {
-        let stageId = req.query.stage_id;
-        console.log(stageId);
-        let result = await db.getTransactions(stageId);
+        let stageHeight = req.query.stage_id;
+        console.log(stageHeight);
+        let result = await db.getTransactions(stageHeight);
         res.send(result);
     } catch (e) {
         console.log(e);
@@ -339,9 +337,10 @@ app.get('/pending/stages', async function (req, res) {
 
 app.get('/finalized/time', async function (req, res) {
     try {
-        let result = SideChain.getFinalizedTime();
+        let finalizedTime = SideChain.getFinalizedTime();
+        console.log(finalizedTime);
         res.send({
-            expiredtime: result
+            finalizedTime: finalizedTime
         });
     } catch (e) {
         console.log(e);
@@ -371,10 +370,10 @@ app.post('/commit/transactions', async function (req, res) {
     try {
         let txs = await db.pendingTransactions();
         if (txs.length > 0) {
-            let stageId = db.getOrNewStageHeight();
-            stageId = parseInt(stageId) + 1;
+            let stageHeight = await SideChain.getContractStageHeight();
+            stageHeight = parseInt(stageHeight) + 1;
             let makeTreeTime = parseInt(Date.now() / 1000);
-            buildStage(makeTreeTime, stageId, txs).then((tree) => {
+            buildStage(makeTreeTime, stageHeight, txs).then((tree) => {
                 if (cached.length >= 3) {
                     cached.push(tree);
                     cached.shift();
@@ -397,12 +396,12 @@ app.post('/commit/transactions', async function (req, res) {
 app.get('/stage', async function (req, res) {
     try {
         let query = req.query;
-        let stageId = query.stage_id;
-        let txCiphers = await db.getStage(stageId);
+        let stageHeight = query.stage_height;
+        let txCiphers = await db.getStage(stageHeight);
         if (txCiphers.length > 0) {
             let height = parseInt(Math.log2(txCiphers.length)) + 1;
             let tree = new MerkleTree(height);
-            tree.setStageId(stageId);
+            tree.setStageHeight(stageHeight);
 
             txCiphers.forEach((tx) => {
                 tree.putTransactionInTree(tx);
@@ -413,7 +412,7 @@ app.get('/stage', async function (req, res) {
             res.send({
                 nodes: [],
                 time: null,
-                stageId: null,
+                stageHeight: null,
                 height: null
             });
         }
@@ -447,8 +446,8 @@ async function connectDB() {
 
 server.listen(3000, async function () {
     db = await connectDB();
-    let stageId = await db.getOrNewStageHeight();
-    console.log(stageId);
+    let stageHeight = await db.getOrNewStageHeight();
+    console.log(stageHeight);
     console.log(privatekey);
     console.log(publickey);
     console.log(account);

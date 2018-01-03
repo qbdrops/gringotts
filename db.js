@@ -48,8 +48,8 @@ async function connect() {
         async lastestStageHeight () {
             try {
                 let collection = await db.collection('tx_ciphers');
-                let result = await collection.find().sort({stageId: -1}).limit(1);
-                return result.stageId;
+                let result = await collection.find().sort({stageHeight: -1}).limit(1);
+                return result.stageHeight;
             } catch (e) {
                 console.error(e);
             }
@@ -161,10 +161,10 @@ async function connect() {
             });
         },
 
-        async getStage (stageId) {
+        async getStage (stageHeight) {
             try {
                 let treeCollection = await db.collection('tx_ciphers');
-                let result = await treeCollection.find({stageId: {$eq: parseInt(stageId)}}).toArray();
+                let result = await treeCollection.find({stageHeight: {$eq: parseInt(stageHeight)}}).toArray();
                 return result;
             } catch (e) {
                 console.error(e);
@@ -181,14 +181,14 @@ async function connect() {
             }
         },
 
-        async getTransactions (stageId, limitSize = null) {
+        async getTransactions (stageHeight, limitSize = null) {
             try {
                 let txs = await db.collection('txs');
                 let result = null;
                 if (limitSize) {
-                    result = await txs.find({stageId: {$eq: parseInt(stageId)}}).limit(limitSize).toArray();
+                    result = await txs.find({stageHeight: {$eq: parseInt(stageHeight)}}).limit(limitSize).toArray();
                 } else {
-                    result = await txs.find({stageId: {$eq: parseInt(stageId)}}).toArray();
+                    result = await txs.find({stageHeight: {$eq: parseInt(stageHeight)}}).toArray();
                 }
                 return result;
             } catch (e) {

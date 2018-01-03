@@ -58,9 +58,12 @@ let SideChain = function () {
 
     this.getFinalizedTime = () => {
         let stageHeight = this.getLatestStageHeight();
-        console.log(stageHeight);
-        let stage = this.getStage(stageHeight.toString());
-        return stage.finalizedTime();
+        if (stageHeight > 0) {
+            let stage = this.getStage(stageHeight.toString());
+            return stage.finalizedTime();
+        }
+
+        return 0;
     };
 
     this.getBalance = (address) => {
@@ -85,7 +88,7 @@ let SideChain = function () {
         return [];
     };
 
-    this.getContractStageHeight = () => {
+    this.getContractStageHeight = async () => {
         return IFCContract.stageHeight();
     };
     
@@ -113,8 +116,8 @@ let SideChain = function () {
         }
     };
 
-    this.finalize = (stageId) => {
-        let stage = this.getStage(stageId);
+    this.finalize = (stageHeight) => {
+        let stage = this.getStage(stageHeight);
         if (stage) {
             web3.personal.unlockAccount(env.account, env.password);
             let txHash = IFCContract.finalize({from: account, to: IFCContract.address, gas: 4700000});
