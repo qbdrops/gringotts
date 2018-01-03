@@ -9,28 +9,22 @@ let db;
 let keys;
 
 const IFCContractAddress = env.IFCContractAddress;
-const SidechainTemplateAddress = env.SidechainTemplateAddress;
 
 let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
 const IFC = JSON.parse(fs.readFileSync('./build/contracts/IFC.json'));
-const sidechain = JSON.parse(fs.readFileSync('./build/contracts/SideChainBlock.json'));
 
 const IFCABI = IFC.abi;
 const IFCContractClass = web3.eth.contract(IFCABI);
 const IFCContract = IFCContractClass.at(IFCContractAddress);
 
-const sidechainBytecode = sidechain.unlinked_binary;
-const sidechainABI = sidechain.abi;
-const sidechainContractClass = web3.eth.contract(sidechainABI);
-
-let makeTree = async function (time, scid, records) {
+let makeTree = async function (time, stageId, records) {
     let userPublicKey = keys.userPublicKey.publickey;
     let cpsPublicKey = keys.cpsPublicKey.publickey;
 
     let recordLength = records.length;
     let height = parseInt(Math.log2(recordLength)) + 1;
     let tree = new MerkleTree(height);
-    tree.setSCID(scid);
+    tree.setStageId(stageId);
     tree.setTime(time);
     let txs = [];
     for (let i = 0; i < recordLength; i++) {
@@ -40,7 +34,7 @@ let makeTree = async function (time, scid, records) {
         let cipherCP = await RSA.encrypt(message, cpsPublicKey);
 
         let tx = {
-            'scid': parseInt(scid),
+            'stageId': parseInt(stageId),
             'tid': tid,
             'tidHash': '0x' + ethUtils.sha3(tid.toString()).toString('hex'),
             'contentUser': cipherUser,
@@ -58,56 +52,28 @@ let makeTree = async function (time, scid, records) {
 };
 
 
-let deploySideChainContract = function (scid, rootHash, treeHeight) {
+let addNewStage = function (stageId, rootHash) {
     web3.personal.unlockAccount(env.account, env.password);
-    let wei = (2 ** (treeHeight - 1)) * 100;
-    let scidHash = '0x' + ethUtils.sha3(scid.toString()).toString('hex');
-    console.log('scidHash : ' + scidHash);
-    return new Promise(function (resolve, reject) {
-        sidechainContractClass.new(SidechainTemplateAddress, scidHash, rootHash, treeHeight, 90, 0, {
-            data: sidechainBytecode,
-            from: env.account,
-            value: wei,
-            gas: 3000000
-        }, (err, res) => {
-            if (err) {
-                console.log(err);
-                reject(err);
-                return;
-            }
-
-            if (res.address) {
-                resolve(res);
-            }
-        });
-    });
+    let stageHash = '0x' + ethUtils.sha3(stageId.toString()).toString('hex');
+    return IFCContract.addNewStage(stageHash, rootHash);
 };
 
-async function buildSideChainTree(time, scid, records) {
+async function buildStage(time, stageId, records) {
     try {
         db = await DB();
         keys = await db.getPublicKeys();
         console.log(keys);
-        const tree = await makeTree(time, scid, records);
-        console.log('scid' + scid);
-        console.log('time' + time);
+        const tree = await makeTree(time, stageId, records);
         const rootHash = '0x' + tree.getRootHash();
+        console.log('stage ID' + stageId);
+        console.log('time' + time);
         console.log('Root Hash: ' + rootHash);
-        const result = await deploySideChainContract(scid, rootHash, tree.getHeight());
-        const contractAddress = result.address;
-        const txHash = result.transactionHash;
+        const txHash = addNewStage(stageId, rootHash);
+        console.log('Add stage tx hash: ' + txHash);
+        let result = await db.clearPendingTransactions();
+        console.log(result);
+        await db.increaseStageHeight();
 
-        console.log('Sidechain ID: ' + scid);
-        console.log('Sidechain contract address: ' + contractAddress);
-        console.log('Tx hash: ' + txHash);
-
-        web3.personal.unlockAccount(env.account, env.password);        
-        let addSideChainTxHash = IFCContract.addBlockAddress(contractAddress, {
-            from: env.account,
-            gas: 3000000
-        });
-
-        console.log('Add sidechain tx hash: ' + addSideChainTxHash);
         db.close();
         return tree;
     } catch (e) {
@@ -117,4 +83,4 @@ async function buildSideChainTree(time, scid, records) {
     return false;
 }
 
-module.exports = buildSideChainTree;
+module.exports = buildStage;

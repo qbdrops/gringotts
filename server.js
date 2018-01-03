@@ -6,7 +6,7 @@ let ethUtils = require('ethereumjs-util');
 let RSA = require('./crypto/RSAencrypt.js');
 let MerkleTree = require('./indexMerkleTree/MerkleTree.js');
 let DB = require('./db');
-let buildSideChainTree = require('./makeTree');
+let buildStage = require('./makeTree');
 let faker = require('faker');
 let exonerate = require('./exonerate');
 let SideChain = require('./utils/SideChain');
@@ -35,9 +35,9 @@ io.on('connection', async function (socket) {
 
 async function fakeRecords(numberOfData) {
     try {
-        let scid = await db.getOrNewBlockHeight();
-        if (!scid && scid !== 0) {
-            throw new Error('Block hash has not been initialized.');
+        let stageId = await db.getOrNewStageHeight();
+        if (!stageId && stageId !== 0) {
+            throw new Error('Stage hash has not been initialized.');
         }
         let recordsLength = numberOfData;
         let records = [];
@@ -62,7 +62,7 @@ async function fakeRecords(numberOfData) {
                 'from': fromAccount,
                 'to': toAccount,
                 'value': faker.commerce.price(),
-                'scid': scid
+                'stageId': stageId
             };
 
             if (i == (recordsLength - 1) || 
@@ -73,19 +73,19 @@ async function fakeRecords(numberOfData) {
                     'from': userAddress,
                     'to': toAccount,
                     'value': faker.commerce.price(),
-                    'scid': scid
+                    'stageId': stageId
                 };
             }
 
             let txHash = ethUtils.sha3(tid).toString('hex');
-            let scidHash = ethUtils.sha3(scid.toString()).toString('hex');
+            let stageHash = ethUtils.sha3(stageId.toString()).toString('hex');
             let content = Buffer.from(JSON.stringify(order)).toString('hex');
 
             let cipherUser = await RSA.encrypt(content, userPublicKey);
             let cipherCP = await RSA.encrypt(content, cpsPublicKey);
 
             let contentHash = ethUtils.sha3(cipherUser + cipherCP).toString('hex');
-            let msg = txHash + scidHash + contentHash;
+            let msg = txHash + stageHash + contentHash;
             let msgHash = ethUtils.sha3(msg);
             let prefix = new Buffer('\x19Ethereum Signed Message:\n');
             let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
@@ -94,8 +94,8 @@ async function fakeRecords(numberOfData) {
             let res = {
                 tid: tid,
                 tidHash: '0x' + txHash,
-                scid: scid,
-                scidHash: '0x' + scidHash,
+                stageId: stageId,
+                stageHash: '0x' + stageHash,
                 content: content,
                 contentHash: '0x' + contentHash.toString('hex'),
                 digest: '0x' + msgHash.toString('hex'),
@@ -115,7 +115,6 @@ async function fakeRecords(numberOfData) {
 
         await db.saveTransactions(records);
         io.sockets.emit('transaction', userRecords);
-        await db.increaseBlockHeight();
     } catch(e) {
         console.log(e);
     }
@@ -157,14 +156,14 @@ app.put('/ecc/publickey', async function (req, res) {
 app.get('/slice', async function (req, res) {
     try {
         let query = req.query;
-        let scid = query.scid;
+        let stageId = query.stageId;
         let tid = query.tid;
 
         let cachedTree = null;
 
         for (let key in cached) {
             let tree = cached[key];
-            if (tree.scid == scid) {
+            if (tree.stageId == stageId) {
                 cachedTree = tree;
             }
         }
@@ -178,11 +177,11 @@ app.get('/slice', async function (req, res) {
                 leafNodeHashSet: leafNodeHashSet
             });
         } else {
-            let txCiphers = await db.getSideChainTree(scid);
+            let txCiphers = await db.getStage(stageId);
             if (txCiphers.length > 0) {
                 let height = parseInt(Math.log2(txCiphers.length)) + 1;
                 let tree = new MerkleTree(height);
-                tree.setSCID(scid);
+                tree.setStageId(stageId);
 
                 txCiphers.forEach((tx) => {
                     tree.putTransactionInTree(tx);
@@ -228,8 +227,9 @@ app.post('/save/keys', async function (req, res) {
 
 app.post('/exonerate', async function (req, res) {
     try {
-        let scid = req.body.scid;
-        exonerate(scid);
+        let stageId = req.body.stage_id;
+        let tid = req.body.tid;
+        exonerate(stageId, tid);
         res.send({ok: true});
     } catch (e) {
         console.log(e);
@@ -237,10 +237,10 @@ app.post('/exonerate', async function (req, res) {
     }
 });
 
-app.put('/judge', async function (req, res) {
+app.put('/finalize', async function (req, res) {
     try {
-        let scid = req.body.scid;
-        let result = SideChain.judge(scid);
+        let stageId = req.body.stage_id;
+        let result = SideChain.finalize(stageId);
         res.send(result);
     } catch (e) {
         console.log(e);
@@ -271,9 +271,9 @@ app.get('/latest/objections/count', async function (req, res) {
     }
 });
 
-app.get('/latest/block/height', async function (req, res) {
+app.get('/latest/stage/height', async function (req, res) {
     try {
-        let height = SideChain.getLatestBlockHeight();
+        let height = SideChain.getLatestStageHeight();
         res.send({height: height});
     } catch (e) {
         console.log(e);
@@ -281,9 +281,10 @@ app.get('/latest/block/height', async function (req, res) {
     }
 });
 
-app.get('/agent/balance', async function (req, res) {
+app.get('/balance', async function (req, res) {
     try {
-        let balance = SideChain.getAgentBalance();
+        let address = req.query.address;
+        let balance = SideChain.getBalance(address);
         res.send({balance: balance});
     } catch (e) {
         console.log(e);
@@ -303,9 +304,9 @@ app.get('/agent/address', async function (req, res) {
 
 app.get('/txs', async function (req, res) {
     try {
-        let scid = req.query.scid;
-        console.log(scid);
-        let result = await db.getTransactions(scid);
+        let stageId = req.query.stage_id;
+        console.log(stageId);
+        let result = await db.getTransactions(stageId);
         res.send(result);
     } catch (e) {
         console.log(e);
@@ -317,8 +318,8 @@ app.get('/latest/txs', async function (req, res) {
     try {
         let size = req.query.size;
         size = parseInt(size);
-        let blockNumber = await SideChain.getLatestSideChainBlock();
-        let result = await db.getTransactions(blockNumber, size);
+        let stageHeight = await SideChain.getLatestStageHeight();
+        let result = await db.getTransactions(stageHeight, size);
         res.send(result);
     } catch (e) {
         console.log(e);
@@ -328,17 +329,17 @@ app.get('/latest/txs', async function (req, res) {
 
 app.get('/pending/stages', async function (req, res) {
     try {
-        let pendingBlocks = await SideChain.pendingBlocks();
-        res.send(pendingBlocks);
+        let pendingStages = await SideChain.pendingStages();
+        res.send(pendingStages);
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
     }
 });
 
-app.get('/expiredtime', async function (req, res) {
+app.get('/finalized/time', async function (req, res) {
     try {
-        let result = SideChain.getLatestExpiredTime();
+        let result = SideChain.getFinalizedTime();
         res.send({
             expiredtime: result
         });
@@ -348,13 +349,14 @@ app.get('/expiredtime', async function (req, res) {
     }
 });
 
-app.post('/tree', async function (req, res) {
+app.post('/commit/transactions', async function (req, res) {
     try {
-        let scid = req.body.scid;
-        let makeTreeTime = parseInt(Date.now() / 1000);
-        let records = await db.getTransactions(scid);
-        if (records.length > 0) {
-            buildSideChainTree(makeTreeTime, scid, records).then((tree) => {
+        let txs = await db.pendingTransactions();
+        if (txs.length > 0) {
+            let stageId = db.getOrNewStageHeight();
+            stageId = parseInt(stageId) + 1;
+            let makeTreeTime = parseInt(Date.now() / 1000);
+            buildStage(makeTreeTime, stageId, txs).then((tree) => {
                 if (cached.length >= 3) {
                     cached.push(tree);
                     cached.shift();
@@ -362,8 +364,11 @@ app.post('/tree', async function (req, res) {
                     cached.push(tree);
                 }
             });
+
+            res.send({ok: true});
+        } else {
+            res.send({ok: false});
         }
-        res.send({ok: true});
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
@@ -371,15 +376,15 @@ app.post('/tree', async function (req, res) {
 });
 
 // Content Provider API
-app.get('/tree', async function (req, res) {
+app.get('/stage', async function (req, res) {
     try {
         let query = req.query;
-        let scid = query.scid;
-        let txCiphers = await db.getSideChainTree(scid);
+        let stageId = query.stage_id;
+        let txCiphers = await db.getStage(stageId);
         if (txCiphers.length > 0) {
             let height = parseInt(Math.log2(txCiphers.length)) + 1;
             let tree = new MerkleTree(height);
-            tree.setSCID(scid);
+            tree.setStageId(stageId);
 
             txCiphers.forEach((tx) => {
                 tree.putTransactionInTree(tx);
@@ -390,7 +395,7 @@ app.get('/tree', async function (req, res) {
             res.send({
                 nodes: [],
                 time: null,
-                scid: null,
+                stageId: null,
                 height: null
             });
         }
@@ -402,39 +407,8 @@ app.get('/tree', async function (req, res) {
 
 app.get('/pending/transactions', async function (req, res) {
     try {
-        let pendingBlocks = await SideChain.pendingBlocks();
-        if (pendingBlocks.length > 0) {
-            let txCiphers = await db.getSideChainTree(pendingBlocks[0]);
-            let txHashes = txCiphers.map((txCipher) => {
-                return txCipher.tidHash;
-            });
-            res.send(txHashes);
-        } else {
-            res.send([]);
-        }
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
-
-app.get('/trees', async function (req, res) {
-    try {
-        let time = req.query.timeDiff;
-        let trees = await db.getSideChainTrees(time);
-        let allTreeLeaves = trees.map((ele) => {
-            trees = [];
-            return ele.tree;
-        }).map(MerkleTree.import).
-            reduce((cur, next) => {
-                let leaves = next.getAllTransactionCiperCp();
-                return cur.concat(leaves);
-            }, []);
-
-        console.log(allTreeLeaves);
-        res.send({
-            cipherSet: allTreeLeaves
-        });
+        let pendingTransactions = await SideChain.pendingTransactions();
+        res.send(pendingTransactions);
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
@@ -455,8 +429,8 @@ async function connectDB() {
 
 server.listen(3000, async function () {
     db = await connectDB();
-    let scid = await db.getOrNewBlockHeight();
-    console.log(scid);
+    let stageId = await db.getOrNewStageHeight();
+    console.log(stageId);
     console.log(privatekey);
     console.log(publickey);
     console.log(account);

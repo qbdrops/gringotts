@@ -7,15 +7,15 @@ let url = env.mongodbUrl;
 async function connect() {
     let db = await MongoClient.connect(url);
     return {
-        async getOrNewBlockHeight () {
+        async getOrNewStageHeight () {
             try {
-                let collection = await db.collection('block_height');
-                let lastestBlock = await collection.findOne({_id: 1});
-                if (lastestBlock) {
-                    let height = lastestBlock.blockHeight;
+                let collection = await db.collection('stage_height');
+                let lastestStage = await collection.findOne({_id: 1});
+                if (lastestStage) {
+                    let height = lastestStage.stageHeight;
                     return height;
                 } else {
-                    let result = await collection.save({_id: 1, blockHeight: 0});
+                    let result = await collection.save({_id: 1, stageHeight: 0});
                     if (result) {
                         return 0;
                     }
@@ -25,12 +25,42 @@ async function connect() {
             }
         },
 
-        async increaseBlockHeight () {
+        async pendingTransactions () {
             try {
-                let height = await this.getOrNewBlockHeight();
+                let collection = await db.collection('txs');
+                let txs = await collection.find({}).toArray();
+                return txs;
+            } catch (e) {
+                console.error(e);
+            }
+        },
+
+        async clearPendingTransactions () {
+            try {
+                let collection = await db.collection('txs');
+                let result = await collection.remove({});
+                return result;
+            } catch (e) {
+                console.error(e);
+            }
+        },
+
+        async lastestStageHeight () {
+            try {
+                let collection = await db.collection('tx_ciphers');
+                let result = await collection.find().sort({stageId: -1}).limit(1);
+                return result.stageId;
+            } catch (e) {
+                console.error(e);
+            }
+        },
+
+        async increaseStageHeight () {
+            try {
+                let height = await this.getOrNewStageHeight();
                 height = parseInt(height) + 1;
-                let collection = await db.collection('block_height');
-                await collection.save({_id: 1, blockHeight: height});
+                let collection = await db.collection('stage_height');
+                await collection.save({_id: 1, stageHeight: height});
                 return height;
             } catch (e) {
                 console.error(e);
@@ -131,38 +161,10 @@ async function connect() {
             });
         },
 
-        insertSideChainTree (time, scid, treeJson) {
-            return new Promise(async function(resolve, reject) {
-                try {
-                    let tree = await db.collection('records_tree');
-                    let result = await tree.save({_id: parseInt(scid), tree: treeJson, time: parseInt(time)});
-                    resolve(result);
-                } catch (e) {
-                    console.log(e);
-                    reject(e);
-                }
-            });
-        },
-
-        async getSideChainTree (scid) {
+        async getStage (stageId) {
             try {
                 let treeCollection = await db.collection('tx_ciphers');
-                let result = await treeCollection.find({scid: {$eq: parseInt(scid)}}).toArray();
-                return result;
-            } catch (e) {
-                console.error(e);
-            }
-        },
-
-        async getSideChainTrees (timeRange) {
-            try {
-                let nowTime = parseInt(Date.now() / 1000);
-                let timeStart = nowTime - parseInt(timeRange);
-                console.log(timeStart);                    
-                console.log(timeRange);                                        
-                let result = await db.collection('records_tree').find({time: {$gt: parseInt(timeStart), $lt: parseInt(nowTime)}}).toArray();
-                
-                console.log(result);
+                let result = await treeCollection.find({stageId: {$eq: parseInt(stageId)}}).toArray();
                 return result;
             } catch (e) {
                 console.error(e);
@@ -179,14 +181,14 @@ async function connect() {
             }
         },
 
-        async getTransactions (scid, limitSize = null) {
+        async getTransactions (stageId, limitSize = null) {
             try {
                 let txs = await db.collection('txs');
                 let result = null;
                 if (limitSize) {
-                    result = await txs.find({scid: {$eq: parseInt(scid)}}).limit(limitSize).toArray();
+                    result = await txs.find({stageId: {$eq: parseInt(stageId)}}).limit(limitSize).toArray();
                 } else {
-                    result = await txs.find({scid: {$eq: parseInt(scid)}}).toArray();
+                    result = await txs.find({stageId: {$eq: parseInt(stageId)}}).toArray();
                 }
                 return result;
             } catch (e) {

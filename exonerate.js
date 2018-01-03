@@ -14,48 +14,48 @@ const IFCContractAddress = env.IFCContractAddress;
 
 let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
 const IFC = JSON.parse(fs.readFileSync('./build/contracts/IFC.json'));
-const sidechain = JSON.parse(fs.readFileSync('./build/contracts/SideChainBlock.json'));
+const Stage = JSON.parse(fs.readFileSync('./build/contracts/Stage.json'));
 
 const IFCABI = IFC.abi;
 const IFCContractClass = web3.eth.contract(IFCABI);
 const IFCContract = IFCContractClass.at(IFCContractAddress);
 
-const sidechainABI = sidechain.abi;
-const sidechainContractClass = web3.eth.contract(sidechainABI);
+const StageABI = Stage.abi;
+const StageClass = web3.eth.contract(StageABI);
 
-async function exonerate(scid) {
+async function exonerate(stageId, tid) {
     try {
         db = await DB();
-        let txCiphers = await db.getSideChainTree(scid);
+        let txCiphers = await db.getStage(stageId);
         if (txCiphers.length > 0) {
-            let scidHash = '0x' + ethUtils.sha3(scid.toString()).toString('hex');
-            let sideChainAddress = await IFCContract.getBlockAddress(scidHash.toString());
-            let sidechainInstance = sidechainContractClass.at(sideChainAddress);
-            let objectionTidHashes = sidechainInstance.getErrorTIDs();
-            console.log(objectionTidHashes);
+            let stageHash = '0x' + ethUtils.sha3(stageId.toString()).toString('hex');
+            let tidHash = '0x' + ethUtils.sha3(tid.toString()).toString('hex');
+            let stageAddress = await IFCContract.stageAddress(stageHash.toString());
+            let stage = StageClass.at(stageAddress);
+            let objectionTidHashes = stage.getObjectionableTIDs();
 
-            if (objectionTidHashes > 0) {
+            if (objectionTidHashes > 0 && (objectionTidHashes.indexOf(tid) >= 0)) {
                 let height = parseInt(Math.log2(txCiphers.length)) + 1;
                 let tree = new MerkleTree(height);
-                tree.setSCID(scid);
+                tree.setStageId(stageHash);
                 txCiphers.forEach((tx) => {
                     tree.putTransactionInTree(tx);
                 });
-                let targetIds = tree.calcLeafIndexByTidHash(objectionTidHashes);
-                let sliceHashes = tree.collectSlices(targetIds);
-                console.log(sliceHashes);
+                let targetIds = [tid];
+                let idx = tree.calcLeafIndexByTidHash(tidHash);
+                let slices = tree.collectSlices(targetIds);
 
                 let idxsIMT = [];
-                let nodeHashes = [];
+                let sliceHashes = [];
                 let idxsLFD = [];
                 let leafHashes = [];
 
-                for (let key in sliceHashes) {
-                    let slice = sliceHashes[key];
+                for (let key in slices) {
+                    let slice = slices[key];
                     let id = slice.id;
                     let nodeHash = slice.nodeHash;
                     idxsIMT.push(id);
-                    nodeHashes.push('0x' + nodeHash);
+                    sliceHashes.push('0x' + nodeHash);
                 }
 
                 let transactionHashes = tree.getTransactionHashesByIndex(targetIds);
@@ -77,33 +77,11 @@ async function exonerate(scid) {
                     idxsLFD.push(hashes.length);
                     leafHashes = leafHashes.concat(hashes);
                 }
-                console.log('index LFD:');
-                console.log(idxsLFD);
-                console.log('LFD:');
                 console.log(leafHashes);
 
                 web3.personal.unlockAccount(account, env.password);
-
-                let event = sidechainInstance.SideChainEvent();
-                event.watch(function (err, result) {
-                    if (err) {
-                        console.log(err);
-                    } else {
-                        console.log(result);
-                        let args = result.args;
-                        let func = args._func;
-
-                        let setting = '0x9d630d23';
-
-                        if (args._scid === scidHash && func === setting) {
-                            let isComplete = sidechainInstance.exonerate({from: account, to: sidechainInstance.address, gas: 4700000});
-                            console.log('exonerate', isComplete);
-                            event.stopWatching();
-                        }
-                    }
-                });
-
-                sidechainInstance.setting(idxsIMT, nodeHashes, idxsLFD, leafHashes, {from: account, to:sidechainInstance.address, gas: 4700000});
+                let txHash = IFCContract.exonerate(stageHash, tidHash, idx, sliceHashes, leafHashes, {from: account, to:IFCContract.address, gas: 4700000});
+                console.log(txHash);
             }
         }
         return true;
