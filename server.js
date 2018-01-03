@@ -349,6 +349,24 @@ app.get('/finalized/time', async function (req, res) {
     }
 });
 
+app.post('/send/transactions', async function (req, res) {
+    try {
+        let txs = req.body;
+        if (txs.length > 0) {
+            // validate signatures of transactions
+
+            // save transactions into transaction pool
+            let result = await db.saveTransactions(txs);
+            res.send({ok: true, result: result});
+        } else {
+            res.send({ok: false});
+        }
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
 app.post('/commit/transactions', async function (req, res) {
     try {
         let txs = await db.pendingTransactions();
