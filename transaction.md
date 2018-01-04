@@ -5,6 +5,7 @@
 - value
 - lsn
 - data
+  - RSA public key (for content encryption)
 
 ## Transaction Hash
 - txHash = hash(content)
