@@ -1,9 +1,14 @@
-## Transaction Content
+## Transaction
 - stageHash
+- txHash
+- rawTx
+
+## rawTx
 - from
 - to
 - value
 - localSequenceNumber
+- stageHeight
 - data
 
 ```
@@ -36,8 +41,7 @@
 ```
 
 ## Transaction Hash
-- txHash = hash(encrypt_user(content) + encrypt_cp(content))
-
+- txHash = hash(encrypt_user(rawTx) + encrypt_cp(rawTx))
 
 ## How to apply hash function to json content?
   - Now use `Json.stringify`, will use bytearray encoding in the future
