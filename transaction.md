@@ -2,6 +2,9 @@
 - stageHash
 - txHash
 - rawTx
+- r
+- s
+- v
 
 ## rawTx
 - from
