@@ -4,7 +4,7 @@ import "./SidechainLibrary.sol";
 
 contract Stage {
     address public owner; //IFC contract
-    bytes32 public stageID;
+    bytes32 public stageHash;
     bytes32 public rootHash;
     address public lib; // IFC Lib
     bool public completed;
@@ -13,9 +13,9 @@ contract Stage {
     uint public finalizedTime;
 
     mapping (bytes32 => ObjectionInfo) public objections;
-    bytes32[] public objectionableTIDs;
+    bytes32[] public objectionableTxHashes;
 
-    event SideChainEvent(address indexed _owner, bytes32 indexed _stageID, bytes4 _func);
+    event SideChainEvent(address indexed _owner, bytes32 indexed _stageHash, bytes4 _func);
 
     struct ObjectionInfo {
         address customer;
@@ -30,14 +30,14 @@ contract Stage {
     }
 
     function Stage(
-        bytes32 _stageID,
+        bytes32 _stageHash,
         bytes32 _rootHash,
         address _lib,
         uint _objectionTimePeriod,
         uint _finalizedTimePeriod)
     {
         owner = msg.sender;
-        stageID = _stageID;
+        stageHash = _stageHash;
         rootHash = _rootHash;
         lib = _lib;
         completed = false;
@@ -45,24 +45,24 @@ contract Stage {
         finalizedTime = objectionTime + _finalizedTimePeriod;
     }
 
-    function addObjectionableTID(bytes32 _tid, address _customer, bytes32 _content) onlyOwner {
+    function addObjectionableTxHash(bytes32 _txHash, address _customer, bytes32 _content) onlyOwner {
         require (now < objectionTime);
-        require(SidechainLibrary(lib).inBytes32Array(_tid, objectionableTIDs) == false);
-        objections[_tid] = ObjectionInfo(_customer, _content, true, false);
-        objectionableTIDs.push(_tid);
+        require(SidechainLibrary(lib).inBytes32Array(_txHash, objectionableTxHashes) == false);
+        objections[_txHash] = ObjectionInfo(_customer, _content, true, false);
+        objectionableTxHashes.push(_txHash);
     }
 
-    function resolveObjections(bytes32 _tid) onlyOwner {
+    function resolveObjections(bytes32 _txHash) onlyOwner {
         require(msg.sender == owner);
-        objections[_tid].objectionSuccess = false;
+        objections[_txHash].objectionSuccess = false;
     }
 
-    function getContent(bytes32 _tid) constant returns (bytes32) {
-        return objections[_tid].hashOfContent;
+    function getContent(bytes32 _txHash) constant returns (bytes32) {
+        return objections[_txHash].hashOfContent;
     }
 
-    function getObjectionableTIDs() constant returns (bytes32[]) {
-        return objectionableTIDs;
+    function getObjectionableTxHashes() constant returns (bytes32[]) {
+        return objectionableTxHashes;
     }
 
     function setCompleted() onlyOwner {

@@ -10,7 +10,7 @@ contract IFC {
     mapping (bytes32 => address) public stageAddress;
     bytes32[] public stages;
 
-    event AddStage(bytes32 indexed _stageID, address _stageAddress);
+    event AddStage(bytes32 indexed _stageHash, address _stageAddress);
 
     modifier onlyOwner {
         require(msg.sender == owner);
@@ -26,22 +26,22 @@ contract IFC {
         stages.push(0x0);
     }
 
-    function addNewStage(bytes32 _stageID, bytes32 _rootHash) onlyOwner {
-        address newStage = new Stage(_stageID, _rootHash, lib, 300, 0);
-        stageAddress[_stageID] = newStage;
-        stages.push(_stageID);
+    function addNewStage(bytes32 _stageHash, bytes32 _rootHash) onlyOwner {
+        address newStage = new Stage(_stageHash, _rootHash, lib, 300, 0);
+        stageAddress[_stageHash] = newStage;
+        stages.push(_stageHash);
         stageHeight += 1;
-        AddStage(_stageID, newStage);
+        AddStage(_stageHash, newStage);
     }
 
-    function getStageAddress(bytes32 _stageID) constant returns (address) {
-        return stageAddress[_stageID];
+    function getStageAddress(bytes32 _stageHash) constant returns (address) {
+        return stageAddress[_stageHash];
     }
 
     function takeObjection(
         bytes32[] agentResponse,
-        //agentResponse[0] = _stageID,
-        //agentResponse[1] = _tid,
+        //agentResponse[0] = _stageHash,
+        //agentResponse[1] = _txHash,
         //agentResponse[2] = _content,
         uint8 v,
         bytes32 r,
@@ -51,22 +51,22 @@ contract IFC {
         bytes32 hashMsg = SidechainLibrary(lib).hashArray(agentResponse);
         address signer = SidechainLibrary(lib).verify(hashMsg, v, r, s);
         require (signer == owner);
-        Stage(stageAddress[agentResponse[0]]).addObjectionableTID(agentResponse[1], msg.sender, agentResponse[2]);
+        Stage(stageAddress[agentResponse[0]]).addObjectionableTxHash(agentResponse[1], msg.sender, agentResponse[2]);
     }
 
-    function exonerate(bytes32 _stageID, bytes32 _tid, uint idx, bytes32[] slice, bytes32[] leaf) onlyOwner {
+    function exonerate(bytes32 _stageHash, bytes32 _txHash, uint _idx, bytes32[] slice, bytes32[] leaf) onlyOwner {
         bytes32 hashResult;
-        require (SidechainLibrary(lib).inBytes32Array(Stage(stageAddress[_stageID]).getContent(_tid), leaf));
+        require (SidechainLibrary(lib).inBytes32Array(Stage(stageAddress[_stageHash]).getContent(_txHash), leaf));
         // content is in leaf array
         hashResult = SidechainLibrary(lib).hashArray(leaf);
         require (hashResult == slice[0]);
         // hash (content concat) = first node (or second one) hash in slice
-        hashResult = SidechainLibrary(lib).calculateSliceRootHash(idx, slice);
-        require (hashResult == Stage(stageAddress[_stageID]).rootHash());
-        Stage(stageAddress[_stageID]).resolveObjections(_tid);
+        hashResult = SidechainLibrary(lib).calculateSliceRootHash(_idx, slice);
+        require (hashResult == Stage(stageAddress[_stageHash]).rootHash());
+        Stage(stageAddress[_stageHash]).resolveObjections(_txHash);
     }
 
-    function finalize(bytes32 _stageID) {
-        Stage(stageAddress[_stageID]).setCompleted();
+    function finalize(bytes32 _stageHash) {
+        Stage(stageAddress[_stageHash]).setCompleted();
     }
 }
