@@ -35,7 +35,7 @@
 ```
 
 ## Transaction Hash
-- txHash = hash(content)
+- txHash = hash(encrypt_user(content) + encrypt_cp(content))
 
 
 ## How to apply hash function to json content?
