@@ -28,17 +28,17 @@ async function connect() {
         async pendingTransactions () {
             try {
                 let collection = await db.collection('txs');
-                let txs = await collection.find({}).toArray();
+                let txs = await collection.find({onChain: false}).toArray();
                 return txs;
             } catch (e) {
                 console.error(e);
             }
         },
 
-        async clearPendingTransactions () {
+        async clearPendingTransactions (stageHash) {
             try {
                 let collection = await db.collection('txs');
-                let result = await collection.remove({});
+                let result = await collection.update({onChain: false, stageHash: stageHash}, {onChain: true});
                 return result;
             } catch (e) {
                 console.error(e);
@@ -47,7 +47,7 @@ async function connect() {
 
         async lastestStageHeight () {
             try {
-                let collection = await db.collection('tx_ciphers');
+                let collection = await db.collection('txs');
                 let result = await collection.find().sort({stageHeight: -1}).limit(1).next();
                 return result.stageHeight;
             } catch (e) {
@@ -62,16 +62,6 @@ async function connect() {
                 let collection = await db.collection('stage_height');
                 await collection.save({_id: 1, stageHeight: height});
                 return height;
-            } catch (e) {
-                console.error(e);
-            }
-        },
-
-        async saveTxCiphers(ciphers) {
-            try {
-                let collection = await db.collection('tx_ciphers');
-                let result = await collection.insertMany(ciphers);
-                return result;
             } catch (e) {
                 console.error(e);
             }
@@ -163,7 +153,7 @@ async function connect() {
 
         async getStage (stageHeight) {
             try {
-                let treeCollection = await db.collection('tx_ciphers');
+                let treeCollection = await db.collection('txs');
                 let result = await treeCollection.find({stageHeight: {$eq: parseInt(stageHeight)}}).toArray();
                 return result;
             } catch (e) {

@@ -3,7 +3,7 @@ class MerkleTree {
     constructor(height) {
         this.nodes;
         this.height = height;
-        this.stageHeight;
+        this.stageHeight = null;
         this.makeTreeTime;
         if (this.height <= 0) {
             console.log('Tree height should be more than 1.');
@@ -39,12 +39,12 @@ class MerkleTree {
         return (1 << (this.height - 1)) + Math.abs(index) % (1 << (this.height - 1));
     }
 
-    setTime(makeTreeTime) {
-        this.makeTreeTime = makeTreeTime;
+    setStageHeight (stageHeight) {
+        this.stageHeight = stageHeight;
     }
 
-    setStageHeight(stageHeight) {
-        this.stageHeight = stageHeight;
+    setTime(makeTreeTime) {
+        this.makeTreeTime = makeTreeTime;
     }
 
     leafTotalNode(height) {
@@ -54,22 +54,16 @@ class MerkleTree {
     getHeight() {
         return this.height;
     }
-    putTransactionInTree(order) {
-        // 將交易放進樹當中
-        if(!this.stageHeight) {
-            throw new Error('you should set stageHeight.');
+
+    putTransactionInTree(txCipher) {
+        if (!txCipher.stageHeight || txCipher.stageHeight != this.stageHeight) {
+            throw new Error('Wrong tx cipher.');
         }
-        // if(!this.makeTreeTime) {
-        //     throw new Error('you should set tree making time.');
-        // }
-        let tid = order.tid || '';
-        let contentUser = order.contentUser || '';
-        let contentCp = order.contentCp || ''; 
-        let index = this.calcLeafIndex(tid);
-        this.nodes[index].put(contentUser, contentCp);         
+        let index = this.calcLeafIndex(txCipher.txHash);
+        this.nodes[index].put(txCipher.cipherUser, txCipher.cipherCP);
         for (let i = index; i > 0; i >>= 1) {
             this.updateNodeHash(i);
-        }       
+        }
     }
 
     getRootHash () {
@@ -194,7 +188,6 @@ class MerkleTree {
         return {
             nodes: this.nodes,
             time: this.makeTreeTime,
-            stageHeight: this.stageHeight,
             height: this.height
         };
     }

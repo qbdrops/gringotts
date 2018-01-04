@@ -30,7 +30,7 @@ async function connectDB() {
     }
 }
 
-let SideChain = function () {
+let Sidechain = function () {
     this.db = null;
     connectDB().then((db) => {
         this.db = db;
@@ -128,6 +128,6 @@ let SideChain = function () {
     };
 };
 
-let sideChain = new SideChain();
+let sideChain = new Sidechain();
 
 module.exports = sideChain;

@@ -9,7 +9,7 @@ let DB = require('./db');
 let buildStage = require('./makeTree');
 let faker = require('faker');
 let exonerate = require('./exonerate');
-let SideChain = require('./utils/SideChain');
+let Sidechain = require('./utils/Sidechain');
 
 let db;
 
@@ -33,86 +33,83 @@ io.on('connection', async function (socket) {
     });
 });
 
-async function fakeRecords(numberOfData) {
+async function fakeRecords(txSize) {
     try {
-        let stageHeight = await SideChain.getContractStageHeight();
-        stageHeight = parseInt(stageHeight) + 1;
-        let recordsLength = numberOfData;
-        let records = [];
+        let stageHeight = await Sidechain.getContractStageHeight();
+        let nextStageHeight = parseInt(stageHeight) + 1;
+        let txs = [];
 
         let keys = await db.getPublicKeys();
         let userAddress = await db.getUserAddress();
         let userPublicKey = keys.userPublicKey.publickey;
         let cpsPublicKey = keys.cpsPublicKey.publickey;
-        let userRecords = [];
-        for (let i = 0; i < recordsLength; i++) {
-            let tid = faker.random.uuid();
+        let userTxs = [];
+        for (let i = 0; i < txSize; i++) {
             let fromPrivateKey = ethUtils.sha3(faker.company.companyName()).toString('hex');
             let fromPublickey = '0x' + ethUtils.privateToPublic('0x' + fromPrivateKey).toString('hex');
             let fromAccount = '0x' + ethUtils.pubToAddress(fromPublickey).toString('hex');
-        
+
             let toPrivateKey = ethUtils.sha3(faker.company.companyName()).toString('hex');
             let toPublickey = '0x' + ethUtils.privateToPublic('0x' + toPrivateKey).toString('hex');
             let toAccount = '0x' + ethUtils.pubToAddress(toPublickey).toString('hex');
-        
-            let order = {
-                'tid': tid,
+
+            let rawTx = {
                 'from': fromAccount,
                 'to': toAccount,
                 'value': faker.commerce.price(),
-                'stageHeight': stageHeight
+                'stageHeight': nextStageHeight,
+                'localSequenceNumber': 0,
+                'data': {
+                    pkUser: userPublicKey,
+                    pkStakeholder: cpsPublicKey
+                }
             };
 
-            if (i == (recordsLength - 1) || 
-                i == (recordsLength - 2) ||
-                i == (recordsLength - 3)) {
-                order = {
-                    'tid': tid,
+            if (i == (txSize - 1) ||
+                i == (txSize - 2) ||
+                i == (txSize - 3)) {
+                rawTx = {
                     'from': userAddress,
                     'to': toAccount,
                     'value': faker.commerce.price(),
-                    'stageHeight': stageHeight
+                    'stageHeight': nextStageHeight
                 };
             }
 
-            let txHash = ethUtils.sha3(tid).toString('hex');
-            let stageHash = ethUtils.sha3(stageHeight.toString()).toString('hex');
-            let content = Buffer.from(JSON.stringify(order)).toString('hex');
+            rawTx = Buffer.from(JSON.stringify(rawTx)).toString('hex');
+            let cipherUser = await RSA.encrypt(rawTx, userPublicKey);
+            let cipherCP = await RSA.encrypt(rawTx, cpsPublicKey);
+            let txHash = ethUtils.sha3(cipherUser + cipherCP).toString('hex');
+            let stageHash = ethUtils.sha3(nextStageHeight.toString()).toString('hex');
 
-            let cipherUser = await RSA.encrypt(content, userPublicKey);
-            let cipherCP = await RSA.encrypt(content, cpsPublicKey);
-
-            let contentHash = ethUtils.sha3(cipherUser + cipherCP).toString('hex');
-            let msg = txHash + stageHash + contentHash;
+            let msg = stageHash + txHash;
             let msgHash = ethUtils.sha3(msg);
             let prefix = new Buffer('\x19Ethereum Signed Message:\n');
             let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
             let signature = ethUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
 
-            let res = {
-                tid: tid,
-                tidHash: '0x' + txHash,
-                stageHeight: stageHeight,
-                stageHash: '0x' + stageHash,
-                content: content,
-                contentHash: '0x' + contentHash.toString('hex'),
-                digest: '0x' + msgHash.toString('hex'),
-                r: '0x' + signature.r.toString('hex'),
-                s: '0x' + signature.s.toString('hex'),
+            let tx = {
+                stageHeight: nextStageHeight,
+                stageHash: stageHash,
+                txHash: txHash,
+                cipherUser: cipherUser,
+                cipherCP: cipherCP,
                 v: signature.v,
+                r: signature.r.toString('hex'),
+                s: signature.s.toString('hex')
             };
 
-            if (i == (recordsLength - 1) || 
-                i == (recordsLength - 2) ||
-                i == (recordsLength - 3)) {
-                userRecords.push(res);
+            if (i == (txSize - 1) || 
+                i == (txSize - 2) ||
+                i == (txSize - 3)) {
+                userTxs.push(tx);
             }
 
-            records.push(res);
+            txs.push(tx);
         }
 
-        await db.saveTransactions(records);
-        io.sockets.emit('transaction', userRecords);
+        await db.saveTransactions(txs);
+        io.sockets.emit('transaction', userTxs);
     } catch(e) {
         console.log(e);
     }
@@ -155,7 +152,7 @@ app.get('/slice', async function (req, res) {
     try {
         let query = req.query;
         let stageHeight = query.stage_height;
-        let tid = query.tid;
+        let txHash = query.tx_hash;
 
         let cachedTree = null;
 
@@ -167,8 +164,8 @@ app.get('/slice', async function (req, res) {
         }
 
         if (cachedTree) {
-            let slice = cachedTree.extractSlice(tid);
-            let leafNodeHashSet = cachedTree.getTransactionHashSet(tid);
+            let slice = cachedTree.extractSlice(txHash);
+            let leafNodeHashSet = cachedTree.getTransactionHashSet(txHash);
             
             res.send({
                 slice: slice,
@@ -185,8 +182,8 @@ app.get('/slice', async function (req, res) {
                     tree.putTransactionInTree(tx);
                 });
 
-                let slice = tree.extractSlice(tid);
-                let leafNodeHashSet = tree.getTransactionHashSet(tid);
+                let slice = tree.extractSlice(txHash);
+                let leafNodeHashSet = tree.getTransactionHashSet(txHash);
                 
                 if (cached.length >= 3) {
                     cached.push(tree);
@@ -238,7 +235,7 @@ app.post('/exonerate', async function (req, res) {
 app.put('/finalize', async function (req, res) {
     try {
         let stageHeight = req.body.stage_id;
-        let result = SideChain.finalize(stageHeight);
+        let result = Sidechain.finalize(stageHeight);
         res.send(result);
     } catch (e) {
         console.log(e);
@@ -260,7 +257,7 @@ app.put('/cp/publickey', async function (req, res) {
 
 app.get('/latest/objections/count', async function (req, res) {
     try {
-        let objections = SideChain.getLatestObjections();
+        let objections = Sidechain.getLatestObjections();
         console.log(objections);
         res.send({objectionCount: objections.length});
     } catch (e) {
@@ -271,7 +268,7 @@ app.get('/latest/objections/count', async function (req, res) {
 
 app.get('/latest/stage/height', async function (req, res) {
     try {
-        let height = SideChain.getLatestStageHeight();
+        let height = Sidechain.getLatestStageHeight();
         res.send({height: height});
     } catch (e) {
         console.log(e);
@@ -282,7 +279,7 @@ app.get('/latest/stage/height', async function (req, res) {
 app.get('/balance', async function (req, res) {
     try {
         let address = req.query.address;
-        let balance = SideChain.getBalance(address);
+        let balance = Sidechain.getBalance(address);
         res.send({balance: balance});
     } catch (e) {
         console.log(e);
@@ -316,7 +313,7 @@ app.get('/latest/txs', async function (req, res) {
     try {
         let size = req.query.size;
         size = parseInt(size);
-        let stageHeight = await SideChain.getLatestStageHeight();
+        let stageHeight = await Sidechain.getLatestStageHeight();
         let result = await db.getTransactions(stageHeight, size);
         res.send(result);
     } catch (e) {
@@ -327,7 +324,7 @@ app.get('/latest/txs', async function (req, res) {
 
 app.get('/pending/stages', async function (req, res) {
     try {
-        let pendingStages = await SideChain.pendingStages();
+        let pendingStages = await Sidechain.pendingStages();
         res.send(pendingStages);
     } catch (e) {
         console.log(e);
@@ -337,7 +334,7 @@ app.get('/pending/stages', async function (req, res) {
 
 app.get('/finalized/time', async function (req, res) {
     try {
-        let finalizedTime = await SideChain.getFinalizedTime();
+        let finalizedTime = await Sidechain.getFinalizedTime();
         console.log(finalizedTime);
         res.send({
             finalizedTime: finalizedTime
@@ -353,9 +350,25 @@ app.post('/send/transactions', async function (req, res) {
         let txs = req.body;
         if (txs.length > 0) {
             // validate signatures of transactions
+            let validTxs = txs.filter((tx) => {
+                let stageHash = tx.stageHash;
+                let txHash = tx.txHash;
+                let msg = stageHash + txHash;
+                let msgHash = ethUtils.sha3(msg);
+                let prefix = new Buffer('\x19Ethereum Signed Message:\n');
+                let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+                let publicKey = ethUtils.ecrecover(ethMsgHash, tx.v, Buffer.from(tx.r), Buffer.from(tx.s)).toString('hex');
+                let address = '0x' + ethUtils.pubToAddress(publicKey).toString('hex');
+                return account == address;
+            });
+
+            let txCiphers = validTxs.map((txCipher) => {
+                txCipher.onChain = false;
+                return txCipher;
+            });
 
             // save transactions into transaction pool
-            let result = await db.saveTransactions(txs);
+            let result = await db.saveTransactions(txCiphers);
             res.send({ok: true, result: result});
         } else {
             res.send({ok: false});
@@ -368,12 +381,18 @@ app.post('/send/transactions', async function (req, res) {
 
 app.post('/commit/transactions', async function (req, res) {
     try {
-        let txs = await db.pendingTransactions();
-        if (txs.length > 0) {
-            let stageHeight = await SideChain.getContractStageHeight();
-            stageHeight = parseInt(stageHeight) + 1;
+        let stageHeight = await Sidechain.getContractStageHeight();
+        let nextStageHeight = parseInt(stageHeight) + 1;
+        let nextStageHash = ethUtils.sha3(nextStageHeight.toString()).toString('hex');
+
+        let txCiphers = await Sidechain.pendingTransactions();
+        txCiphers = txCiphers.filter((tx) => {
+            return tx.stageHash == nextStageHash;
+        });
+
+        if (txCiphers.length > 0) {
             let makeTreeTime = parseInt(Date.now() / 1000);
-            buildStage(makeTreeTime, stageHeight, txs).then((tree) => {
+            buildStage(makeTreeTime, nextStageHeight, txCiphers).then((tree) => {
                 if (cached.length >= 3) {
                     cached.push(tree);
                     cached.shift();
@@ -424,7 +443,7 @@ app.get('/stage', async function (req, res) {
 
 app.get('/pending/transactions', async function (req, res) {
     try {
-        let pendingTransactions = await SideChain.pendingTransactions();
+        let pendingTransactions = await Sidechain.pendingTransactions();
         res.send(pendingTransactions);
     } catch (e) {
         console.log(e);

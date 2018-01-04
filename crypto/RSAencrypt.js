@@ -7,14 +7,14 @@ let readPublic = function(path){
         fs.readFile(path.toString(), 'utf-8', (err, data)=> {// encrypt
             let readPublicKey = JSON.parse(data);
             resolve(readPublicKey);
-        });  
+        });
     });
 };
 
-let encrypt = function(order, readPublicKey){
+let encrypt = function(message, readPublicKey) {
     return new Promise((resolve) => {
         let key = new NodeRSA(readPublicKey, {encryptionScheme:{scheme:'pkcs1', padding: constants.RSA_NO_PADDING}});
-        let encrypted = key.encrypt(order, 'base64');
+        let encrypted = key.encrypt(message, 'base64');
         resolve(encrypted);
     });  
 };
