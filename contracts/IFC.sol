@@ -42,21 +42,20 @@ contract IFC {
         bytes32[] agentResponse,
         //agentResponse[0] = _stageHash,
         //agentResponse[1] = _txHash,
-        //agentResponse[2] = _content,
         uint8 v,
         bytes32 r,
         bytes32 s)
     {
-        require (agentResponse.length == 3);
+        require (agentResponse.length == 2);
         bytes32 hashMsg = SidechainLibrary(lib).hashArray(agentResponse);
         address signer = SidechainLibrary(lib).verify(hashMsg, v, r, s);
         require (signer == owner);
-        Stage(stageAddress[agentResponse[0]]).addObjectionableTxHash(agentResponse[1], msg.sender, agentResponse[2]);
+        Stage(stageAddress[agentResponse[0]]).addObjectionableTxHash(agentResponse[1], msg.sender);
     }
 
     function exonerate(bytes32 _stageHash, bytes32 _txHash, uint _idx, bytes32[] slice, bytes32[] leaf) onlyOwner {
         bytes32 hashResult;
-        require (SidechainLibrary(lib).inBytes32Array(Stage(stageAddress[_stageHash]).getContent(_txHash), leaf));
+        require (SidechainLibrary(lib).inBytes32Array(_txHash, leaf));
         // content is in leaf array
         hashResult = SidechainLibrary(lib).hashArray(leaf);
         require (hashResult == slice[0]);
