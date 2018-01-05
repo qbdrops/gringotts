@@ -19,7 +19,6 @@ contract Stage {
 
     struct ObjectionInfo {
         address customer;
-        bytes32 hashOfContent;
         bool objectionSuccess;
         bool getCompensation;
     }
@@ -45,20 +44,16 @@ contract Stage {
         finalizedTime = objectionTime + _finalizedTimePeriod;
     }
 
-    function addObjectionableTxHash(bytes32 _txHash, address _customer, bytes32 _content) onlyOwner {
+    function addObjectionableTxHash(bytes32 _txHash, address _customer) onlyOwner {
         require (now < objectionTime);
         require(SidechainLibrary(lib).inBytes32Array(_txHash, objectionableTxHashes) == false);
-        objections[_txHash] = ObjectionInfo(_customer, _content, true, false);
+        objections[_txHash] = ObjectionInfo(_customer, true, false);
         objectionableTxHashes.push(_txHash);
     }
 
     function resolveObjections(bytes32 _txHash) onlyOwner {
         require(msg.sender == owner);
         objections[_txHash].objectionSuccess = false;
-    }
-
-    function getContent(bytes32 _txHash) constant returns (bytes32) {
-        return objections[_txHash].hashOfContent;
     }
 
     function getObjectionableTxHashes() constant returns (bytes32[]) {
