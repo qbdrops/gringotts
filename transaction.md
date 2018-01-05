@@ -39,7 +39,7 @@ let txHash = sha_3(cipherUser + cipherCP)
     tx: {
         stageHeight: 3,
         stageHash: '0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6',
-        txHash": '0x6e7f1007bfb89f5af93fb9498fda2e9ca727166ccabd3a7109fa83e9d46d3f1a',
+        txHash: '0x6e7f1007bfb89f5af93fb9498fda2e9ca727166ccabd3a7109fa83e9d46d3f1a',
         cipherUser: 'blahblah',
         cipherCP: 'blahblah'
         v: 28,
