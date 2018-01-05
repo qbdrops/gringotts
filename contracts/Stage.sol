@@ -15,8 +15,6 @@ contract Stage {
     mapping (bytes32 => ObjectionInfo) public objections;
     bytes32[] public objectionableTxHashes;
 
-    event SidechainEvent(address indexed _owner, bytes32 indexed _stageHash, bytes4 _func);
-
     struct ObjectionInfo {
         address customer;
         bool objectionSuccess;

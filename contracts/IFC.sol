@@ -10,7 +10,10 @@ contract IFC {
     mapping (bytes32 => address) public stageAddress;
     bytes32[] public stages;
 
-    event AddStage(bytes32 indexed _stageHash, address _stageAddress);
+    event AddNewStage(bytes32 indexed _stageHash, address _stageAddress);
+    event TakeObjection(bytes32 indexed _stageHash, bytes32 _txHash);
+    event Exonerate(bytes32 indexed _stageHash, bytes32 _txHash);
+    event Finalize(bytes32 indexed _stageHash);
 
     modifier onlyOwner {
         require(msg.sender == owner);
@@ -31,7 +34,7 @@ contract IFC {
         stageAddress[_stageHash] = newStage;
         stages.push(_stageHash);
         stageHeight += 1;
-        AddStage(_stageHash, newStage);
+        AddNewStage(_stageHash, newStage);
     }
 
     function getStageAddress(bytes32 _stageHash) constant returns (address) {
@@ -51,6 +54,7 @@ contract IFC {
         address signer = SidechainLibrary(lib).verify(hashMsg, v, r, s);
         require (signer == owner);
         Stage(stageAddress[agentResponse[0]]).addObjectionableTxHash(agentResponse[1], msg.sender);
+        TakeObjection(agentResponse[0], agentResponse[1])
     }
 
     function exonerate(bytes32 _stageHash, bytes32 _txHash, uint _idx, bytes32[] slice, bytes32[] leaf) onlyOwner {
@@ -63,9 +67,11 @@ contract IFC {
         hashResult = SidechainLibrary(lib).calculateSliceRootHash(_idx, slice);
         require (hashResult == Stage(stageAddress[_stageHash]).rootHash());
         Stage(stageAddress[_stageHash]).resolveObjections(_txHash);
+        Exonerate(_stageHash, _txHash);
     }
 
     function finalize(bytes32 _stageHash) {
         Stage(stageAddress[_stageHash]).setCompleted();
+        Finalize(_stageHash);
     }
 }
