@@ -1,9 +1,9 @@
-const keccak256 = require('js-sha3').keccak256;
+const EthUtils = require('ethereumjs-util');
 class MerkleTree {
     constructor(height) {
         this.nodes;
         this.height = height;
-        this.stageHeight = null;
+        this.stageHeight;
         this.makeTreeTime;
         if (this.height <= 0) {
             console.log('Tree height should be more than 1.');
@@ -16,24 +16,24 @@ class MerkleTree {
                 this.nodes[i] = new Node(i);
                 this.nodes[i].setIsLeaf(true);
                 // initial hash value 
-                this.nodes[i].updateNodeHash(keccak256('initial no data'));  
+                this.nodes[i].updateNodeHash(EthUtils.sha3('initial no data').toString('hex'));  
             } else {
                 // internal node
                 this.nodes[i] = new Node(i);
                 this.nodes[i].setIsLeaf(false);
                 // concat(leftchild,rightchild)
-                this.nodes[i].updateNodeHash(keccak256(this.nodes[2 * i].getContentDigest().concat(this.nodes[2 * i + 1].getContentDigest())));  
+                this.nodes[i].updateNodeHash(EthUtils.sha3(this.nodes[2 * i].getContentDigest().concat(this.nodes[2 * i + 1].getContentDigest())).toString('hex'));  
             }
         } 
-    }   
+    } 
 
-    calcLeafIndex(tid) {
+    calcLeafIndex(txHash) {
         // calc leaflocation
         let index ;
-        if(keccak256(tid.toString()).substring(0,2) === '0x'){
-            index = parseInt(keccak256(tid.toString()).substring(2,14),16);
+        if(EthUtils.sha3(txHash.toString()).toString('hex').substring(0,2) === '0x'){
+            index = parseInt(EthUtils.sha3(txHash.toString()).toString('hex').substring(2,14),16);
         }else{
-            index = parseInt(keccak256(tid.toString()).substring(0,12),16);
+            index = parseInt(EthUtils.sha3(txHash.toString()).toString('hex').substring(0,12),16);
         }
         //calc the leaf node id
         return (1 << (this.height - 1)) + Math.abs(index) % (1 << (this.height - 1));
@@ -71,9 +71,9 @@ class MerkleTree {
         return this.nodes[1].getContentDigest();
     }
 
-    getTransactionHashSet(tid) {
+    getTransactionHashSet(txHash) {
     //拿到交易內容的雜湊值(包含其他collision的雜湊)
-        let index = this.calcLeafIndex(tid);
+        let index = this.calcLeafIndex(txHash);
         return this.nodes[index].getContent();
     }
     getNodeHashSet(id) {
@@ -81,21 +81,21 @@ class MerkleTree {
         return this.nodes[id].getContent();
     }
     
-    getTransactionSetUser(tid) {
+    getTransactionSetUser(txHash) {
     //拿到用戶公鑰加密的交易內容(包含其他collision的交易)
-        let index = this.calcLeafIndex(tid);
+        let index = this.calcLeafIndex(txHash);
         return this.nodes[index].getContentUser();
     }
 
-    getTransactionSetCp(tid) {
+    getTransactionSetCP(txHash) {
     //拿到ＣＰ公鑰加密的交易內容(包含其他collision的交易)
-        let index = this.calcLeafIndex(tid);
-        return this.nodes[index].getContentCp();
+        let index = this.calcLeafIndex(txHash);
+        return this.nodes[index].getContentCP();
     }
 
-    getNodeHashByTid(tid) {
+    getNodeHashByTid(txHash) {
         // 訂單編號找葉節點雜湊
-        let index = this.calcLeafIndex(tid);
+        let index = this.calcLeafIndex(txHash);
         return this.nodes[index].getContentDigest();
     }
     
@@ -158,29 +158,48 @@ class MerkleTree {
         return idSet;
     }
 
-    extractSlice(tid) { //拿到證據切片
-        let index = this.calcLeafIndex(tid);
-        let slice = new Array();
-        let left = '';
-        let right = '';
-        for (;index > 1; index >>= 1) { 
-            left = right = this.nodes[index].getContentDigest();
-            if (index % 2 == 0) {
-                right = this.nodes[index + 1].getContentDigest();
-            } else {
-                left = this.nodes[index - 1].getContentDigest();
-            }
-
-            slice.push(left);
-            slice.push(right);
+    extractSlice(txHash) { //拿到證據切片
+        let index = this.calcLeafIndex(txHash);
+        let slice = new Array();        
+        if (index % 2 == 0) {
+            slice.push({
+                treeNodeID: index,
+                treeNodeHash: this.nodes[index].getContentDigest()
+            });
+            slice.push({
+                treeNodeID: index + 1,
+                treeNodeHash: this.nodes[index + 1].getContentDigest()
+            });
+        } else {
+            slice.push({
+                treeNodeID: index,
+                treeNodeHash: this.nodes[index].getContentDigest()
+            });
+            slice.push({
+                treeNodeID: index - 1,
+                treeNodeHash: this.nodes[index - 1].getContentDigest()
+            });
         }
-        slice.push(this.nodes[1].getContentDigest());
+        index >>= 1;
+        for (;index > 1; index >>= 1) { 
+            if (index % 2 == 0) {
+                slice.push({
+                    treeNodeID: index + 1,
+                    treeNodeHash: this.nodes[index + 1].getContentDigest()
+                });
+            } else {
+                slice.push({
+                    treeNodeID: index - 1,
+                    treeNodeHash: this.nodes[index - 1].getContentDigest()
+                });
+            }   
+        }
         return slice;
     }
 
-    reputData(id, hashSet, contentUser, contentCp, NodeHash) { 
+    reputData(id, hashSet, contentUser, contentCP, NodeHash) { 
         // restore merkleTree
-        this.nodes[id].reput(hashSet, contentUser, contentCp, NodeHash);
+        this.nodes[id].reput(hashSet, contentUser, contentCP, NodeHash);
     }
 
     export() {
@@ -196,21 +215,21 @@ class MerkleTree {
         //將整顆樹還原
         let restoreTree = new MerkleTree(tree.height);
         for(let i = 1 ; i < (1 << tree.height) ; i++) {
-            restoreTree.reputData(i,tree.nodes[i].hashSet, tree.nodes[i].contentUser, tree.nodes[i].contentCp, tree.nodes[i].NodeHash);
+            restoreTree.reputData(i,tree.nodes[i].hashSet, tree.nodes[i].contentUser, tree.nodes[i].contentCP, tree.nodes[i].NodeHash);
         }                
         return restoreTree;         
     }
 
-    calcLeafIndexByTidHash(tidHashSet) { // 自清專用（算所有要稽核的葉節點id）
+    calcLeafIndexByTidHash(txHashSet) { // 自清專用（算所有要稽核的葉節點id）
         let idSet = new Array();
-        let tidLength = tidHashSet.length;
-        for(let i = 0 ; i < tidLength ; i++) {
+        let txLength = txHashSet.length;
+        for(let i = 0 ; i < txLength ; i++) {
             let index ;
-            let tidHash = tidHashSet.shift();
-            if(tidHash.toString().substring(0,2) === '0x') {
-                index = parseInt(tidHash.toString().substring(2,14),16);
+            let txHash = txHashSet.shift();
+            if(txHash.toString().substring(0,2) === '0x') {
+                index = parseInt(txHash.toString().substring(2,14),16);
             }else{
-                index = parseInt(tidHash.toString().substring(0,12),16);
+                index = parseInt(txHash.toString().substring(0,12),16);
             }
             let leafLocation = (1 << (this.height - 1)) + Math.abs(index) % (1 << (this.height - 1));
             if(this.getNodeHashSet(leafLocation) === null) {
@@ -227,8 +246,8 @@ class MerkleTree {
         let ids = idSet.slice();
         let nodeSet = {};
         let idReduce = new Array();
-        let tidLength = ids.length;
-        for(let i = 0 ; i < tidLength ; i++) {
+        let txHashLength = ids.length;
+        for(let i = 0 ; i < txHashLength ; i++) {
             let id = ids.shift();
             let index = id;
             if(idReduce.indexOf(index) >= 0) {// leaf 抓過直接跳出
@@ -327,16 +346,16 @@ class MerkleTree {
         return AVG;
     }
 
-    getAllTransactionCiperCp(){
+    getAllTransactionCiperCP(){
         // 拿到所有CP密文
         let mergeAll = new Array();
         let leafMin = 1 << (this.height - 1);
         let leafMax = 1 << (this.height);
         for(let i = leafMin ; i < leafMax ; i++) {
-            if (this.nodes[i].getContentCp() === null) {
+            if (this.nodes[i].getContentCP() === null) {
                 //
             }else {
-                mergeAll = mergeAll.concat(this.nodes[i].getContentCp());
+                mergeAll = mergeAll.concat(this.nodes[i].getContentCP());
             }
         }
         return mergeAll;
@@ -365,9 +384,9 @@ class MerkleTree {
             for( let i = 0 ; i < hashSet.length ; i++) {
                 mergeT = mergeT.concat(hashSet[i]);// 串肉粽
             }
-            this.nodes[index].updateNodeHash(keccak256(mergeT));
+            this.nodes[index].updateNodeHash(EthUtils.sha3(mergeT).toString('hex'));
         } else {
-            this.nodes[index].updateNodeHash(keccak256(this.nodes[2 * index].getContentDigest().concat(this.nodes[2 * index + 1].getContentDigest())));
+            this.nodes[index].updateNodeHash(EthUtils.sha3(this.nodes[2 * index].getContentDigest().concat(this.nodes[2 * index + 1].getContentDigest())).toString('hex'));
         }
     }
 }
@@ -377,21 +396,21 @@ class Node {
     constructor(id) {
         this.hashSet = null;
         this.contentUser = null;
-        this.contentCp = null;
+        this.contentCP = null;
         this.NodeHash = '';
         this.isLeaf = false;
         this.id = id;
     }
         
-    put(cipherUser,cipherCp) {
-        if(this.hashSet === null && this.contentUser === null && this.contentCp === null) {
+    put(cipherUser,cipherCP) {
+        if(this.hashSet === null && this.contentUser === null && this.contentCP === null) {
             this.hashSet = new Array();
             this.contentUser = new Array();
-            this.contentCp = new Array();
+            this.contentCP = new Array();
         }
         this.contentUser.push(cipherUser);
-        this.contentCp.push(cipherCp);
-        this.hashSet.push(keccak256(cipherUser.concat(cipherCp)));     
+        this.contentCP.push(cipherCP);
+        this.hashSet.push(EthUtils.sha3(cipherUser.concat(cipherCP).toString('hex')));     
     }
 
     getContentDigest() {
@@ -413,18 +432,18 @@ class Node {
         return this.contentUser;
     }
 
-    getContentCp() {
-        return this.contentCp;
+    getContentCP() {
+        return this.contentCP;
     }
 
     updateNodeHash(newHash) {
         this.NodeHash = newHash;
     }
 
-    reput(hashSet, contentUser, contentCp, NodeHash) {// restore merkleTree
+    reput(hashSet, contentUser, contentCP, NodeHash) {// restore merkleTree
         this.hashSet = hashSet;
         this.contentUser = contentUser;
-        this.contentCp = contentCp;
+        this.contentCP = contentCP;
         this.NodeHash = NodeHash;
     }
 }
