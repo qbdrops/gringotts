@@ -33,6 +33,7 @@ let txHash = sha_3(cipherUser + cipherCP)
 - r
 - s
 - v
+- onChain
 
 ```javascript
 {
@@ -44,7 +45,8 @@ let txHash = sha_3(cipherUser + cipherCP)
         cipherCP: 'blahblah'
         v: 28,
         r: '0x384f9cb16fe9333e44b4ea8bba8cb4cb7cf910252e32014397c73aff5f94480c',
-        s: '0x55305fc94b234c21d0025a8bce1fc20dbc7a83b48a66abc3cfbfdbc0a28c5709'
+        s: '0x55305fc94b234c21d0025a8bce1fc20dbc7a83b48a66abc3cfbfdbc0a28c5709',
+        onChain: false
     }
 }
 ```
