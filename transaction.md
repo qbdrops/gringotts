@@ -1,4 +1,4 @@
-## Standard Transaction Format (Raw Transaction)
+## Raw Transaction
 - from
 - to
 - value
