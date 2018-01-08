@@ -96,7 +96,8 @@ async function fakeRecords(txSize) {
                 cipherCP: cipherCP,
                 v: signature.v,
                 r: signature.r.toString('hex'),
-                s: signature.s.toString('hex')
+                s: signature.s.toString('hex'),
+                onChain: false
             };
 
             if (i == (txSize - 1) || 
@@ -268,7 +269,7 @@ app.get('/latest/objections/count', async function (req, res) {
 
 app.get('/latest/stage/height', async function (req, res) {
     try {
-        let height = Sidechain.getLatestStageHeight();
+        let height = await Sidechain.getLatestStageHeight();
         res.send({height: height});
     } catch (e) {
         console.log(e);

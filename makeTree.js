@@ -35,6 +35,9 @@ async function buildStage(time, nextStageHeight, txCiphers) {
     try {
         console.log('stage height: ' + nextStageHeight);
         let stageHash = ethUtils.sha3(nextStageHeight.toString()).toString('hex');
+        console.log('stage hash: ' + stageHash);
+        // let prevStageHeight = nextStageHeight - 1;
+        // let prevStageHash = ethUtils.sha3(prevStageHeight.toString()).toString('hex');
         const tree = await makeTree(time, nextStageHeight, txCiphers);
         const rootHash = '0x' + tree.getRootHash();
         console.log('time: ' + time);
@@ -52,7 +55,7 @@ async function buildStage(time, nextStageHeight, txCiphers) {
             // and clear relative pending transaction again.
             db.clearPendingTransactions(stageHash);
             db.increaseStageHeight();
-            db.close();
+            // db.close();
         });
 
         let txHash = IFCContract.addNewStage(stageHash, rootHash, {from: account, to:IFCContract.address, gas: 4700000});

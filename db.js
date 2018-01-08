@@ -38,7 +38,7 @@ async function connect() {
         async clearPendingTransactions (stageHash) {
             try {
                 let collection = await db.collection('txs');
-                let result = await collection.update({onChain: false, stageHash: stageHash}, {onChain: true});
+                let result = await collection.update({ onChain: false, stageHash: stageHash }, { $set: { onChain: true } }, { multi: true});
                 return result;
             } catch (e) {
                 console.error(e);
