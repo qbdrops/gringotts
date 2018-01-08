@@ -8,7 +8,7 @@
 
 ## Transaction Hash
 ```javascript
-let STF = {
+let rawTransaction = {
   from: '0x49aabbbe9141fe7a80804bdf01473e250a3414cb',
   to: '0x5b9688b5719f608f1cb20fdc59626e717fbeaa9a',
   value: 100,
@@ -19,8 +19,8 @@ let STF = {
   }
 }
 
-let cipherUser = encrypt_user(STF)
-let cipherCP = encrypt_cp(STF)
+let cipherUser = encrypt_user(rawTransaction)
+let cipherCP = encrypt_cp(rawTransaction)
 let txHash = sha_3(cipherUser + cipherCP)
 ```
 
