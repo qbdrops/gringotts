@@ -71,7 +71,7 @@ class MerkleTree {
         return this.nodes[1].getContentDigest();
     }
 
-    getTransactionHashSet(txHash) {
+    getTxHashArray(txHash) {
     //拿到交易內容的雜湊值(包含其他collision的雜湊)
         let index = this.calcLeafIndex(txHash);
         return this.nodes[index].getContent();

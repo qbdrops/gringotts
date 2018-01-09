@@ -166,11 +166,11 @@ app.get('/slice', async function (req, res) {
 
         if (cachedTree) {
             let slice = cachedTree.extractSlice(txHash);
-            let leafNodeHashSet = cachedTree.getTransactionHashSet(txHash);
+            let txHashArray = cachedTree.getTxHashArray(txHash);
             
             res.send({
                 slice: slice,
-                leafNodeHashSet: leafNodeHashSet
+                txHashArray: txHashArray
             });
         } else {
             let txCiphers = await db.getStage(stageHeight);
@@ -184,7 +184,7 @@ app.get('/slice', async function (req, res) {
                 });
 
                 let slice = tree.extractSlice(txHash);
-                let leafNodeHashSet = tree.getTransactionHashSet(txHash);
+                let txHashArray = tree.getTxHashArray(txHash);
                 
                 if (cached.length >= 3) {
                     cached.push(tree);
@@ -195,12 +195,12 @@ app.get('/slice', async function (req, res) {
                 
                 res.send({
                     slice: slice,
-                    leafNodeHashSet: leafNodeHashSet
+                    txHashArray: txHashArray
                 });
             } else {
                 res.send({
                     slice: null,
-                    leafNodeHashSet: null
+                    txHashArray: null
                 });
             }
         }
@@ -348,7 +348,7 @@ app.get('/finalized/time', async function (req, res) {
 
 app.post('/send/transactions', async function (req, res) {
     try {
-        let txs = req.body;
+        let txs = req.body.txs;
         if (txs.length > 0) {
             // validate signatures of transactions
             let validTxs = txs.filter((tx) => {
