@@ -54,7 +54,7 @@ contract IFC {
         address signer = SidechainLibrary(lib).verify(hashMsg, v, r, s);
         require (signer == owner);
         Stage(stageAddress[agentResponse[0]]).addObjectionableTxHash(agentResponse[1], msg.sender);
-        TakeObjection(agentResponse[0], agentResponse[1])
+        TakeObjection(agentResponse[0], agentResponse[1]);
     }
 
     function exonerate(bytes32 _stageHash, bytes32 _txHash, uint _idx, bytes32[] slice, bytes32[] leaf) onlyOwner {
