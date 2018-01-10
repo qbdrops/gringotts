@@ -9,6 +9,7 @@ contract IFC {
     uint public stageHeight;
     mapping (bytes32 => address) public stageAddress;
     bytes32[] public stages;
+    uint compensation;
 
     event AddNewStage(bytes32 indexed _stageHash, address _stageAddress);
     event TakeObjection(bytes32 indexed _stageHash, bytes32 _txHash);
@@ -20,16 +21,20 @@ contract IFC {
         _;
     }
 
-    function IFC() {
+    function IFC() payable {
         owner = msg.sender;
         lib = new SidechainLibrary();
         // initial stage
         address newStage = new Stage(0x0, 0x0, 0x0, 0, 0);
         stageAddress[0x0] = newStage;
         stages.push(0x0);
+        compensation = 100;
     }
 
+    function() payable {}
+
     function addNewStage(bytes32 _stageHash, bytes32 _rootHash) onlyOwner {
+        require(Stage(stageAddress[stages[stages.length - 1]]).completed());
         address newStage = new Stage(_stageHash, _rootHash, lib, 300, 0);
         stageAddress[_stageHash] = newStage;
         stages.push(_stageHash);
@@ -70,8 +75,23 @@ contract IFC {
         Exonerate(_stageHash, _txHash);
     }
 
-    function finalize(bytes32 _stageHash) {
+    function payPenalty(bytes32 _stageHash, bytes32[] txs) onlyOwner {
+        address customer;
+        bool objectionSuccess;
+        bool getCompensation;
+        for (uint i = 0; i < txs.length; i++) {
+            (customer, objectionSuccess, getCompensation)= Stage(stageAddress[_stageHash]).objections(txs[i]);
+            if (objectionSuccess && !getCompensation) {
+                customer.transfer(compensation);
+                Stage(stageAddress[_stageHash]).resolveCompensation(txs[i]);
+            }
+        }
+    }
+
+    function finalize(bytes32 _stageHash) onlyOwner {
+        require(Stage(stageAddress[_stageHash]).isSettle());
         Stage(stageAddress[_stageHash]).setCompleted();
         Finalize(_stageHash);
     }
+
 }

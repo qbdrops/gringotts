@@ -37,7 +37,11 @@ contract Stage {
         stageHash = _stageHash;
         rootHash = _rootHash;
         lib = _lib;
-        completed = false;
+        if (_stageHash == 0x0 && _rootHash == 0x0) { 
+            completed = true;
+        } else {
+            completed = false;
+        }
         objectionTime = now + _objectionTimePeriod;
         finalizedTime = objectionTime + _finalizedTimePeriod;
     }
@@ -50,16 +54,28 @@ contract Stage {
     }
 
     function resolveObjections(bytes32 _txHash) onlyOwner {
-        require(msg.sender == owner);
         objections[_txHash].objectionSuccess = false;
+    }
+
+    function resolveCompensation(bytes32 _txHash) onlyOwner {
+        objections[_txHash].getCompensation = true;
+    }
+
+    function setCompleted() onlyOwner {
+        require(now > finalizedTime);
+        completed = true;
     }
 
     function getObjectionableTxHashes() constant returns (bytes32[]) {
         return objectionableTxHashes;
     }
 
-    function setCompleted() onlyOwner {
-        require(now > finalizedTime);
-        completed = true;
+    function isSettle() constant returns (bool) {
+        for (uint i = 0; i < objectionableTxHashes.length; i++) {
+            if (objections[objectionableTxHashes[i]].objectionSuccess && !objections[objectionableTxHashes[i]].getCompensation) {
+                return false;
+            }
+        }
+        return true;
     }
 }
