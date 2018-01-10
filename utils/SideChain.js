@@ -37,7 +37,7 @@ let Sidechain = function () {
     });
 
     this.getStage = (heightOrHash) => {
-        let isHex = (web3.toHex(heightOrHash) === heightOrHash.toLowerCase());
+        let isHex = (web3.toHex(heightOrHash) === heightOrHash.toString().toLowerCase());
         let stage = null;
         if (isHex) {
             let stageAddress = IFCContract.stageAddress(heightOrHash);
@@ -119,8 +119,9 @@ let Sidechain = function () {
     this.finalize = (stageHeight) => {
         let stage = this.getStage(stageHeight);
         if (stage) {
+            let stageHash = '0x' + ethUtils.sha3(stageHeight).toString('hex');
             web3.personal.unlockAccount(env.account, env.password);
-            let txHash = IFCContract.finalize({from: account, to: IFCContract.address, gas: 4700000});
+            let txHash = IFCContract.finalize(stageHash, { from: account, to: IFCContract.address, gas: 4700000 });
             return txHash;
         } else {
             throw new Error('The stage does not exists.');
