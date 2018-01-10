@@ -34,7 +34,7 @@ let makeTree = async function (time, nextStageHeight, txCiphers) {
 async function buildStage(time, nextStageHeight, txCiphers) {
     try {
         console.log('stage height: ' + nextStageHeight);
-        let stageHash = ethUtils.sha3(nextStageHeight.toString()).toString('hex');
+        let stageHash = '0x' + ethUtils.sha3(nextStageHeight.toString()).toString('hex');
         console.log('stage hash: ' + stageHash);
         // let prevStageHeight = nextStageHeight - 1;
         // let prevStageHash = ethUtils.sha3(prevStageHeight.toString()).toString('hex');

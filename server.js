@@ -224,9 +224,9 @@ app.post('/save/keys', async function (req, res) {
 
 app.post('/exonerate', async function (req, res) {
     try {
-        let stageHeight = req.body.stage_id;
-        let tid = req.body.tid;
-        exonerate(stageHeight, tid);
+        let stageHeight = req.body.stage_height;
+        let txHash = req.body.tx_hash;
+        exonerate(stageHeight, txHash);
         res.send({ok: true});
     } catch (e) {
         console.log(e);
