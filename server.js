@@ -236,7 +236,7 @@ app.post('/exonerate', async function (req, res) {
 
 app.put('/finalize', async function (req, res) {
     try {
-        let stageHeight = req.body.stage_id;
+        let stageHeight = req.body.stageHeight;
         let result = Sidechain.finalize(stageHeight);
         res.send(result);
     } catch (e) {
