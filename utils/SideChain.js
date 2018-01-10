@@ -1,14 +1,14 @@
 let env = require('../env');
-let DB = require('../db');
+let db = require('../db');
 let Web3 = require('web3');
-let ethUtils = require('ethereumjs-util');
+let EthUtils = require('ethereumjs-util');
 let fs = require('fs');
 
 const IFCContractAddress = env.IFCContractAddress;
 
 const privatekey = env.privateKey;
-const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
-const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
+const publickey = '0x' + EthUtils.privateToPublic('0x' + privatekey).toString('hex');
+const account = '0x' + EthUtils.pubToAddress(publickey).toString('hex');
 
 let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
 const IFC = JSON.parse(fs.readFileSync('./build/contracts/IFC.json'));
@@ -21,21 +21,7 @@ const IFCContract = IFCContractClass.at(IFCContractAddress);
 const StageABI = Stage.abi;
 const StageClass = web3.eth.contract(StageABI);
 
-async function connectDB() {
-    try {
-        let db = await DB();
-        return db;
-    } catch (e) {
-        console.error(e);
-    }
-}
-
 let Sidechain = function () {
-    this.db = null;
-    connectDB().then((db) => {
-        this.db = db;
-    });
-
     this.getStage = (heightOrHash) => {
         let isHex = (web3.toHex(heightOrHash) === heightOrHash.toString().toLowerCase());
         let stage = null;
@@ -93,12 +79,12 @@ let Sidechain = function () {
     };
     
     this.pendingTransactions = async () => {
-        let txs = await this.db.pendingTransactions();
+        let txs = await db.pendingTransactions();
         return txs;
     };
 
     this.getLatestStageHeight = async () => {
-        let stageHeight = await this.db.lastestStageHeight();
+        let stageHeight = await db.lastestStageHeight();
         return stageHeight;
     };
 
@@ -119,7 +105,7 @@ let Sidechain = function () {
     this.finalize = (stageHeight) => {
         let stage = this.getStage(stageHeight);
         if (stage) {
-            let stageHash = '0x' + ethUtils.sha3(stageHeight).toString('hex');
+            let stageHash = '0x' + EthUtils.sha3(stageHeight).toString('hex');
             web3.personal.unlockAccount(env.account, env.password);
             let txHash = IFCContract.finalize(stageHash, { from: account, to: IFCContract.address, gas: 4700000 });
             return txHash;

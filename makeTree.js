@@ -1,13 +1,13 @@
 let env = require('./env');
 let MerkleTree = require('./indexMerkleTree/MerkleTree');
-let ethUtils = require('ethereumjs-util');
+let EthUtils = require('ethereumjs-util');
 let Web3 = require('web3');
 let fs = require('fs');
-let DB = require('./db');
+let db = require('./db');
 
 const privatekey = env.privateKey;
-const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
-const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
+const publickey = '0x' + EthUtils.privateToPublic('0x' + privatekey).toString('hex');
+const account = '0x' + EthUtils.pubToAddress(publickey).toString('hex');
 
 let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
 
@@ -34,10 +34,10 @@ let makeTree = async function (time, nextStageHeight, txCiphers) {
 async function buildStage(time, nextStageHeight, txCiphers) {
     try {
         console.log('stage height: ' + nextStageHeight);
-        let stageHash = '0x' + ethUtils.sha3(nextStageHeight.toString()).toString('hex');
+        let stageHash = '0x' + EthUtils.sha3(nextStageHeight.toString()).toString('hex');
         console.log('stage hash: ' + stageHash);
         // let prevStageHeight = nextStageHeight - 1;
-        // let prevStageHash = ethUtils.sha3(prevStageHeight.toString()).toString('hex');
+        // let prevStageHash = EthUtils.sha3(prevStageHeight.toString()).toString('hex');
         const tree = await makeTree(time, nextStageHeight, txCiphers);
         const rootHash = '0x' + tree.getRootHash();
         console.log('time: ' + time);
@@ -50,12 +50,13 @@ async function buildStage(time, nextStageHeight, txCiphers) {
                 throw new Error(error.message);
             }
             console.log(result);
-            let db = await DB();
+            let onChainStageHash = result.args._stageHash;
+            if (onChainStageHash.length > 2 && onChainStageHash.substr(0,2)=='0x') {
+                onChainStageHash = onChainStageHash.substr(2);
+            }
             // if DB update fail, the node need to check the highest stage in contract
             // and clear relative pending transaction again.
-            db.clearPendingTransactions(stageHash);
-            db.increaseStageHeight();
-            // db.close();
+            db.clearPendingTransactions(onChainStageHash);
         });
 
         let txHash = IFCContract.addNewStage(stageHash, rootHash, {from: account, to:IFCContract.address, gas: 4700000});

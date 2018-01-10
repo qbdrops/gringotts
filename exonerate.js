@@ -1,14 +1,13 @@
 let env = require('./env');
 let MerkleTree = require('./indexMerkleTree/MerkleTree');
 let Web3 = require('web3');
-let ethUtils = require('ethereumjs-util');
+let EthUtils = require('ethereumjs-util');
 let fs = require('fs');
-let DB = require('./db');
-let db;
+let db = require('./db');
 
 const privatekey = env.privateKey;
-const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
-const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
+const publickey = '0x' + EthUtils.privateToPublic('0x' + privatekey).toString('hex');
+const account = '0x' + EthUtils.pubToAddress(publickey).toString('hex');
 
 const IFCContractAddress = env.IFCContractAddress;
 
@@ -25,10 +24,9 @@ const StageClass = web3.eth.contract(StageABI);
 
 async function exonerate(stageHeight, txHash) {
     try {
-        db = await DB();
         let txCiphers = await db.getStage(stageHeight);
         if (txCiphers.length > 0) {
-            let stageHash = '0x' + ethUtils.sha3(stageHeight.toString()).toString('hex');
+            let stageHash = '0x' + EthUtils.sha3(stageHeight.toString()).toString('hex');
             let stageAddress = await IFCContract.getStageAddress(stageHash.toString());
             let stage = StageClass.at(stageAddress);
             let objectionTidHashes = stage.getObjectionableTxHashes();

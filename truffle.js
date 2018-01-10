@@ -1,11 +1,11 @@
 let Web3 = require('web3');
-let ethUtils = require('ethereumjs-util');
+let EthUtils = require('ethereumjs-util');
 let env = require('./env');
 
 let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
 const privatekey = env.privateKey;
-const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
-const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
+const publickey = '0x' + EthUtils.privateToPublic('0x' + privatekey).toString('hex');
+const account = '0x' + EthUtils.pubToAddress(publickey).toString('hex');
 
 web3.personal.unlockAccount(account, env.password);
 

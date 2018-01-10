@@ -2,16 +2,14 @@ let env = require('./env');
 let express = require('express');
 let bodyParser = require('body-parser');
 let cors = require('cors');
-let ethUtils = require('ethereumjs-util');
+let EthUtils = require('ethereumjs-util');
 let RSA = require('./crypto/RSAencrypt.js');
 let MerkleTree = require('./indexMerkleTree/MerkleTree.js');
-let DB = require('./db');
+let db = require('./db');
 let buildStage = require('./makeTree');
 let faker = require('faker');
 let exonerate = require('./exonerate');
 let Sidechain = require('./utils/Sidechain');
-
-let db;
 
 let app = express();
 app.use(bodyParser.json());
@@ -23,8 +21,8 @@ var io = require('socket.io')(server);
 let cached = [];
 
 const privatekey = env.privateKey;
-const publickey = '0x' + ethUtils.privateToPublic('0x' + privatekey).toString('hex');
-const account = '0x' + ethUtils.pubToAddress(publickey).toString('hex');
+const publickey = '0x' + EthUtils.privateToPublic('0x' + privatekey).toString('hex');
+const account = '0x' + EthUtils.pubToAddress(publickey).toString('hex');
 
 io.on('connection', async function (socket) {
     console.log('connected');
@@ -45,13 +43,13 @@ async function fakeRecords(txSize) {
         let cpsPublicKey = keys.cpsPublicKey.publickey;
         let userTxs = [];
         for (let i = 0; i < txSize; i++) {
-            let fromPrivateKey = ethUtils.sha3(faker.company.companyName()).toString('hex');
-            let fromPublickey = '0x' + ethUtils.privateToPublic('0x' + fromPrivateKey).toString('hex');
-            let fromAccount = '0x' + ethUtils.pubToAddress(fromPublickey).toString('hex');
+            let fromPrivateKey = EthUtils.sha3(faker.company.companyName()).toString('hex');
+            let fromPublickey = '0x' + EthUtils.privateToPublic('0x' + fromPrivateKey).toString('hex');
+            let fromAccount = '0x' + EthUtils.pubToAddress(fromPublickey).toString('hex');
 
-            let toPrivateKey = ethUtils.sha3(faker.company.companyName()).toString('hex');
-            let toPublickey = '0x' + ethUtils.privateToPublic('0x' + toPrivateKey).toString('hex');
-            let toAccount = '0x' + ethUtils.pubToAddress(toPublickey).toString('hex');
+            let toPrivateKey = EthUtils.sha3(faker.company.companyName()).toString('hex');
+            let toPublickey = '0x' + EthUtils.privateToPublic('0x' + toPrivateKey).toString('hex');
+            let toAccount = '0x' + EthUtils.pubToAddress(toPublickey).toString('hex');
 
             let rawTx = {
                 'from': fromAccount,
@@ -79,15 +77,15 @@ async function fakeRecords(txSize) {
             rawTx = Buffer.from(JSON.stringify(rawTx)).toString('hex');
             let cipherUser = await RSA.encrypt(rawTx, userPublicKey);
             let cipherCP = await RSA.encrypt(rawTx, cpsPublicKey);
-            let txHash = ethUtils.sha3(cipherUser + cipherCP).toString('hex');
-            let stageHash = ethUtils.sha3(nextStageHeight.toString()).toString('hex');
+            let txHash = EthUtils.sha3(cipherUser + cipherCP).toString('hex');
+            let stageHash = EthUtils.sha3(nextStageHeight.toString()).toString('hex');
 
             let msg = stageHash + txHash;
-            let msgHash = ethUtils.sha3(msg);
+            let msgHash = EthUtils.sha3(msg);
             let prefix = new Buffer('\x19Ethereum Signed Message:\n');
-            let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+            let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
 
-            let signature = ethUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
+            let signature = EthUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
 
             let tx = {
                 stageHeight: nextStageHeight,
@@ -354,11 +352,11 @@ app.post('/send/transactions', async function (req, res) {
             // validate signatures of transactions
             let validTxs = txs.filter((tx) => {
                 let msg = tx.stageHash + tx.txHash;
-                let msgHash = ethUtils.sha3(msg);
+                let msgHash = EthUtils.sha3(msg);
                 let prefix = new Buffer('\x19Ethereum Signed Message:\n');
-                let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
-                let publicKey = ethUtils.ecrecover(ethMsgHash, tx.v, tx.r, tx.s).toString('hex');
-                let address = '0x' + ethUtils.pubToAddress('0x' + publicKey).toString('hex');
+                let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+                let publicKey = EthUtils.ecrecover(ethMsgHash, tx.v, tx.r, tx.s).toString('hex');
+                let address = '0x' + EthUtils.pubToAddress('0x' + publicKey).toString('hex');
                 return account == address;
             });
 
@@ -383,7 +381,7 @@ app.post('/commit/transactions', async function (req, res) {
     try {
         let stageHeight = await Sidechain.getContractStageHeight();
         let nextStageHeight = parseInt(stageHeight) + 1;
-        let nextStageHash = ethUtils.sha3(nextStageHeight.toString()).toString('hex');
+        let nextStageHash = EthUtils.sha3(nextStageHeight.toString()).toString('hex');
 
         let txCiphers = await Sidechain.pendingTransactions();
         txCiphers = txCiphers.filter((tx) => {
@@ -458,17 +456,13 @@ let saveKeys = async function () {
     return response;
 };
 
-async function connectDB() {
-    let instance = await DB();
-    return instance;
-}
-
 server.listen(3000, async function () {
-    db = await connectDB();
-    let stageHeight = await db.getOrNewStageHeight();
-    console.log(stageHeight);
-    console.log(privatekey);
-    console.log(publickey);
-    console.log(account);
-    console.log('App listening on port 3000!');
+    try {
+        console.log(privatekey);
+        console.log(publickey);
+        console.log(account);
+        console.log('App listening on port 3000!');
+    } catch (e) {
+        console.error(e.message);
+    }
 });
