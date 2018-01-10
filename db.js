@@ -161,10 +161,10 @@ async function connect() {
             }
         },
 
-        async saveTransactions (records) {
+        async saveTransactions (transactions) {
             try {
                 let txs = await db.collection('txs');
-                let result = await txs.insertMany(records);
+                let result = await txs.insertMany(transactions);
                 return result;
             } catch (e) {
                 console.error(e);
