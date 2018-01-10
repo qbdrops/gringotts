@@ -255,6 +255,15 @@ app.put('/cp/publickey', async function (req, res) {
     }
 });
 
+app.get('/contract/address/ifc', async function (req, res) {
+    try {
+        res.send({address: env.IFCContractAddress});
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
 app.get('/latest/objections/count', async function (req, res) {
     try {
         let objections = Sidechain.getLatestObjections();
