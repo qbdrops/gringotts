@@ -44,7 +44,7 @@ async function buildStage(time, nextStageHeight, txCiphers) {
         console.log('Root Hash: ' + rootHash);
         web3.personal.unlockAccount(env.account, env.password);
         // watch event and clearPendingTransactions
-        let event = IFCContract.AddStage({fromBlock: 0, toBlock: 'latest'});
+        let event = IFCContract.AddNewStage({fromBlock: 0, toBlock: 'latest'});
         event.watch(async (error, result) => {
             if (error) {
                 throw new Error(error.message);
