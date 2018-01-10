@@ -86,6 +86,7 @@ async function fakeRecords(txSize) {
             let msgHash = ethUtils.sha3(msg);
             let prefix = new Buffer('\x19Ethereum Signed Message:\n');
             let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+
             let signature = ethUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
 
             let tx = {
@@ -95,8 +96,8 @@ async function fakeRecords(txSize) {
                 cipherUser: cipherUser,
                 cipherCP: cipherCP,
                 v: signature.v,
-                r: signature.r.toString('hex'),
-                s: signature.s.toString('hex'),
+                r: '0x' + signature.r.toString('hex'),
+                s: '0x' + signature.s.toString('hex'),
                 onChain: false
             };
 
@@ -352,14 +353,12 @@ app.post('/send/transactions', async function (req, res) {
         if (txs.length > 0) {
             // validate signatures of transactions
             let validTxs = txs.filter((tx) => {
-                let stageHash = tx.stageHash;
-                let txHash = tx.txHash;
-                let msg = stageHash + txHash;
+                let msg = tx.stageHash + tx.txHash;
                 let msgHash = ethUtils.sha3(msg);
                 let prefix = new Buffer('\x19Ethereum Signed Message:\n');
                 let ethMsgHash = ethUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
-                let publicKey = ethUtils.ecrecover(ethMsgHash, tx.v, Buffer.from(tx.r), Buffer.from(tx.s)).toString('hex');
-                let address = '0x' + ethUtils.pubToAddress(publicKey).toString('hex');
+                let publicKey = ethUtils.ecrecover(ethMsgHash, tx.v, tx.r, tx.s).toString('hex');
+                let address = '0x' + ethUtils.pubToAddress('0x' + publicKey).toString('hex');
                 return account == address;
             });
 
@@ -369,10 +368,10 @@ app.post('/send/transactions', async function (req, res) {
             });
 
             // save transactions into transaction pool
-            let result = await db.saveTransactions(txCiphers);
-            res.send({ok: true, result: result});
+            db.saveTransactions(txCiphers);
+            res.send({ ok: true });
         } else {
-            res.send({ok: false});
+            res.send({ ok: false });
         }
     } catch (e) {
         console.log(e);
