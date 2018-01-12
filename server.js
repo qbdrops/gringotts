@@ -360,12 +360,14 @@ app.post('/send/transactions', async function (req, res) {
         if (txs.length > 0) {
             // validate signatures of transactions
             let validTxs = txs.filter((tx) => {
-                let msg = tx.stageHash + tx.txHash;
-                let msgHash = EthUtils.sha3(msg);
+                let message = tx.stageHash + tx.txHash;
+                let msgHash = EthUtils.sha3(message);
                 let prefix = new Buffer('\x19Ethereum Signed Message:\n');
                 let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
-                let publicKey = EthUtils.ecrecover(ethMsgHash, tx.v, tx.r, tx.s).toString('hex');
-                let address = '0x' + EthUtils.pubToAddress('0x' + publicKey).toString('hex');
+
+                let publicKey = EthUtils.ecrecover(ethMsgHash, tx.v, tx.r, tx.s);
+                let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
+
                 return account == address;
             });
 
@@ -374,9 +376,12 @@ app.post('/send/transactions', async function (req, res) {
                 return txCipher;
             });
 
-            // save transactions into transaction pool
-            db.saveTransactions(txCiphers);
-            res.send({ ok: true });
+            if (txCiphers.length > 0) {
+                db.saveTransactions(txCiphers);
+                res.send({ ok: true });
+            } else {
+                res.send({ ok: false });
+            }
         } else {
             res.send({ ok: false });
         }

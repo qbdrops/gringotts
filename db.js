@@ -64,6 +64,7 @@ let DB = function () {
 
     this.saveTransactions = async (transactions) => {
         try {
+            console.log(transactions);
             let txs = await this.db.collection('txs');
             let result = await txs.insertMany(transactions);
             return result;

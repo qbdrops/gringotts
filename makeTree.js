@@ -51,7 +51,7 @@ async function buildStage(time, nextStageHeight, txCiphers) {
             }
             console.log(result);
             let onChainStageHash = result.args._stageHash;
-            if (onChainStageHash.length > 2 && onChainStageHash.substr(0,2)=='0x') {
+            if (onChainStageHash.length > 2 && onChainStageHash.substr(0, 2) == '0x') {
                 onChainStageHash = onChainStageHash.substr(2);
             }
             // if DB update fail, the node need to check the highest stage in contract
