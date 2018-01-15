@@ -26,7 +26,7 @@ let Sidechain = function () {
         let isHex = (web3.toHex(heightOrHash) === heightOrHash.toString().toLowerCase());
         let stage = null;
         if (isHex) {
-            let stageAddress = IFCContract.stageAddress(heightOrHash);
+            let stageAddress = IFCContract.getStageAddress(heightOrHash);
             if (stageAddress != 0) {
                 stage = StageClass.at(stageAddress);
             }
@@ -34,7 +34,7 @@ let Sidechain = function () {
             let stageHash = IFCContract.stages(heightOrHash);
             console.log(stageHash);
             if (stageHash != '0x') {
-                let stageAddress = IFCContract.stageAddress(stageHash);
+                let stageAddress = IFCContract.getStageAddress(stageHash);
                 stage = StageClass.at(stageAddress);
             }
         }
@@ -102,10 +102,9 @@ let Sidechain = function () {
         }
     };
 
-    this.finalize = (stageHeight) => {
-        let stage = this.getStage(stageHeight);
+    this.finalize = (stageHash) => {
+        let stage = this.getStage(stageHash);
         if (stage) {
-            let stageHash = '0x' + EthUtils.sha3(stageHeight).toString('hex');
             web3.personal.unlockAccount(env.account, env.password);
             let txHash = IFCContract.finalize(stageHash, { from: account, to: IFCContract.address, gas: 4700000 });
             return txHash;
