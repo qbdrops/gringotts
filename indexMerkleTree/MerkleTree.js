@@ -99,39 +99,46 @@ class MerkleTree {
 
     extractSlice (txHash) {
         let index = this.calcLeafIndex(txHash);
-        let slice = new Array();        
-        if (index % 2 == 0) {
+        let slice = new Array();  
+        if (this.nodes.length == 1) {
             slice.push({
-                treeNodeID: index,
-                treeNodeHash: this.nodes[index].getNodeHash()
-            });
-            slice.push({
-                treeNodeID: index + 1,
-                treeNodeHash: this.nodes[index + 1].getNodeHash()
+                treeNodeID: 1,
+                treeNodeHash: this.nodes[1].getNodeHash()
             });
         } else {
-            slice.push({
-                treeNodeID: index,
-                treeNodeHash: this.nodes[index].getNodeHash()
-            });
-            slice.push({
-                treeNodeID: index - 1,
-                treeNodeHash: this.nodes[index - 1].getNodeHash()
-            });
-        }
-        index >>= 1;
-        for (;index > 1; index >>= 1) { 
             if (index % 2 == 0) {
+                slice.push({
+                    treeNodeID: index,
+                    treeNodeHash: this.nodes[index].getNodeHash()
+                });
                 slice.push({
                     treeNodeID: index + 1,
                     treeNodeHash: this.nodes[index + 1].getNodeHash()
                 });
             } else {
                 slice.push({
+                    treeNodeID: index,
+                    treeNodeHash: this.nodes[index].getNodeHash()
+                });
+                slice.push({
                     treeNodeID: index - 1,
                     treeNodeHash: this.nodes[index - 1].getNodeHash()
                 });
-            }   
+            }
+            index >>= 1;
+            for (;index > 1; index >>= 1) { 
+                if (index % 2 == 0) {
+                    slice.push({
+                        treeNodeID: index + 1,
+                        treeNodeHash: this.nodes[index + 1].getNodeHash()
+                    });
+                } else {
+                    slice.push({
+                        treeNodeID: index - 1,
+                        treeNodeHash: this.nodes[index - 1].getNodeHash()
+                    });
+                }   
+            }
         }
         return slice;
     }
