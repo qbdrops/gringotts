@@ -61,8 +61,6 @@ async function exonerate(stageHeight, txHash) {
         return true;
     } catch (e) {
         console.log(e);
-    } finally {
-        db.close();
     }
 }
 
