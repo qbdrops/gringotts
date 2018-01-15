@@ -100,7 +100,7 @@ class MerkleTree {
     extractSlice (txHash) {
         let index = this.calcLeafIndex(txHash);
         let slice = new Array();  
-        if (this.nodes.length == 1) {
+        if (this.nodes.length == 2) {
             slice.push({
                 treeNodeID: 1,
                 treeNodeHash: this.nodes[1].getNodeHash()
