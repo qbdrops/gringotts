@@ -78,9 +78,9 @@ let Sidechain = function () {
         return IFCContract.stageHeight();
     };
     
-    this.pendingTransactions = async () => {
-        let txs = await db.pendingTransactions();
-        return txs;
+    this.pendingPayments = async () => {
+        let payments = await db.pendingPayments();
+        return payments;
     };
 
     this.getLatestStageHeight = async () => {
@@ -106,8 +106,8 @@ let Sidechain = function () {
         let stage = this.getStage(stageHash);
         if (stage) {
             web3.personal.unlockAccount(env.account, env.password);
-            let txHash = IFCContract.finalize(stageHash, { from: account, to: IFCContract.address, gas: 4700000 });
-            return txHash;
+            let paymentHash = IFCContract.finalize(stageHash, { from: account, to: IFCContract.address, gas: 4700000 });
+            return paymentHash;
         } else {
             throw new Error('The stage does not exists.');
         }

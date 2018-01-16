@@ -13,7 +13,7 @@ contract Stage {
     uint public finalizedTime;
 
     mapping (bytes32 => ObjectionInfo) public objections;
-    bytes32[] public objectionableTxHashes;
+    bytes32[] public objectionablePaymentHashes;
 
     struct ObjectionInfo {
         address customer;
@@ -46,19 +46,19 @@ contract Stage {
         finalizedTime = objectionTime + _finalizedTimePeriod;
     }
 
-    function addObjectionableTxHash(bytes32 _txHash, address _customer) onlyOwner {
+    function addObjectionablePaymentHash(bytes32 _paymentHash, address _customer) onlyOwner {
         require (now < objectionTime);
-        require(SidechainLibrary(lib).inBytes32Array(_txHash, objectionableTxHashes) == false);
-        objections[_txHash] = ObjectionInfo(_customer, true, false);
-        objectionableTxHashes.push(_txHash);
+        require(SidechainLibrary(lib).inBytes32Array(_paymentHash, objectionablePaymentHashes) == false);
+        objections[_paymentHash] = ObjectionInfo(_customer, true, false);
+        objectionablePaymentHashes.push(_paymentHash);
     }
 
-    function resolveObjections(bytes32 _txHash) onlyOwner {
-        objections[_txHash].objectionSuccess = false;
+    function resolveObjections(bytes32 _paymentHash) onlyOwner {
+        objections[_paymentHash].objectionSuccess = false;
     }
 
-    function resolveCompensation(bytes32 _txHash) onlyOwner {
-        objections[_txHash].getCompensation = true;
+    function resolveCompensation(bytes32 _paymentHash) onlyOwner {
+        objections[_paymentHash].getCompensation = true;
     }
 
     function setCompleted() onlyOwner {
@@ -66,13 +66,13 @@ contract Stage {
         completed = true;
     }
 
-    function getObjectionableTxHashes() constant returns (bytes32[]) {
-        return objectionableTxHashes;
+    function getObjectionablePaymentHashes() constant returns (bytes32[]) {
+        return objectionablePaymentHashes;
     }
 
     function isSettle() constant returns (bool) {
-        for (uint i = 0; i < objectionableTxHashes.length; i++) {
-            if (objections[objectionableTxHashes[i]].objectionSuccess && !objections[objectionableTxHashes[i]].getCompensation) {
+        for (uint i = 0; i < objectionablePaymentHashes.length; i++) {
+            if (objections[objectionablePaymentHashes[i]].objectionSuccess && !objections[objectionablePaymentHashes[i]].getCompensation) {
                 return false;
             }
         }

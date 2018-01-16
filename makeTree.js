@@ -18,32 +18,32 @@ const IFCABI = IFC.abi;
 const IFCContractClass = web3.eth.contract(IFCABI);
 const IFCContract = IFCContractClass.at(IFCContractAddress);
 
-let makeTree = async function (time, nextStageHeight, txCiphers) {
-    let txSize = txCiphers.length;
-    let treeHeight = parseInt(Math.log2(txSize)) + 1;
+let makeTree = async function (time, nextStageHeight, paymentCiphers) {
+    let paymentSize = paymentCiphers.length;
+    let treeHeight = parseInt(Math.log2(paymentSize)) + 1;
     let tree = new MerkleTree(treeHeight);
     tree.setStageHeight(nextStageHeight);
     tree.setTime(time);
-    txCiphers.forEach((tx) => {
-        tree.putTransactionInTree(tx);
+    paymentCiphers.forEach((payment) => {
+        tree.putPaymentInTree(payment);
     });
 
     return tree;
 };
 
-async function buildStage(time, nextStageHeight, txCiphers) {
+async function buildStage(time, nextStageHeight, paymentCiphers) {
     try {
         console.log('stage height: ' + nextStageHeight);
         let stageHash = '0x' + EthUtils.sha3(nextStageHeight.toString()).toString('hex');
         console.log('stage hash: ' + stageHash);
         // let prevStageHeight = nextStageHeight - 1;
         // let prevStageHash = EthUtils.sha3(prevStageHeight.toString()).toString('hex');
-        const tree = await makeTree(time, nextStageHeight, txCiphers);
+        const tree = await makeTree(time, nextStageHeight, paymentCiphers);
         const rootHash = '0x' + tree.getRootHash();
         console.log('time: ' + time);
         console.log('Root Hash: ' + rootHash);
         web3.personal.unlockAccount(env.account, env.password);
-        // watch event and clearPendingTransactions
+        // watch event and clearPendingPayments
         let event = IFCContract.AddNewStage({fromBlock: 0, toBlock: 'latest'});
         event.watch(async (error, result) => {
             if (error) {
@@ -55,12 +55,12 @@ async function buildStage(time, nextStageHeight, txCiphers) {
                 onChainStageHash = onChainStageHash.substr(2);
             }
             // if DB update fail, the node need to check the highest stage in contract
-            // and clear relative pending transaction again.
-            db.clearPendingTransactions(onChainStageHash);
+            // and clear relative pending payment again.
+            db.clearPendingPayments(onChainStageHash);
         });
 
-        let txHash = IFCContract.addNewStage(stageHash, rootHash, {from: account, to:IFCContract.address, gas: 4700000});
-        console.log('Add stage tx hash: ' + txHash);
+        let paymentHash = IFCContract.addNewStage(stageHash, rootHash, {from: account, to:IFCContract.address, gas: 4700000});
+        console.log('Add stage payment hash: ' + paymentHash);
         return tree;
     } catch (e) {
         console.log(e);

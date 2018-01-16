@@ -22,19 +22,19 @@ let DB = function () {
         }
     };
 
-    this.pendingTransactions = async () => {
+    this.pendingPayments = async () => {
         try {
-            let collection = await this.db.collection('txs');
-            let txs = await collection.find({onChain: false}).toArray();
-            return txs;
+            let collection = await this.db.collection('payments');
+            let payments = await collection.find({onChain: false}).toArray();
+            return payments;
         } catch (e) {
             console.error(e);
         }
     };
 
-    this.clearPendingTransactions = async (stageHash) => {
+    this.clearPendingPayments = async (stageHash) => {
         try {
-            let collection = await this.db.collection('txs');
+            let collection = await this.db.collection('payments');
             let result = await collection.update({ onChain: false, stageHash: stageHash }, { $set: { onChain: true } }, { multi: true});
             return result;
         } catch (e) {
@@ -44,7 +44,7 @@ let DB = function () {
 
     this.lastestStageHeight = async () => {
         try {
-            let collection = await this.db.collection('txs');
+            let collection = await this.db.collection('payments');
             let result = await collection.find().sort({stageHeight: -1}).limit(1).next();
             return result.stageHeight;
         } catch (e) {
@@ -54,7 +54,7 @@ let DB = function () {
 
     this.getStage = async (stageHeight) => {
         try {
-            let treeCollection = await this.db.collection('txs');
+            let treeCollection = await this.db.collection('payments');
             let result = await treeCollection.find({stageHeight: {$eq: parseInt(stageHeight)}}).toArray();
             return result;
         } catch (e) {
@@ -62,25 +62,25 @@ let DB = function () {
         }
     };
 
-    this.saveTransactions = async (transactions) => {
+    this.savePayments = async (payments) => {
         try {
-            console.log(transactions);
-            let txs = await this.db.collection('txs');
-            let result = await txs.insertMany(transactions);
+            console.log(payments);
+            let _payments = await this.db.collection('payments');
+            let result = await _payments.insertMany(payments);
             return result;
         } catch (e) {
             console.error(e);
         }
     };
 
-    this.getTransactions = async (stageHeight, limitSize = null) => {
+    this.getPayments = async (stageHeight, limitSize = null) => {
         try {
-            let txs = await this.db.collection('txs');
+            let payments = await this.db.collection('payments');
             let result = null;
             if (limitSize) {
-                result = await txs.find({stageHeight: {$eq: parseInt(stageHeight)}}).limit(limitSize).toArray();
+                result = await payments.find({stageHeight: {$eq: parseInt(stageHeight)}}).limit(limitSize).toArray();
             } else {
-                result = await txs.find({stageHeight: {$eq: parseInt(stageHeight)}}).toArray();
+                result = await payments.find({stageHeight: {$eq: parseInt(stageHeight)}}).toArray();
             }
             return result;
         } catch (e) {
@@ -97,7 +97,7 @@ let DB = function () {
     };
 
     this.isConnected = async () => {
-        let treeCollection = await this.db.collection('txs');
+        let treeCollection = await this.db.collection('payments');
         let result = await treeCollection.find({}).toArray();
         return result;
     };

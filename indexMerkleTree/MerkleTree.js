@@ -27,13 +27,13 @@ class MerkleTree {
         } 
     } 
 
-    calcLeafIndex (txHash) {
+    calcLeafIndex (paymentHash) {
         // calc leaflocation
         let index ;
-        if(EthUtils.sha3(txHash.toString()).toString('hex').substring(0,2) === '0x'){
-            index = parseInt(EthUtils.sha3(txHash.toString()).toString('hex').substring(2,14),16);
+        if(EthUtils.sha3(paymentHash.toString()).toString('hex').substring(0,2) === '0x'){
+            index = parseInt(EthUtils.sha3(paymentHash.toString()).toString('hex').substring(2,14),16);
         }else{
-            index = parseInt(EthUtils.sha3(txHash.toString()).toString('hex').substring(0,12),16);
+            index = parseInt(EthUtils.sha3(paymentHash.toString()).toString('hex').substring(0,12),16);
         }
         //calc the leaf node id
         return (1 << (this.height - 1)) + Math.abs(index) % (1 << (this.height - 1));
@@ -55,12 +55,12 @@ class MerkleTree {
         return this.height;
     }
 
-    putTransactionInTree (txCipher) {
-        if (!txCipher.stageHeight || txCipher.stageHeight != this.stageHeight) {
-            throw new Error('Wrong tx cipher.');
+    putPaymentInTree (paymentCipher) {
+        if (!paymentCipher.stageHeight || paymentCipher.stageHeight != this.stageHeight) {
+            throw new Error('Wrong payment cipher.');
         }
-        let index = this.calcLeafIndex(txCipher.txHash);
-        this.nodes[index].put(txCipher.cipherUser, txCipher.cipherCP);
+        let index = this.calcLeafIndex(paymentCipher.paymentHash);
+        this.nodes[index].put(paymentCipher.cipherUser, paymentCipher.cipherCP);
         for (let i = index; i > 0; i >>= 1) {
             this.updateNodeHash(i);
         }
@@ -70,26 +70,26 @@ class MerkleTree {
         return this.nodes[1].getNodeHash();
     }
 
-    getTxHashArray (txHash) {
-        let index = this.calcLeafIndex(txHash);
-        return this.nodes[index].getTxHashArray();
+    getPaymentHashArray (paymentHash) {
+        let index = this.calcLeafIndex(paymentHash);
+        return this.nodes[index].getPaymentHashArray();
     }
-    getTxHashArrayByIndex (index) {
-        return this.nodes[index].getTxHashArray();
+    getPaymentHashArrayByIndex (index) {
+        return this.nodes[index].getPaymentHashArray();
     }
     
-    getNodeTxCipherUser (txHash) {
-        let index = this.calcLeafIndex(txHash);
+    getNodePaymentCipherUser (paymentHash) {
+        let index = this.calcLeafIndex(paymentHash);
         return this.nodes[index].getCipherUserArray();
     }
 
-    getNodeTxCipherCP (txHash) {
-        let index = this.calcLeafIndex(txHash);
+    getNodePaymentCipherCP (paymentHash) {
+        let index = this.calcLeafIndex(paymentHash);
         return this.nodes[index].getCipherCPArray();
     }
 
-    getNodeHashByTxHash (txHash) {
-        let index = this.calcLeafIndex(txHash);
+    getNodeHashByPaymentHash (paymentHash) {
+        let index = this.calcLeafIndex(paymentHash);
         return this.nodes[index].getNodeHash();
     }
 
@@ -97,8 +97,8 @@ class MerkleTree {
         return this.nodes[index].getNodeHash();
     }
 
-    extractSlice (txHash) {
-        let index = this.calcLeafIndex(txHash);
+    extractSlice (paymentHash) {
+        let index = this.calcLeafIndex(paymentHash);
         let slice = new Array();  
         if (this.nodes.length == 2) {
             slice.push({
@@ -143,8 +143,8 @@ class MerkleTree {
         return slice;
     }
 
-    reputData (index, txHashArray, cipherUserArray, cipherCPArray, NodeHash) {
-        this.nodes[index].reput(txHashArray, cipherUserArray, cipherCPArray, NodeHash);
+    reputData (index, paymentHashArray, cipherUserArray, cipherCPArray, NodeHash) {
+        this.nodes[index].reput(paymentHashArray, cipherUserArray, cipherCPArray, NodeHash);
     }
 
     export () {
@@ -158,7 +158,7 @@ class MerkleTree {
     static import (tree) {
         let restoreTree = new MerkleTree(tree.height);
         for(let i = 1 ; i < (1 << tree.height) ; i++) {
-            restoreTree.reputData(i,tree.nodes[i].txHashArray, tree.nodes[i].cipherUserArray, tree.nodes[i].cipherCPArray, tree.nodes[i].NodeHash);
+            restoreTree.reputData(i,tree.nodes[i].paymentHashArray, tree.nodes[i].cipherUserArray, tree.nodes[i].cipherCPArray, tree.nodes[i].NodeHash);
         }                
         return restoreTree;         
     }
@@ -168,11 +168,11 @@ class MerkleTree {
         let leafMax = 1 << (this.height);
         let max = 0;
         for (let i = leafMin ; i < leafMax ; i++) {
-            if(this.nodes[i].getTxHashArray() === null) {
+            if(this.nodes[i].getPaymentHashArray() === null) {
                 //
             } else {
-                if (max < this.nodes[i].getTxHashArray().length) {
-                    max = this.nodes[i].getTxHashArray().length;
+                if (max < this.nodes[i].getPaymentHashArray().length) {
+                    max = this.nodes[i].getPaymentHashArray().length;
                 }else { 
                     // 
                 }                
@@ -187,18 +187,18 @@ class MerkleTree {
         let total = 0;
         let nonEmptyCount = 0;
         for (let i = leafMin ; i < leafMax ; i++) {
-            if (this.nodes[i].getTxHashArray() === null) {
+            if (this.nodes[i].getPaymentHashArray() === null) {
                 //
             }else {
                 nonEmptyCount += 1;
-                total += this.nodes[i].getTxHashArray().length;
+                total += this.nodes[i].getPaymentHashArray().length;
             }
         }        
         let AVG = parseFloat(total/nonEmptyCount);
         return AVG;
     }
 
-    getAllTxCiperCP () {
+    getAllPaymentCiperCP () {
         let mergeAll = new Array();
         let leafMin = 1 << (this.height - 1);
         let leafMax = 1 << (this.height);
@@ -212,7 +212,7 @@ class MerkleTree {
         return mergeAll;
     }
 
-    getAllTxCiperUser () {
+    getAllPaymentCiperUser () {
         let mergeAll = new Array();
         let leafMin = 1 << (this.height - 1);
         let leafMax = 1 << (this.height);
@@ -230,9 +230,9 @@ class MerkleTree {
     updateNodeHash (index) {
         let mergeT = '';
         if (this.nodes[index].getIsLeaf() === true) {
-            let txHashArray = this.nodes[index].getTxHashArray();
-            for( let i = 0 ; i < txHashArray.length ; i++) {
-                mergeT = mergeT.concat(txHashArray[i]);
+            let paymentHashArray = this.nodes[index].getPaymentHashArray();
+            for( let i = 0 ; i < paymentHashArray.length ; i++) {
+                mergeT = mergeT.concat(paymentHashArray[i]);
             }
             this.nodes[index].updateNodeHash(EthUtils.sha3(mergeT).toString('hex'));
         } else {
@@ -244,7 +244,7 @@ class MerkleTree {
 
 class Node {
     constructor(index) {
-        this.txHashArray = null;
+        this.paymentHashArray = null;
         this.cipherUserArray = null;
         this.cipherCPArray = null;
         this.NodeHash = '';
@@ -253,14 +253,14 @@ class Node {
     }
         
     put(cipherUser,cipherCP) {
-        if(this.txHashArray === null && this.cipherUserArray === null && this.cipherCPArray === null) {
-            this.txHashArray = new Array();
+        if(this.paymentHashArray === null && this.cipherUserArray === null && this.cipherCPArray === null) {
+            this.paymentHashArray = new Array();
             this.cipherUserArray = new Array();
             this.cipherCPArray = new Array();
         }
         this.cipherUserArray.push(cipherUser);
         this.cipherCPArray.push(cipherCP);
-        this.txHashArray.push(EthUtils.sha3(cipherUser.concat(cipherCP)).toString('hex'));
+        this.paymentHashArray.push(EthUtils.sha3(cipherUser.concat(cipherCP)).toString('hex'));
     }
 
     getNodeHash () {
@@ -274,8 +274,8 @@ class Node {
         this.isLeaf = newIsLeaf;
     }
 
-    getTxHashArray () {
-        return this.txHashArray;
+    getPaymentHashArray () {
+        return this.paymentHashArray;
     }
 
     getCipherUserArray () {
@@ -290,8 +290,8 @@ class Node {
         this.NodeHash = newHash;
     }
 
-    reput (txHashArray, cipherUserArray, cipherCPArray, NodeHash) {// restore merkleTree
-        this.txHashArray = txHashArray;
+    reput (paymentHashArray, cipherUserArray, cipherCPArray, NodeHash) {// restore merkleTree
+        this.paymentHashArray = paymentHashArray;
         this.cipherUserArray = cipherUserArray;
         this.cipherCPArray = cipherCPArray;
         this.NodeHash = NodeHash;

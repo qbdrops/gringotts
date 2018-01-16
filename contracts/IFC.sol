@@ -12,8 +12,8 @@ contract IFC {
     uint compensation;
 
     event AddNewStage(bytes32 indexed _stageHash, address _stageAddress);
-    event TakeObjection(bytes32 indexed _stageHash, bytes32 _txHash);
-    event Exonerate(bytes32 indexed _stageHash, bytes32 _txHash);
+    event TakeObjection(bytes32 indexed _stageHash, bytes32 _paymentHash);
+    event Exonerate(bytes32 indexed _stageHash, bytes32 _paymentHash);
     event Finalize(bytes32 indexed _stageHash);
 
     modifier onlyOwner {
@@ -49,7 +49,7 @@ contract IFC {
     function takeObjection(
         bytes32[] agentResponse,
         //agentResponse[0] = _stageHash,
-        //agentResponse[1] = _txHash,
+        //agentResponse[1] = _paymentHash,
         uint8 v,
         bytes32 r,
         bytes32 s)
@@ -58,32 +58,32 @@ contract IFC {
         bytes32 hashMsg = SidechainLibrary(lib).hashArray(agentResponse);
         address signer = SidechainLibrary(lib).verify(hashMsg, v, r, s);
         require (signer == owner);
-        Stage(stageAddress[agentResponse[0]]).addObjectionableTxHash(agentResponse[1], msg.sender);
+        Stage(stageAddress[agentResponse[0]]).addObjectionablePaymentHash(agentResponse[1], msg.sender);
         TakeObjection(agentResponse[0], agentResponse[1]);
     }
 
-    function exonerate(bytes32 _stageHash, bytes32 _txHash, uint _idx, bytes32[] slice, bytes32[] leaf) onlyOwner {
+    function exonerate(bytes32 _stageHash, bytes32 _paymentHash, uint _idx, bytes32[] slice, bytes32[] leaf) onlyOwner {
         bytes32 hashResult;
-        require (SidechainLibrary(lib).inBytes32Array(_txHash, leaf));
+        require (SidechainLibrary(lib).inBytes32Array(_paymentHash, leaf));
         // content is in leaf array
         hashResult = SidechainLibrary(lib).hashArray(leaf);
         require (hashResult == slice[0]);
         // hash (content concat) = first node (or second one) hash in slice
         hashResult = SidechainLibrary(lib).calculateSliceRootHash(_idx, slice);
         require (hashResult == Stage(stageAddress[_stageHash]).rootHash());
-        Stage(stageAddress[_stageHash]).resolveObjections(_txHash);
-        Exonerate(_stageHash, _txHash);
+        Stage(stageAddress[_stageHash]).resolveObjections(_paymentHash);
+        Exonerate(_stageHash, _paymentHash);
     }
 
-    function payPenalty(bytes32 _stageHash, bytes32[] txs) onlyOwner {
+    function payPenalty(bytes32 _stageHash, bytes32[] payments) onlyOwner {
         address customer;
         bool objectionSuccess;
         bool getCompensation;
-        for (uint i = 0; i < txs.length; i++) {
-            (customer, objectionSuccess, getCompensation)= Stage(stageAddress[_stageHash]).objections(txs[i]);
+        for (uint i = 0; i < payments.length; i++) {
+            (customer, objectionSuccess, getCompensation)= Stage(stageAddress[_stageHash]).objections(payments[i]);
             if (objectionSuccess && !getCompensation) {
                 customer.transfer(compensation);
-                Stage(stageAddress[_stageHash]).resolveCompensation(txs[i]);
+                Stage(stageAddress[_stageHash]).resolveCompensation(payments[i]);
             }
         }
     }
