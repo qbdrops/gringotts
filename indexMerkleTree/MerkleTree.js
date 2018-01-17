@@ -102,26 +102,26 @@ class MerkleTree {
         let slice = new Array();  
         if (this.nodes.length == 2) {
             slice.push({
-                treeNodeID: 1,
+                treeNodeIndex: 1,
                 treeNodeHash: this.nodes[1].getNodeHash()
             });
         } else {
             if (index % 2 == 0) {
                 slice.push({
-                    treeNodeID: index,
+                    treeNodeIndex: index,
                     treeNodeHash: this.nodes[index].getNodeHash()
                 });
                 slice.push({
-                    treeNodeID: index + 1,
+                    treeNodeIndex: index + 1,
                     treeNodeHash: this.nodes[index + 1].getNodeHash()
                 });
             } else {
                 slice.push({
-                    treeNodeID: index,
+                    treeNodeIndex: index,
                     treeNodeHash: this.nodes[index].getNodeHash()
                 });
                 slice.push({
-                    treeNodeID: index - 1,
+                    treeNodeIndex: index - 1,
                     treeNodeHash: this.nodes[index - 1].getNodeHash()
                 });
             }
@@ -129,12 +129,12 @@ class MerkleTree {
             for (;index > 1; index >>= 1) { 
                 if (index % 2 == 0) {
                     slice.push({
-                        treeNodeID: index + 1,
+                        treeNodeIndex: index + 1,
                         treeNodeHash: this.nodes[index + 1].getNodeHash()
                     });
                 } else {
                     slice.push({
-                        treeNodeID: index - 1,
+                        treeNodeIndex: index - 1,
                         treeNodeHash: this.nodes[index - 1].getNodeHash()
                     });
                 }   

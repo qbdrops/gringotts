@@ -54,7 +54,7 @@ async function exonerate(stageHeight, paymentHash) {
                 });
 
                 web3.personal.unlockAccount(account, env.password);
-                let ethPaymentHash = IFCContract.exonerate(stageHash, '0x' + paymentHash, nodes[0].treeNodeID, slice, paymentHashes, {from: account, to:IFCContract.address, gas: 4700000});
+                let ethPaymentHash = IFCContract.exonerate(stageHash, '0x' + paymentHash, nodes[0].treeNodeIndex, slice, paymentHashes, {from: account, to:IFCContract.address, gas: 4700000});
                 console.log(ethPaymentHash);
             }
         }
