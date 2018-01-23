@@ -243,6 +243,18 @@ app.put('/finalize', async function (req, res) {
     }
 });
 
+app.post('/payPenalty', async function (req, res) {
+    try {
+        let stageHash = req.body.stage_hash;
+        let paymentHashes = req.body.payment_hashes;
+        let result = Sidechain.payPenalty(stageHash, paymentHashes);
+        res.send(result);
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
 app.put('/cp/publickey', async function (req, res) {
     try {
         let publicCp = req.body.publicKey;

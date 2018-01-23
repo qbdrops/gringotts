@@ -106,8 +106,21 @@ let Sidechain = function () {
         let stage = this.getStage(stageHash);
         if (stage) {
             web3.personal.unlockAccount(env.account, env.password);
-            let paymentHash = IFCContract.finalize(stageHash, { from: account, to: IFCContract.address, gas: 4700000 });
-            return paymentHash;
+            let txHash = IFCContract.finalize(stageHash, { from: account, to: IFCContract.address, gas: 4700000 });
+            return txHash;
+        } else {
+            throw new Error('The stage does not exists.');
+        }
+    };
+
+    this.payPenalty = (stageHash, paymentHashes) => {
+        let stage = this.getStage(stageHash);
+        if (stage) {
+            web3.personal.unlockAccount(env.account, env.password);
+            console.log(stageHash);
+            console.log(paymentHashes);
+            let txHash = IFCContract.payPenalty(stageHash, paymentHashes, { from: account, to: IFCContract.address, gas: 4700000 });
+            return txHash;
         } else {
             throw new Error('The stage does not exists.');
         }

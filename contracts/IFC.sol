@@ -75,15 +75,15 @@ contract IFC {
         Exonerate(_stageHash, _paymentHash);
     }
 
-    function payPenalty(bytes32 _stageHash, bytes32[] payments) onlyOwner {
+    function payPenalty(bytes32 _stageHash, bytes32[] paymentHashes) onlyOwner {
         address customer;
         bool objectionSuccess;
         bool getCompensation;
-        for (uint i = 0; i < payments.length; i++) {
-            (customer, objectionSuccess, getCompensation)= Stage(stageAddress[_stageHash]).objections(payments[i]);
+        for (uint i = 0; i < paymentHashes.length; i++) {
+            (customer, objectionSuccess, getCompensation) = Stage(stageAddress[_stageHash]).objections(paymentHashes[i]);
             if (objectionSuccess && !getCompensation) {
                 customer.transfer(compensation);
-                Stage(stageAddress[_stageHash]).resolveCompensation(payments[i]);
+                Stage(stageAddress[_stageHash]).resolveCompensation(paymentHashes[i]);
             }
         }
     }
@@ -93,5 +93,4 @@ contract IFC {
         Stage(stageAddress[_stageHash]).setCompleted();
         Finalize(_stageHash);
     }
-
 }
