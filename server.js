@@ -9,7 +9,7 @@ let db = require('./db');
 let buildStage = require('./makeTree');
 let faker = require('faker');
 let exonerate = require('./exonerate');
-let Sidechain = require('./utils/Sidechain');
+let Sidechain = require('./utils/SideChain');
 
 let app = express();
 app.use(bodyParser.json());
