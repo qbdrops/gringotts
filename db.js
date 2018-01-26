@@ -35,7 +35,7 @@ let DB = function () {
     this.clearPendingPayments = async (stageHash) => {
         try {
             let collection = await this.db.collection('payments');
-            let result = await collection.update({ onChain: false, stageHash: stageHash }, { $set: { onChain: true } }, { multi: true});
+            let result = await collection.update({ onChain: false, stageHash: stageHash }, { $set: { onChain: true } }, { multi: true });
             return result;
         } catch (e) {
             console.error(e);
@@ -73,6 +73,15 @@ let DB = function () {
         }
     };
 
+    this.getPayment = async (paymentHash) => {
+        try {
+            let _payments = await this.db.collection('payments');
+            return await _payments.findOne({ paymentHash: paymentHash });
+        } catch (e) {
+            console.error(e);
+        }
+    },
+
     this.getPayments = async (stageHeight, limitSize = null) => {
         try {
             let payments = await this.db.collection('payments');
@@ -83,6 +92,55 @@ let DB = function () {
                 result = await payments.find({stageHeight: {$eq: parseInt(stageHeight)}}).toArray();
             }
             return result;
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    this.getPaymentSize = async (stageHeight) => {
+        try {
+            let _payments = await this.db.collection('payments');
+            return await _payments.count({ stageHeight: stageHeight });
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    this.getPaymentByIndex = async (stageHeight, treeNodeIndex) => {
+        try {
+            let _payments = await this.db.collection('payments');
+            return await _payments.find({ stageHeight: stageHeight, treeNodeIndex: treeNodeIndex }).toArray();
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    this.updatePaymentNodeIndex = async (paymentHash, treeNodeIndex) => {
+        try {
+            let _payments = await this.db.collection('payments');
+            _payments.update({ paymentHash: paymentHash }, { $set: { treeNodeIndex: treeNodeIndex } });
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    this.saveTreeNode = async (treeNode, stageHeight) => {
+        try {
+            let _treeNodes = await this.db.collection('treenodes');
+            treeNode.stageHeight = stageHeight;
+            let result = await _treeNodes.update({ stageHeight: stageHeight, treeNodeIndex: treeNode.treeNodeIndex }, treeNode, { upsert: true });
+            return result;
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    this.getSlice = async (stageHeight, sliceIndexes) => {
+        try {
+            let _treenodes = await this.db.collection('treenodes');
+            let slice = await _treenodes.find({ stageHeight: stageHeight, treeNodeIndex: { $in: sliceIndexes }}).toArray();
+            slice = slice.sort((a, b) => (a.treeNodeIndex < b.treeNodeIndex));
+            return slice;
         } catch (e) {
             console.error(e);
         }

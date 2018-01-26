@@ -7,7 +7,7 @@ class MerkleTree {
         this.makeTreeTime;
         if (this.height <= 0) {
             console.log('Tree height should be more than 1.');
-        }       
+        }
         //initial node  bottom-up
         this.nodes = new Array(1 << height);
         for (let i = this.nodes.length - 1; i > 0; i--) {
@@ -251,7 +251,7 @@ class Node {
         this.isLeaf = false;
         this.index = index;
     }
-        
+
     put(cipherUser,cipherCP) {
         if(this.paymentHashArray === null && this.cipherUserArray === null && this.cipherCPArray === null) {
             this.paymentHashArray = new Array();
@@ -266,6 +266,7 @@ class Node {
     getNodeHash () {
         return this.NodeHash;
     }
+
     getIsLeaf () {
         return this.isLeaf;
     }

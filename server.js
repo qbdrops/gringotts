@@ -6,10 +6,12 @@ let EthUtils = require('ethereumjs-util');
 let RSA = require('./crypto/RSAencrypt.js');
 let MerkleTree = require('./indexMerkleTree/MerkleTree.js');
 let db = require('./db');
-let buildStage = require('./makeTree');
+let IndexMerkleTree = require('./indexMerkleTree/IndexMerkleTree');
 let faker = require('faker');
 let exonerate = require('./exonerate');
 let Sidechain = require('./utils/SideChain');
+let Web3 = require('web3');
+let fs = require('fs');
 
 let app = express();
 app.use(bodyParser.json());
@@ -18,7 +20,6 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
-let cached = [];
 
 const privatekey = env.privateKey;
 const publickey = '0x' + EthUtils.privateToPublic('0x' + privatekey).toString('hex');
@@ -154,55 +155,16 @@ app.get('/slice', async function (req, res) {
         let stageHeight = query.stage_height;
         let paymentHash = query.payment_hash;
 
-        let cachedTree = null;
-
-        for (let key in cached) {
-            let tree = cached[key];
-            if (tree.stageHeight == stageHeight) {
-                cachedTree = tree;
-            }
+        let tree = new IndexMerkleTree();
+        let slice = await tree.getSlice(stageHeight, paymentHash);
+        let payment = await db.getPayment(paymentHash);
+        var treeNodeIndex;
+        if (payment) {
+            treeNodeIndex = payment.treeNodeIndex;
         }
+        let paymentHashArray = await tree.getAllLeafElements(stageHeight, paymentHash);
 
-        if (cachedTree) {
-            let slice = cachedTree.extractSlice(paymentHash);
-            let paymentHashArray = cachedTree.getPaymentHashArray(paymentHash);
-            
-            res.send({
-                slice: slice,
-                paymentHashArray: paymentHashArray
-            });
-        } else {
-            let paymentCiphers = await db.getStage(stageHeight);
-            if (paymentCiphers.length > 0) {
-                let height = parseInt(Math.log2(paymentCiphers.length)) + 1;
-                let tree = new MerkleTree(height);
-                tree.setStageHeight(stageHeight);
-
-                paymentCiphers.forEach((payment) => {
-                    tree.putPaymentInTree(payment);
-                });
-
-                let slice = tree.extractSlice(paymentHash);
-                let paymentHashArray = tree.getPaymentHashArray(paymentHash);
-                
-                if (cached.length >= 3) {
-                    cached.push(tree);
-                    cached.shift();
-                } else {
-                    cached.push(tree);
-                }
-                
-                res.send({
-                    slice: slice,
-                    paymentHashArray: paymentHashArray
-                });
-            } else {
-                res.send({
-                    slice: null,
-                    paymentHashArray: null
-                });
-            }
-        }
+        res.send({ slice: slice, paymentHashArray: paymentHashArray, treeNodeIndex: treeNodeIndex });
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
@@ -409,23 +371,49 @@ app.post('/commit/payments', async function (req, res) {
         let nextStageHeight = parseInt(stageHeight) + 1;
         let nextStageHash = EthUtils.sha3(nextStageHeight.toString()).toString('hex');
 
-        let paymentCiphers = await Sidechain.pendingPayments();
-        paymentCiphers = paymentCiphers.filter((payment) => {
+        let payments = await Sidechain.pendingPayments();
+        let paymentHashes = payments.filter(payment => {
             return payment.stageHash == nextStageHash;
-        });
+        }).map(payment => payment.paymentHash);
 
-        if (paymentCiphers.length > 0) {
-            let makeTreeTime = parseInt(Date.now() / 1000);
-            buildStage(makeTreeTime, nextStageHeight, paymentCiphers).then((tree) => {
-                if (cached.length >= 3) {
-                    cached.push(tree);
-                    cached.shift();
-                } else {
-                    cached.push(tree);
+        if (payments.length > 0) {
+            let stageHash = '0x' + EthUtils.sha3(nextStageHeight.toString()).toString('hex');
+            const tree = new IndexMerkleTree();
+            await tree.build(nextStageHeight, paymentHashes);
+            const rootHash = '0x' + tree.rootHash;
+
+            let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
+            let IFCContractAddress = env.IFCContractAddress;
+            let IFCABI = JSON.parse(fs.readFileSync('./build/contracts/IFC.json')).abi;
+            let IFCContractClass = web3.eth.contract(IFCABI);
+            let IFCContract = IFCContractClass.at(IFCContractAddress);
+
+            web3.personal.unlockAccount(env.account, env.password);
+
+            // watch event and clearPendingPayments
+            let event = IFCContract.AddNewStage({fromBlock: 0, toBlock: 'latest'});
+            event.watch(async (error, result) => {
+                if (error) {
+                    throw new Error(error.message);
                 }
+                console.log(result);
+                let onChainStageHash = result.args._stageHash;
+                if (onChainStageHash.length > 2 && onChainStageHash.substr(0, 2) == '0x') {
+                    onChainStageHash = onChainStageHash.substr(2);
+                }
+                // if DB update fail, the node need to check the highest stage in contract
+                // and clear relative pending payment again.
+                db.clearPendingPayments(onChainStageHash);
             });
 
-            res.send({ok: true});
+            let paymentHash = IFCContract.addNewStage(stageHash, rootHash, {from: account, to:IFCContract.address, gas: 4700000});
+
+            console.log('stage height: ' + nextStageHeight);
+            console.log('stage hash: ' + stageHash);
+            console.log('Root Hash: ' + rootHash);
+            console.log('Add stage payment hash: ' + paymentHash);
+
+            res.send({ ok: true });
         } else {
             res.send({ok: false});
         }
