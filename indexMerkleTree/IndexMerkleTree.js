@@ -102,7 +102,6 @@ class IndexMerkleTree {
         let treeHeight = this._computeTreeHeight(size);
         let index = this._computeLeafIndex(treeHeight, leafElement);
         let leafElements = await db.getPaymentByIndex(stageHeight, index);
-        console.log(size, treeHeight, index, leafElements);
         leafElements = leafElements.map(e => e.paymentHash).sort();
         return leafElements;
     }

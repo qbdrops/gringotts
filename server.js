@@ -4,11 +4,9 @@ let bodyParser = require('body-parser');
 let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
 let RSA = require('./crypto/RSAencrypt.js');
-let MerkleTree = require('./indexMerkleTree/MerkleTree.js');
 let db = require('./db');
 let IndexMerkleTree = require('./indexMerkleTree/IndexMerkleTree');
 let faker = require('faker');
-let exonerate = require('./exonerate');
 let Sidechain = require('./utils/SideChain');
 let Web3 = require('web3');
 let fs = require('fs');
@@ -186,8 +184,8 @@ app.post('/exonerate', async function (req, res) {
     try {
         let stageHeight = req.body.stage_height;
         let paymentHash = req.body.payment_hash;
-        exonerate(stageHeight, paymentHash);
-        res.send({ok: true});
+        let result = await Sidechain.exonerate(stageHeight, paymentHash);
+        res.send(result);
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
