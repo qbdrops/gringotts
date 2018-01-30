@@ -135,6 +135,16 @@ let DB = function () {
         }
     };
 
+    this.getTreeNode = async (stageHeight, treeNodeIndex) => {
+        try {
+            let _treeNodes = await this.db.collection('treenodes');
+            let result = await _treeNodes.findOne({ stageHeight: stageHeight, treeNodeIndex: treeNodeIndex });
+            return result;
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     this.getSlice = async (stageHeight, sliceIndexes) => {
         try {
             let _treenodes = await this.db.collection('treenodes');

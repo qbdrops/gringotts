@@ -64,6 +64,9 @@ class IndexMerkleTree {
             }
         }
 
+        // 5. Save rootNode to DB
+        db.saveTreeNode(nodeQueue[0], stageHeight);
+
         this.rootHash = nodeQueue[0].treeNodeHash;
         return this.rootHash;
     }
@@ -75,6 +78,8 @@ class IndexMerkleTree {
         let index = this._computeLeafIndex(treeHeight, leafElement);
         let sliceIndexes = [];
 
+        let firstTreeNode = await db.getTreeNode(stageHeight, index);
+
         while (index != 1) {
             if (index % 2 == 0) {
                 sliceIndexes.push(index + 1);
@@ -85,6 +90,9 @@ class IndexMerkleTree {
         }
 
         let slice = await db.getSlice(stageHeight, sliceIndexes);
+
+        // Put firstNode as the first element of slice
+        slice.unshift(firstTreeNode);
 
         slice = slice.map(treeNode => {
             return {
