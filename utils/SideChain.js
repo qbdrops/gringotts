@@ -1,16 +1,9 @@
 let env = require('../env');
 let db = require('../db');
 let Web3 = require('web3');
-let EthUtils = require('ethereumjs-util');
 let fs = require('fs');
-let IndexMerkleTree = require('../indexMerkleTree/IndexMerkleTree');
 
 const IFCContractAddress = env.IFCContractAddress;
-
-const privatekey = env.privateKey;
-const publickey = '0x' + EthUtils.privateToPublic('0x' + privatekey).toString('hex');
-const account = '0x' + EthUtils.pubToAddress(publickey).toString('hex');
-
 let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
 const IFC = JSON.parse(fs.readFileSync('./build/contracts/IFC.json'));
 const Stage = JSON.parse(fs.readFileSync('./build/contracts/Stage.json'));
@@ -100,65 +93,6 @@ let Sidechain = function () {
             return pendingStages;
         } else {
             return [];
-        }
-    };
-
-    this.exonerate = async (stageHeight, paymentHash) => {
-        try {
-            let paymentCiphers = await db.getStage(stageHeight);
-            if (paymentCiphers.length > 0) {
-                let stageHash = '0x' + EthUtils.sha3(stageHeight.toString()).toString('hex');
-                let stageAddress = await IFCContract.getStageAddress(stageHash.toString());
-                let stage = StageClass.at(stageAddress);
-                let objectionTidHashes = stage.getObjectionablePaymentHashes();
-                let valideObjectionTidHashes = objectionTidHashes.filter((objectionTidHash) => {
-                    return stage.objections(objectionTidHash)[1];
-                });
-                if (valideObjectionTidHashes.length > 0 &&
-                    (valideObjectionTidHashes.indexOf('0x' + paymentHash) >= 0)) {
-                    let tree = new IndexMerkleTree();
-                    let nodes = tree.getSlice(stageHeight, paymentHash);
-                    let paymentHashes = tree.getAllLeafElements(stageHeight, paymentHash);
-
-                    let slice = nodes.map((node) => {
-                        return '0x' + node.treeNodeHash;
-                    });
-
-                    paymentHashes = paymentHashes.map((paymentHash) => {
-                        return '0x' + paymentHash;
-                    });
-
-                    web3.personal.unlockAccount(account, env.password);
-                    let txHash = IFCContract.exonerate(stageHash, '0x' + paymentHash, nodes[0].treeNodeIndex, slice, paymentHashes, { from: account, to:IFCContract.address, gas: 4700000 });
-                    return txHash;
-                }
-            }
-        } catch (e) {
-            console.log(e);
-        }
-    };
-
-    this.finalize = (stageHash) => {
-        let stage = this.getStage(stageHash);
-        if (stage) {
-            web3.personal.unlockAccount(env.account, env.password);
-            let txHash = IFCContract.finalize(stageHash, { from: account, to: IFCContract.address, gas: 4700000 });
-            return txHash;
-        } else {
-            throw new Error('The stage does not exists.');
-        }
-    };
-
-    this.payPenalty = (stageHash, paymentHashes) => {
-        let stage = this.getStage(stageHash);
-        if (stage) {
-            web3.personal.unlockAccount(env.account, env.password);
-            console.log(stageHash);
-            console.log(paymentHashes);
-            let txHash = IFCContract.payPenalty(stageHash, paymentHashes, { from: account, to: IFCContract.address, gas: 4700000 });
-            return txHash;
-        } else {
-            throw new Error('The stage does not exists.');
         }
     };
 };

@@ -30,6 +30,28 @@ io.on('connection', async function (socket) {
     });
 });
 
+// Watch AddNewStage event
+let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
+let IFCContractAddress = env.IFCContractAddress;
+let IFCABI = JSON.parse(fs.readFileSync('./build/contracts/IFC.json')).abi;
+let IFCContractClass = web3.eth.contract(IFCABI);
+let IFCContract = IFCContractClass.at(IFCContractAddress);
+
+let event = IFCContract.AddNewStage({ fromBlock: 0, toBlock: 'latest' });
+event.watch(async (error, result) => {
+    if (error) {
+        throw new Error(error.message);
+    }
+    console.log(result);
+    let onChainStageHash = result.args._stageHash;
+    if (onChainStageHash.length > 2 && onChainStageHash.substr(0, 2) == '0x') {
+        onChainStageHash = onChainStageHash.substr(2);
+    }
+    // if DB update fail, the node need to check the highest stage in contract
+    // and clear relative pending payment again.
+    db.clearPendingPayments(onChainStageHash);
+});
+
 async function fakeRecords(paymentSize) {
     try {
         let stageHeight = await Sidechain.getContractStageHeight();
@@ -125,28 +147,6 @@ app.post('/fake', async function (req, res) {
     }
 });
 
-app.put('/rsa/publickey', async function (req, res) {
-    try {
-        let publickey = req.body.publickey;
-        let command = await db.insertRSAPublickey(publickey);
-        res.send({result: command.result.ok});
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
-
-app.put('/ecc/publickey', async function (req, res) {
-    try {
-        let publickey = req.body.publickey;
-        let command = await db.insertECCPublickey(publickey);
-        res.send({result: command.result.ok});
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
-
 app.get('/slice', async function (req, res) {
     try {
         let query = req.query;
@@ -169,58 +169,62 @@ app.get('/slice', async function (req, res) {
     }
 });
 
-app.post('/save/keys', async function (req, res) {
+app.post('/send/payments', async function (req, res) {
     try {
-        saveKeys();
-        let keys = await db.getPublicKeys();
-        res.send(keys);
+        let payments = req.body.payments;
+        if (payments.length > 0) {
+            // validate signatures of payments
+            let validPayments = payments.filter((payment) => {
+                let message = payment.stageHash + payment.paymentHash;
+                let msgHash = EthUtils.sha3(message);
+                let prefix = new Buffer('\x19Ethereum Signed Message:\n');
+                let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+
+                let publicKey = EthUtils.ecrecover(ethMsgHash, payment.v, payment.r, payment.s);
+                let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
+
+                return account == address;
+            });
+
+            let paymentCiphers = validPayments.map((paymentCipher) => {
+                paymentCipher.onChain = false;
+                return paymentCipher;
+            });
+
+            if (paymentCiphers.length > 0) {
+                db.savePayments(paymentCiphers);
+                res.send({ ok: true });
+            } else {
+                res.send({ ok: false });
+            }
+        } else {
+            res.send({ ok: false });
+        }
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
     }
 });
 
-app.post('/exonerate', async function (req, res) {
+app.get('/roothash', async function (req, res) {
     try {
-        let stageHeight = req.body.stage_height;
-        let paymentHash = req.body.payment_hash;
-        let result = await Sidechain.exonerate(stageHeight, paymentHash);
-        res.send(result);
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
+        let stageHeight = await Sidechain.getContractStageHeight();
+        let nextStageHeight = parseInt(stageHeight) + 1;
+        let nextStageHash = EthUtils.sha3(nextStageHeight.toString()).toString('hex');
+        let payments = await Sidechain.pendingPayments();
+        let paymentHashes = payments.filter(payment => {
+            return payment.stageHash == nextStageHash;
+        }).map(payment => payment.paymentHash);
 
-app.put('/finalize', async function (req, res) {
-    try {
-        let stageHash = req.body.stage_hash;
-        let result = Sidechain.finalize(stageHash);
-        res.send(result);
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
+        if (payments.length > 0) {
+            let tree = new IndexMerkleTree();
+            await tree.build(nextStageHeight, paymentHashes);
+            let rootHash = '0x' + tree.rootHash;
 
-app.post('/payPenalty', async function (req, res) {
-    try {
-        let stageHash = req.body.stage_hash;
-        let paymentHashes = req.body.payment_hashes;
-        let result = Sidechain.payPenalty(stageHash, paymentHashes);
-        res.send(result);
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
-
-app.put('/cp/publickey', async function (req, res) {
-    try {
-        let publicCp = req.body.publicKey;
-        console.log(publicCp);
-        let result = await db.insertCpPublicKey(publicCp);
-        res.send(result);
+            res.send({ rootHash: rootHash, stageHeight: nextStageHeight });
+        } else {
+            res.send({ ok: false });
+        }
     } catch (e) {
         console.log(e);
         res.status(500).send({errors: e.message});
@@ -326,131 +330,6 @@ app.get('/finalized/time', async function (req, res) {
     }
 });
 
-app.post('/send/payments', async function (req, res) {
-    try {
-        let payments = req.body.payments;
-        if (payments.length > 0) {
-            // validate signatures of payments
-            let validPayments = payments.filter((payment) => {
-                let message = payment.stageHash + payment.paymentHash;
-                let msgHash = EthUtils.sha3(message);
-                let prefix = new Buffer('\x19Ethereum Signed Message:\n');
-                let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
-
-                let publicKey = EthUtils.ecrecover(ethMsgHash, payment.v, payment.r, payment.s);
-                let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
-
-                return account == address;
-            });
-
-            let paymentCiphers = validPayments.map((paymentCipher) => {
-                paymentCipher.onChain = false;
-                return paymentCipher;
-            });
-
-            if (paymentCiphers.length > 0) {
-                db.savePayments(paymentCiphers);
-                res.send({ ok: true });
-            } else {
-                res.send({ ok: false });
-            }
-        } else {
-            res.send({ ok: false });
-        }
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
-
-app.post('/commit/payments', async function (req, res) {
-    try {
-        let stageHeight = await Sidechain.getContractStageHeight();
-        let nextStageHeight = parseInt(stageHeight) + 1;
-        let nextStageHash = EthUtils.sha3(nextStageHeight.toString()).toString('hex');
-
-        let payments = await Sidechain.pendingPayments();
-        let paymentHashes = payments.filter(payment => {
-            return payment.stageHash == nextStageHash;
-        }).map(payment => payment.paymentHash);
-
-        if (payments.length > 0) {
-            let stageHash = '0x' + EthUtils.sha3(nextStageHeight.toString()).toString('hex');
-            const tree = new IndexMerkleTree();
-            await tree.build(nextStageHeight, paymentHashes);
-            const rootHash = '0x' + tree.rootHash;
-
-            let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
-            let IFCContractAddress = env.IFCContractAddress;
-            let IFCABI = JSON.parse(fs.readFileSync('./build/contracts/IFC.json')).abi;
-            let IFCContractClass = web3.eth.contract(IFCABI);
-            let IFCContract = IFCContractClass.at(IFCContractAddress);
-
-            web3.personal.unlockAccount(env.account, env.password);
-
-            // watch event and clearPendingPayments
-            let event = IFCContract.AddNewStage({fromBlock: 0, toBlock: 'latest'});
-            event.watch(async (error, result) => {
-                if (error) {
-                    throw new Error(error.message);
-                }
-                console.log(result);
-                let onChainStageHash = result.args._stageHash;
-                if (onChainStageHash.length > 2 && onChainStageHash.substr(0, 2) == '0x') {
-                    onChainStageHash = onChainStageHash.substr(2);
-                }
-                // if DB update fail, the node need to check the highest stage in contract
-                // and clear relative pending payment again.
-                db.clearPendingPayments(onChainStageHash);
-            });
-
-            let paymentHash = IFCContract.addNewStage(stageHash, rootHash, {from: account, to:IFCContract.address, gas: 4700000});
-
-            console.log('stage height: ' + nextStageHeight);
-            console.log('stage hash: ' + stageHash);
-            console.log('Root Hash: ' + rootHash);
-            console.log('Add stage payment hash: ' + paymentHash);
-
-            res.send({ ok: true });
-        } else {
-            res.send({ok: false});
-        }
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
-
-// Content Provider API
-app.get('/stage', async function (req, res) {
-    try {
-        let query = req.query;
-        let stageHeight = query.stage_height;
-        let paymentCiphers = await db.getStage(stageHeight);
-        if (paymentCiphers.length > 0) {
-            let height = parseInt(Math.log2(paymentCiphers.length)) + 1;
-            let tree = new MerkleTree(height);
-            tree.setStageHeight(stageHeight);
-
-            paymentCiphers.forEach((payment) => {
-                tree.putPaymentInTree(payment);
-            });
-
-            res.send(tree.export());
-        } else {
-            res.send({
-                nodes: [],
-                time: null,
-                stageHeight: null,
-                height: null
-            });
-        }
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
-
 app.get('/pending/payments', async function (req, res) {
     try {
         let pendingPayments = await Sidechain.pendingPayments();
@@ -460,13 +339,6 @@ app.get('/pending/payments', async function (req, res) {
         res.status(500).send({errors: e.message});
     }
 });
-
-let saveKeys = async function () {
-    let publicUser = await RSA.readPublic('./indexMerkleTree/keypair/userPublicKey.json');
-    let publicCp = await RSA.readPublic('./indexMerkleTree/keypair/cpPublicKey.json');
-    let response = await db.insertPublicKeys(publicUser, publicCp);
-    return response;
-};
 
 server.listen(3000, async function () {
     try {
