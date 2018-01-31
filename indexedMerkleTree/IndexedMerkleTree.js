@@ -1,7 +1,7 @@
 const EthUtils = require('ethereumjs-util');
 let db = require('../db');
 
-class IndexMerkleTree {
+class IndexedMerkleTree {
     constructor () {
         this.emptyNodeHash = this._sha3('none');
         this.rootHash = '';
@@ -138,4 +138,4 @@ class IndexMerkleTree {
     }
 }
 
-module.exports = IndexMerkleTree;
+module.exports = IndexedMerkleTree;

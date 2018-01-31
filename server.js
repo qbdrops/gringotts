@@ -5,7 +5,7 @@ let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
 let RSA = require('./crypto/RSAencrypt.js');
 let db = require('./db');
-let IndexMerkleTree = require('./indexMerkleTree/IndexMerkleTree');
+let IndexedMerkleTree = require('./indexedMerkleTree/IndexedMerkleTree');
 let faker = require('faker');
 let Sidechain = require('./utils/SideChain');
 let Web3 = require('web3');
@@ -153,7 +153,7 @@ app.get('/slice', async function (req, res) {
         let stageHeight = query.stage_height;
         let paymentHash = query.payment_hash;
 
-        let tree = new IndexMerkleTree();
+        let tree = new IndexedMerkleTree();
         let slice = await tree.getSlice(stageHeight, paymentHash);
         let payment = await db.getPayment(paymentHash);
         var treeNodeIndex;
@@ -217,7 +217,7 @@ app.get('/roothash', async function (req, res) {
         }).map(payment => payment.paymentHash);
 
         if (payments.length > 0) {
-            let tree = new IndexMerkleTree();
+            let tree = new IndexedMerkleTree();
             await tree.build(nextStageHeight, paymentHashes);
             let rootHash = '0x' + tree.rootHash;
 
