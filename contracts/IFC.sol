@@ -11,7 +11,7 @@ contract IFC {
     bytes32[] public stages;
     uint compensation;
 
-    event AddNewStage(bytes32 indexed _stageHash, address _stageAddress);
+    event AddNewStage(bytes32 indexed _stageHash, address _stageAddress, bytes32 _rootHash);
     event TakeObjection(bytes32 indexed _stageHash, bytes32 _paymentHash);
     event Exonerate(bytes32 indexed _stageHash, bytes32 _paymentHash);
     event Finalize(bytes32 indexed _stageHash);
@@ -39,7 +39,7 @@ contract IFC {
         stageAddress[_stageHash] = newStage;
         stages.push(_stageHash);
         stageHeight += 1;
-        AddNewStage(_stageHash, newStage);
+        AddNewStage(_stageHash, newStage, _rootHash);
     }
 
     function getStageAddress(bytes32 _stageHash) constant returns (address) {
