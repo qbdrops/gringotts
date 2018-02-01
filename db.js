@@ -45,8 +45,10 @@ let DB = function () {
     this.lastestStageHeight = async () => {
         try {
             let collection = await this.db.collection('payments');
-            let result = await collection.find().sort({stageHeight: -1}).limit(1).next();
-            return result.stageHeight;
+            let result = await collection.find({ onChain: true }).sort({stageHeight: -1}).limit(1).next();
+            let stageHeight = 0;
+            if (result) { stageHeight = result.stageHeight; }
+            return stageHeight;
         } catch (e) {
             console.error(e);
         }
