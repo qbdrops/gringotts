@@ -1,7 +1,7 @@
 {
   "name": "infinitechain_node",
-  "version": "0.0.3",
-  "description": "",
+  "version": "0.0.4",
+  "description": "Infinitechain Node",
   "main": "index.js",
   "scripts": {
     "test": "truffle test",
@@ -9,7 +9,7 @@
     "start": "node server.js",
     "key": "node info.js"
   },
-  "author": "",
+  "author": "ifc-dev <dev@infinitechain.io>",
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.18.2",
