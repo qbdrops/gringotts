@@ -8,9 +8,10 @@ contract Stage {
     bytes32 public rootHash;
     address public lib; // IFC Lib
     bool public completed;
-    string public version = "1.0.0";
+    string public version = "1.0.1";
     uint public objectionTime;
     uint public finalizedTime;
+    string public data;
 
     mapping (bytes32 => ObjectionInfo) public objections;
     bytes32[] public objectionablePaymentHashes;
@@ -31,7 +32,8 @@ contract Stage {
         bytes32 _rootHash,
         address _lib,
         uint _objectionTimePeriod,
-        uint _finalizedTimePeriod)
+        uint _finalizedTimePeriod,
+        string _data)
     {
         owner = msg.sender;
         stageHash = _stageHash;
@@ -44,6 +46,7 @@ contract Stage {
         }
         objectionTime = now + _objectionTimePeriod;
         finalizedTime = objectionTime + _finalizedTimePeriod;
+        data = _data;
     }
 
     function addObjectionablePaymentHash(bytes32 _paymentHash, address _customer) onlyOwner {

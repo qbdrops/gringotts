@@ -21,21 +21,29 @@ contract IFC {
         _;
     }
 
-    function IFC() payable {
+    function IFC(uint _compensation) payable {
         owner = msg.sender;
         lib = new SidechainLibrary();
         // initial stage
-        address newStage = new Stage(0x0, 0x0, 0x0, 0, 0);
+        address newStage = new Stage(0x0, 0x0, 0x0, 0, 0, 'initial block');
         stageAddress[0x0] = newStage;
         stages.push(0x0);
-        compensation = 100;
+        compensation = _compensation;
     }
 
     function() payable {}
 
-    function addNewStage(bytes32 _stageHash, bytes32 _rootHash) onlyOwner {
+    function addNewStage(
+        bytes32 _stageHash,
+        bytes32 _rootHash,
+        uint _objectionTimePeriod,
+        uint _finalizedTimePeriod,
+        string _data
+    ) 
+        onlyOwner 
+    {
         require(Stage(stageAddress[stages[stages.length - 1]]).completed());
-        address newStage = new Stage(_stageHash, _rootHash, lib, 300, 0);
+        address newStage = new Stage(_stageHash, _rootHash, lib, _objectionTimePeriod, _finalizedTimePeriod, _data);
         stageAddress[_stageHash] = newStage;
         stages.push(_stageHash);
         stageHeight += 1;
