@@ -10,6 +10,7 @@ contract IFC {
     mapping (bytes32 => address) public stageAddress;
     bytes32[] public stages;
     uint compensation;
+    string public version = "1.0.1";
 
     event AddNewStage(bytes32 indexed _stageHash, address _stageAddress, bytes32 _rootHash);
     event TakeObjection(bytes32 indexed _stageHash, bytes32 _paymentHash);
