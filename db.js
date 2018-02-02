@@ -99,6 +99,17 @@ let DB = function () {
         }
     };
 
+    this.getPaymentsFromStageHash = async (stageHash) => {
+        try {
+            let _payments = await this.db.collection('payments');
+            let payments = await _payments.find({ stageHash: stageHash }).toArray();
+            payments = payments.map(payment => payment.paymentHash);
+            return payments;
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     this.getPaymentSize = async (stageHeight) => {
         try {
             let _payments = await this.db.collection('payments');

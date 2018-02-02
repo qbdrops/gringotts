@@ -317,6 +317,17 @@ app.get('/pending/stages', async function (req, res) {
     }
 });
 
+app.get('/stage/:stageHash', async function (req, res) {
+    let stageHash = req.params.stageHash;
+    try {
+        let payments = await db.getPaymentsFromStageHash(stageHash);
+        res.send(payments);
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({ errors: e.message });
+    }
+});
+
 app.get('/finalized/time', async function (req, res) {
     try {
         let finalizedTime = await Sidechain.getFinalizedTime();
