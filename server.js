@@ -22,6 +22,7 @@ var io = require('socket.io')(server);
 const privatekey = env.privateKey;
 const publickey = '0x' + EthUtils.privateToPublic('0x' + privatekey).toString('hex');
 const account = '0x' + EthUtils.pubToAddress(publickey).toString('hex');
+let building = false;
 
 io.on('connection', async function (socket) {
     console.log('connected');
@@ -50,6 +51,9 @@ event.watch(async (error, result) => {
     // if DB update fail, the node need to check the highest stage in contract
     // and clear relative pending payment again.
     db.clearPendingPayments(onChainStageHash);
+
+    // Set building status
+    building = false;
 });
 
 async function fakeRecords(paymentSize) {
@@ -171,34 +175,39 @@ app.get('/slice', async function (req, res) {
 
 app.post('/send/payments', async function (req, res) {
     try {
-        let payments = req.body.payments;
-        if (payments.length > 0) {
-            // validate signatures of payments
-            let validPayments = payments.filter((payment) => {
-                let message = payment.stageHash + payment.paymentHash;
-                let msgHash = EthUtils.sha3(message);
-                let prefix = new Buffer('\x19Ethereum Signed Message:\n');
-                let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
-
-                let publicKey = EthUtils.ecrecover(ethMsgHash, payment.v, payment.r, payment.s);
-                let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
-
-                return account == address;
-            });
-
-            let paymentCiphers = validPayments.map((paymentCipher) => {
-                paymentCipher.onChain = false;
-                return paymentCipher;
-            });
-
-            if (paymentCiphers.length > 0) {
-                db.savePayments(paymentCiphers);
-                res.send({ ok: true });
-            } else {
-                res.send({ ok: false });
-            }
+        console.log(building);
+        if (building) {
+            res.send({ ok: false, message: 'Tree is currently building.' });
         } else {
-            res.send({ ok: false });
+            let payments = req.body.payments;
+            if (payments.length > 0) {
+                // validate signatures of payments
+                let validPayments = payments.filter((payment) => {
+                    let message = payment.stageHash + payment.paymentHash;
+                    let msgHash = EthUtils.sha3(message);
+                    let prefix = new Buffer('\x19Ethereum Signed Message:\n');
+                    let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+
+                    let publicKey = EthUtils.ecrecover(ethMsgHash, payment.v, payment.r, payment.s);
+                    let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
+
+                    return account == address;
+                });
+
+                let paymentCiphers = validPayments.map((paymentCipher) => {
+                    paymentCipher.onChain = false;
+                    return paymentCipher;
+                });
+
+                if (paymentCiphers.length > 0) {
+                    db.savePayments(paymentCiphers);
+                    res.send({ ok: true });
+                } else {
+                    res.send({ ok: false, message: 'Payments are all invalid.' });
+                }
+            } else {
+                res.send({ ok: false, message: 'Payments are empty.' });
+            }
         }
     } catch (e) {
         console.log(e);
@@ -208,6 +217,7 @@ app.post('/send/payments', async function (req, res) {
 
 app.get('/roothash', async function (req, res) {
     try {
+        building = true;
         let stageHeight = await Sidechain.getContractStageHeight();
         let nextStageHeight = parseInt(stageHeight) + 1;
         let nextStageHash = EthUtils.sha3(nextStageHeight.toString()).toString('hex');
@@ -220,7 +230,6 @@ app.get('/roothash', async function (req, res) {
             let tree = new IndexedMerkleTree();
             await tree.build(nextStageHeight, paymentHashes);
             let rootHash = '0x' + tree.rootHash;
-
             res.send({ rootHash: rootHash, stageHeight: nextStageHeight });
         } else {
             res.send({ ok: false });

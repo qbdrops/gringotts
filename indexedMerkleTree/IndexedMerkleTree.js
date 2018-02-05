@@ -8,67 +8,71 @@ class IndexedMerkleTree {
     }
 
     async build (stageHeight, leafElements) {
-        let treeHeight = this._computeTreeHeight(leafElements.length);
+        try {
+            let treeHeight = this._computeTreeHeight(leafElements.length);
 
-        // 1. Compute treeNodeIndex for each paymentHash and group them by treeNodeIndex
-        let leafElementMap = leafElements.map(e => {
-            let index = this._computeLeafIndex(treeHeight, e);
-            db.updatePaymentNodeIndex(e, index);
-            return { treeNodeIndex: index.toString(), leafElement: e };
-        }).reduce((acc, curr) => {
-            let index = curr.treeNodeIndex;
-            if (acc[index] == undefined) {
-                acc[index] = [curr.leafElement];
-            } else {
-                acc[index].push(curr.leafElement);
+            // 1. Compute treeNodeIndex for each paymentHash and group them by treeNodeIndex
+            let leafElementMap = leafElements.map(e => {
+                let index = this._computeLeafIndex(treeHeight, e);
+                db.updatePaymentNodeIndex(e, index);
+                return { treeNodeIndex: index.toString(), leafElement: e };
+            }).reduce((acc, curr) => {
+                let index = curr.treeNodeIndex;
+                if (acc[index] == undefined) {
+                    acc[index] = [curr.leafElement];
+                } else {
+                    acc[index].push(curr.leafElement);
+                }
+                return acc;
+            }, {});
+
+            // 2. Compute treeNodeHash for each treeNodeIndex
+            Object.keys(leafElementMap).forEach(index => {
+                let _concatedElements = leafElementMap[index].sort().reduce((acc, curr) => {
+                    return acc.concat(curr);
+                }, '');
+                let treeNodeHash = this._sha3(_concatedElements);
+                leafElementMap[index] = treeNodeHash;
+            });
+
+            // 3. Make an array of treeNodes
+            let nodeQueue = this._getLeafIndexRange(treeHeight).map(index => {
+                var treeNodeHash = '';
+                if (leafElementMap[index] == undefined) {
+                    treeNodeHash = this.emptyNodeHash;
+                } else {
+                    treeNodeHash = leafElementMap[index];
+                }
+
+                return {
+                    treeNodeIndex: index,
+                    treeNodeHash: treeNodeHash
+                };
+            });
+
+            // 4. Compute rootHash
+            while (nodeQueue.length > 1) {
+                let node = nodeQueue.shift();
+                db.saveTreeNode(node, stageHeight);
+
+                if (node.treeNodeIndex % 2 == 0) {
+                    nodeQueue.push(node);
+                } else {
+                    let leftNode = nodeQueue.pop();
+                    let parentNodeHash = this._sha3(leftNode.treeNodeHash.concat(node.treeNodeHash));
+                    let parentNodeIndex = parseInt(leftNode.treeNodeIndex / 2);
+                    nodeQueue.push({ treeNodeIndex: parentNodeIndex, treeNodeHash: parentNodeHash});
+                }
             }
-            return acc;
-        }, {});
 
-        // 2. Compute treeNodeHash for each treeNodeIndex
-        Object.keys(leafElementMap).forEach(index => {
-            let _concatedElements = leafElementMap[index].sort().reduce((acc, curr) => {
-                return acc.concat(curr);
-            }, '');
-            let treeNodeHash = this._sha3(_concatedElements);
-            leafElementMap[index] = treeNodeHash;
-        });
+            // 5. Save rootNode to DB
+            db.saveTreeNode(nodeQueue[0], stageHeight);
+            this.rootHash = nodeQueue[0].treeNodeHash;
 
-        // 3. Make an array of treeNodes
-        let nodeQueue = this._getLeafIndexRange(treeHeight).map(index => {
-            var treeNodeHash = '';
-            if (leafElementMap[index] == undefined) {
-                treeNodeHash = this.emptyNodeHash;
-            } else {
-                treeNodeHash = leafElementMap[index];
-            }
-
-            return {
-                treeNodeIndex: index,
-                treeNodeHash: treeNodeHash
-            };
-        });
-
-        // 4. Compute rootHash
-        while (nodeQueue.length > 1) {
-            let node = nodeQueue.shift();
-            db.saveTreeNode(node, stageHeight);
-
-            if (node.treeNodeIndex % 2 == 0) {
-                nodeQueue.push(node);
-            } else {
-                let leftNode = nodeQueue.pop();
-                let parentNodeHash = this._sha3(leftNode.treeNodeHash.concat(node.treeNodeHash));
-                let parentNodeIndex = parseInt(leftNode.treeNodeIndex / 2);
-                nodeQueue.push({ treeNodeIndex: parentNodeIndex, treeNodeHash: parentNodeHash});
-            }
+            return this.rootHash;
+        } catch (e) {
+            console.log(e);
         }
-
-        // 5. Save rootNode to DB
-        db.saveTreeNode(nodeQueue[0], stageHeight);
-
-        this.rootHash = nodeQueue[0].treeNodeHash;
-        return this.rootHash;
     }
 
     async getSlice (stageHeight, leafElement) {
