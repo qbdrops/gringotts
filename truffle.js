@@ -16,6 +16,12 @@ module.exports = {
             port: env.web3Port,
             network_id: '*',
             from: account
+        },
+        staging: {
+            host: 'dev.infinitechain.io',
+            port: '8545',
+            network_id: '*',
+            from: '0x50afb1b4c52c64daed49ab8c3aa82b0609b75db0'
         }
     }
 }
