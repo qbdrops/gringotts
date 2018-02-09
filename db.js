@@ -66,7 +66,6 @@ let DB = function () {
 
     this.savePayments = async (payments) => {
         try {
-            console.log(payments);
             let _payments = await this.db.collection('payments');
             let result = await _payments.insertMany(payments);
             return result;

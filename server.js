@@ -9,7 +9,6 @@ let IndexedMerkleTree = require('./indexedMerkleTree/IndexedMerkleTree');
 let faker = require('faker');
 let Sidechain = require('./utils/SideChain');
 let Web3 = require('web3');
-let fs = require('fs');
 
 let app = express();
 app.use(bodyParser.json());
@@ -22,7 +21,9 @@ var io = require('socket.io')(server);
 const privatekey = env.privateKey;
 const publickey = '0x' + EthUtils.privateToPublic('0x' + privatekey).toString('hex');
 const account = '0x' + EthUtils.pubToAddress(publickey).toString('hex');
+
 let building = false;
+let addNewStageTxs = [];
 
 io.on('connection', async function (socket) {
     console.log('connected');
@@ -31,29 +32,33 @@ io.on('connection', async function (socket) {
     });
 });
 
-// Watch AddNewStage event
 let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
-let IFCContractAddress = env.IFCContractAddress;
-let IFCABI = JSON.parse(fs.readFileSync('./build/contracts/IFC.json')).abi;
-let IFCContractClass = web3.eth.contract(IFCABI);
-let IFCContract = IFCContractClass.at(IFCContractAddress);
 
-let event = IFCContract.AddNewStage({ fromBlock: 0, toBlock: 'latest' });
-event.watch(async (error, result) => {
-    if (error) {
-        throw new Error(error.message);
-    }
-    console.log(result);
-    let onChainStageHash = result.args._stageHash;
-    if (onChainStageHash.length > 2 && onChainStageHash.substr(0, 2) == '0x') {
-        onChainStageHash = onChainStageHash.substr(2);
-    }
-    // if DB update fail, the node need to check the highest stage in contract
-    // and clear relative pending payment again.
-    db.clearPendingPayments(onChainStageHash);
+// Watch latest block
+web3.eth.filter('latest').watch((err, blockHash) => {
+    if (err) {
+        console.log(err);
+    } else {
+        let block = web3.eth.getBlock(blockHash);
+        let txHashes = block.transactions;
+        txHashes.forEach(txHash => {
+            // Check if the addNewStageTx is included
+            if (addNewStageTxs.includes(txHash)) {
+                let receipt = web3.eth.getTransactionReceipt(txHash);
+                let status = parseInt(receipt.status);
 
-    // Set building status
-    building = false;
+                if (status) {
+                    let stageHash = receipt.logs[0].topics[1].substring(2);
+                    console.log('status: ' + status);
+                    console.log('stageHash: ' + stageHash);
+
+                    // Clear pending pool
+                    db.clearPendingPayments(stageHash);
+                }
+                building = false;
+            }
+        });
+    }
 });
 
 async function fakeRecords(paymentSize) {
@@ -175,11 +180,11 @@ app.get('/slice', async function (req, res) {
 
 app.post('/send/payments', async function (req, res) {
     try {
-        console.log(building);
         if (building) {
             res.send({ ok: false, message: 'Tree is currently building.' });
         } else {
             let payments = req.body.payments;
+            console.log('Received payments: ' + payments.map(p => p.paymentHash));
             if (payments.length > 0) {
                 // validate signatures of payments
                 let validPayments = payments.filter((payment) => {
@@ -236,7 +241,21 @@ app.get('/roothash', async function (req, res) {
         }
     } catch (e) {
         console.log(e);
-        res.status(500).send({errors: e.message});
+        res.status(500).send({ ok: false, errors: e.message });
+    }
+});
+
+app.post('/commit/payments', async function (req, res) {
+    try {
+        let serializedTx = req.body.serializedTx;
+        let txHash = web3.eth.sendRawTransaction(serializedTx);
+        console.log('Committed txHash: ' + txHash);
+        // Add txHash to addNewStageTxs pool
+        addNewStageTxs.push(txHash);
+        res.send({ ok: true, txHash: txHash });
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({ ok: false, errors: e.message });
     }
 });
 
