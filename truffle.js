@@ -18,7 +18,7 @@ module.exports = {
             from: account
         },
         staging: {
-            host: 'dev.infinitechain.io',
+            host: '54.254.162.50',
             port: '8545',
             network_id: '*',
             from: '0x50afb1b4c52c64daed49ab8c3aa82b0609b75db0'
