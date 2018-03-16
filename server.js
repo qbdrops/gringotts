@@ -180,10 +180,14 @@ app.get('/slice', async function (req, res) {
 
 app.post('/send/payments', async function (req, res) {
     try {
-        if (building) {
-            res.send({ ok: false, message: 'Tree is currently building.' });
+        let payments = req.body.payments;
+        let paymentHeights = payments.map(payment => payment.stageHeight);
+        let stageHeight = await Sidechain.getContractStageHeight();
+        let buildingStageHeight = parseInt(stageHeight) + 1;
+        let shouldReject = paymentHeights.some(height => height <= buildingStageHeight);
+        if (building && shouldReject) {
+            res.send({ ok: false, message: 'Tree is currently building.', code: 1 });
         } else {
-            let payments = req.body.payments;
             console.log('Received payments: ' + payments.map(p => p.paymentHash));
             if (payments.length > 0) {
                 // validate signatures of payments
