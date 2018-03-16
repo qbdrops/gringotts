@@ -22,7 +22,7 @@ contract IFCFlexible {
         _;
     }
 
-    function IFC(uint _compensation) payable {
+    function IFCFlexible(uint _compensation) payable {
         owner = msg.sender;
         lib = new SidechainLibrary();
         // initial stage
