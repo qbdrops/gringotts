@@ -226,22 +226,26 @@ app.post('/send/payments', async function (req, res) {
 
 app.get('/roothash', async function (req, res) {
     try {
-        building = true;
-        let stageHeight = await Sidechain.getContractStageHeight();
-        let nextStageHeight = parseInt(stageHeight) + 1;
-        let nextStageHash = EthUtils.sha3(nextStageHeight.toString()).toString('hex');
-        let payments = await Sidechain.pendingPayments();
-        let paymentHashes = payments.filter(payment => {
-            return payment.stageHash == nextStageHash;
-        }).map(payment => payment.paymentHash);
-
-        if (payments.length > 0) {
-            let tree = new IndexedMerkleTree();
-            await tree.build(nextStageHeight, paymentHashes);
-            let rootHash = '0x' + tree.rootHash;
-            res.send({ rootHash: rootHash, stageHeight: nextStageHeight });
+        if (!building) {
+            let stageHeight = await Sidechain.getContractStageHeight();
+            let nextStageHeight = parseInt(stageHeight) + 1;
+            let nextStageHash = EthUtils.sha3(nextStageHeight.toString()).toString('hex');
+            let payments = await Sidechain.pendingPayments();
+            let paymentHashes = payments.filter(payment => {
+                return payment.stageHash == nextStageHash;
+            }).map(payment => payment.paymentHash);
+            if (payments.length > 0) {
+                building = true;
+                let tree = new IndexedMerkleTree();
+                await tree.build(nextStageHeight, paymentHashes);
+                let rootHash = '0x' + tree.rootHash;
+                res.send({ ok: true, rootHash: rootHash, stageHeight: nextStageHeight });
+            } else {
+                building = false;
+                res.send({ ok: false, message: 'Payments are empty.' });
+            }
         } else {
-            res.send({ ok: false });
+            res.send({ ok: false, message: 'Tree is currently building.' });
         }
     } catch (e) {
         console.log(e);

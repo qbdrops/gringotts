@@ -25,7 +25,7 @@ let DB = function () {
     this.pendingPayments = async () => {
         try {
             let collection = await this.db.collection('payments');
-            let payments = await collection.find({onChain: false}).toArray();
+            let payments = await collection.find({ onChain: false }).toArray();
             return payments;
         } catch (e) {
             console.error(e);
