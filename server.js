@@ -3,10 +3,8 @@ let express = require('express');
 let bodyParser = require('body-parser');
 let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
-let RSA = require('./crypto/RSAencrypt.js');
 let db = require('./db');
 let IndexedMerkleTree = require('./indexedMerkleTree/IndexedMerkleTree');
-let faker = require('faker');
 let Sidechain = require('./utils/SideChain');
 let Web3 = require('web3');
 
@@ -58,101 +56,6 @@ web3.eth.filter('latest').watch((err, blockHash) => {
                 building = false;
             }
         });
-    }
-});
-
-async function fakeRecords(paymentSize) {
-    try {
-        let stageHeight = await Sidechain.getContractStageHeight();
-        let nextStageHeight = parseInt(stageHeight) + 1;
-        let payments = [];
-
-        let keys = await db.getPublicKeys();
-        let userAddress = await db.getUserAddress();
-        let userPublicKey = keys.userPublicKey.publickey;
-        let cpsPublicKey = keys.cpsPublicKey.publickey;
-        let userPayments = [];
-        for (let i = 0; i < paymentSize; i++) {
-            let fromPrivateKey = EthUtils.sha3(faker.company.companyName()).toString('hex');
-            let fromPublickey = '0x' + EthUtils.privateToPublic('0x' + fromPrivateKey).toString('hex');
-            let fromAccount = '0x' + EthUtils.pubToAddress(fromPublickey).toString('hex');
-
-            let toPrivateKey = EthUtils.sha3(faker.company.companyName()).toString('hex');
-            let toPublickey = '0x' + EthUtils.privateToPublic('0x' + toPrivateKey).toString('hex');
-            let toAccount = '0x' + EthUtils.pubToAddress(toPublickey).toString('hex');
-
-            let rawPayment = {
-                'from': fromAccount,
-                'to': toAccount,
-                'value': faker.commerce.price(),
-                'stageHeight': nextStageHeight,
-                'localSequenceNumber': 0,
-                'data': {
-                    pkUser: userPublicKey,
-                    pkStakeholder: cpsPublicKey
-                }
-            };
-
-            if (i == (paymentSize - 1) ||
-                i == (paymentSize - 2) ||
-                i == (paymentSize - 3)) {
-                rawPayment = {
-                    'from': userAddress,
-                    'to': toAccount,
-                    'value': faker.commerce.price(),
-                    'stageHeight': nextStageHeight
-                };
-            }
-
-            rawPayment = Buffer.from(JSON.stringify(rawPayment)).toString('hex');
-            let cipherUser = await RSA.encrypt(rawPayment, userPublicKey);
-            let cipherCP = await RSA.encrypt(rawPayment, cpsPublicKey);
-            let paymentHash = EthUtils.sha3(cipherUser + cipherCP).toString('hex');
-            let stageHash = EthUtils.sha3(nextStageHeight.toString()).toString('hex');
-
-            let msg = stageHash + paymentHash;
-            let msgHash = EthUtils.sha3(msg);
-            let prefix = new Buffer('\x19Ethereum Signed Message:\n');
-            let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
-
-            let signature = EthUtils.ecsign(ethMsgHash, Buffer.from(privatekey, 'hex'));
-
-            let payment = {
-                stageHeight: nextStageHeight,
-                stageHash: stageHash,
-                paymentHash: paymentHash,
-                cipherUser: cipherUser,
-                cipherCP: cipherCP,
-                v: signature.v,
-                r: '0x' + signature.r.toString('hex'),
-                s: '0x' + signature.s.toString('hex'),
-                onChain: false
-            };
-
-            if (i == (paymentSize - 1) || 
-                i == (paymentSize - 2) ||
-                i == (paymentSize - 3)) {
-                userPayments.push(payment);
-            }
-
-            payments.push(payment);
-        }
-
-        await db.savePayments(payments);
-        io.sockets.emit('payment', userPayments);
-    } catch(e) {
-        console.log(e);
-    }
-}
-
-app.post('/fake', async function (req, res) {
-    try {
-        let size = req.body.size;
-        fakeRecords(parseInt(size));
-        res.send({ok: true});
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
     }
 });
 
