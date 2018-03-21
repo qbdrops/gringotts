@@ -290,6 +290,16 @@ app.get('/pending/payments', async function (req, res) {
     }
 });
 
+app.post('/reset', async function (req, res) {
+    try {
+        building = false;
+        res.send({ ok: true });
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({ ok: false, errors: e.message });
+    }
+});
+
 server.listen(3000, async function () {
     try {
         console.log(privatekey);
