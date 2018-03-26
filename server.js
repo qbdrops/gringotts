@@ -151,7 +151,7 @@ app.get('/roothash', async function (req, res) {
                 pendingRoot = pendingRoot[0];
                 res.send({ok: true, rootHash: pendingRoot.rootHash, stageHeight: pendingRoot.stageHeight});
             } else {
-                res.send({ok: false, message: 'Target root hash not found', code: 3 });
+                res.send({ok: false, message: 'Target root hash not found.', code: 3 });
             }
         } else if (building) {
             res.send({ ok: false, message: 'Stage is currently building.', code: 1 });
