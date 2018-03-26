@@ -22,6 +22,36 @@ let DB = function () {
         }
     };
 
+    this.pendingRootHashes = async () => {
+        try {
+            let collection = await this.db.collection('pending_roothashes');
+            let pendingRootHashes = await collection.find({ onChain: false }).toArray();
+            return pendingRootHashes;
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    this.pushPendingRootHash = async (rootHash, stageHeight) => {
+        try {
+            let collection = await this.db.collection('pending_roothashes');
+            let result = await collection.save({rootHash: rootHash, stageHeight: stageHeight, onChain: false});
+            return result;
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    this.clearPendingRootHash = async (rootHash) => {
+        try {
+            let collection = await this.db.collection('pending_roothashes');
+            let result = await collection.update({ onChain: false, rootHash: rootHash }, { $set: { onChain: true } });
+            return result;
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     this.pendingPayments = async () => {
         try {
             let collection = await this.db.collection('payments');

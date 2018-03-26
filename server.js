@@ -127,9 +127,33 @@ app.post('/send/payments', async function (req, res) {
     }
 });
 
+app.get('/pending/roothashes', async function (req, res) {
+    try {
+        let pendingRootHashes = await db.pendingRootHashes();
+        res.send(pendingRootHashes);
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({ ok: false, errors: e.message });
+    }
+});
+
 app.get('/roothash', async function (req, res) {
     try {
-        if (building) {
+        let targetRootHash = req.query.rootHash;
+
+        if (targetRootHash) {
+            let pendingRootHashes = await db.pendingRootHashes();
+            let pendingRoot = pendingRootHashes.filter(root => {
+                return root.rootHash == targetRootHash;
+            });
+
+            if (pendingRoot.length >= 1) {
+                pendingRoot = pendingRoot[0];
+                res.send({ok: true, rootHash: pendingRoot.rootHash, stageHeight: pendingRoot.stageHeight});
+            } else {
+                res.send({ok: false, message: 'Target root hash not found', code: 3 });
+            }
+        } else if (building) {
             res.send({ ok: false, message: 'Stage is currently building.', code: 1 });
         } else {
             let stageHeight = await Sidechain.getContractStageHeight();
@@ -144,6 +168,8 @@ app.get('/roothash', async function (req, res) {
                 let tree = new IndexedMerkleTree();
                 await tree.build(nextStageHeight, paymentHashes);
                 let rootHash = '0x' + tree.rootHash;
+                // rootHash should be pushed into pending rootHash
+                db.pushPendingRootHash(rootHash, nextStageHeight);
                 res.send({ ok: true, rootHash: rootHash, stageHeight: nextStageHeight });
             } else {
                 building = false;
@@ -159,11 +185,17 @@ app.get('/roothash', async function (req, res) {
 app.post('/commit/payments', async function (req, res) {
     try {
         let serializedTx = req.body.serializedTx;
-        let txHash = web3.eth.sendRawTransaction(serializedTx);
-        console.log('Committed txHash: ' + txHash);
-        // Add txHash to addNewStageTxs pool
-        addNewStageTxs.push(txHash);
-        res.send({ ok: true, txHash: txHash });
+        let rootHash = req.body.rootHash;
+        if (rootHash) {
+            let txHash = web3.eth.sendRawTransaction(serializedTx);
+            console.log('Committed txHash: ' + txHash);
+            // Add txHash to addNewStageTxs pool
+            addNewStageTxs.push(txHash);
+            db.clearPendingRootHash(rootHash);
+            res.send({ ok: true, txHash: txHash });
+        } else {
+            res.send({ ok: false, errors: 'Does not provide rootHash.' });
+        }
     } catch (e) {
         console.log(e);
         res.status(500).send({ ok: false, errors: e.message });
