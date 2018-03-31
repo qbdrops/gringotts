@@ -12,11 +12,14 @@ class IndexedMerkleTree {
             let treeHeight = this._computeTreeHeight(leafElements.length);
 
             // 1. Compute treeNodeIndex for each paymentHash and group them by treeNodeIndex
-            let leafElementMap = leafElements.map(e => {
-                let index = this._computeLeafIndex(treeHeight, e);
-                db.updatePaymentNodeIndex(e, index);
-                return { treeNodeIndex: index.toString(), leafElement: e };
-            }).reduce((acc, curr) => {
+            let leafElementsWithIndex = [];
+            for (let i = 0; i < leafElements.length; i++) {
+                let el = leafElements[i];
+                let index = this._computeLeafIndex(treeHeight, el);
+                await db.updatePaymentNodeIndex(el, index);
+                leafElementsWithIndex.push({ treeNodeIndex: index.toString(), leafElement: el });
+            }
+            let leafElementMap = leafElementsWithIndex.reduce((acc, curr) => {
                 let index = curr.treeNodeIndex;
                 if (acc[index] == undefined) {
                     acc[index] = [curr.leafElement];

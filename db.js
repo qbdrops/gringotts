@@ -5,6 +5,10 @@ let MongoClient = require('mongodb').MongoClient;
 
 let url = env.mongodbUrl;
 let DB = function () {
+    this.stopReceiveStage = null,
+    this.relax = () => {
+        this.stopReceiveStage = null;
+    },
     this.getOrNewStageHeight = async () => {
         try {
             let collection = await this.db.collection('stage_height');
@@ -53,10 +57,18 @@ let DB = function () {
         }
     };
 
-    this.pendingPayments = async () => {
+    this.pendingPayments = async (stageHeight = null, lock = false) => {
         try {
             let collection = await this.db.collection('payments');
-            let payments = await collection.find({ onChain: false }).toArray();
+            let payments;
+            if (stageHeight) {
+                if (lock) {
+                    this.stopReceiveStage = stageHeight;
+                }
+                payments = await collection.find({ onChain: false, stageHeight: stageHeight }).toArray();
+            } else {
+                payments = await collection.find({ onChain: false }).toArray();
+            }
             return payments;
         } catch (e) {
             console.error(e);
@@ -115,8 +127,9 @@ let DB = function () {
                 let payment = payments[i];
                 let paymentStageHeight = parseInt(payment.stageHeight);
                 let count = await treenodesCollection.find({ stageHeight: paymentStageHeight }).count();
+                let isNotValid = (paymentStageHeight == this.stopReceiveStage);
                 let stageHasBeenBuilt = (count > 0);
-                if (stageHasBeenBuilt) {
+                if (stageHasBeenBuilt || isNotValid) {
                     return ResultTypes.STAGE_HAS_BEEN_BUILT;
                 }
             }

@@ -203,20 +203,21 @@ app.get('/roothash', async function (req, res) {
             let stageHeight = await Sidechain.getContractStageHeight();
             let nextStageHeight = parseInt(stageHeight) + 1;
             let nextStageHash = EthUtils.sha3(nextStageHeight.toString()).toString('hex');
-            let payments = await Sidechain.pendingPayments();
-            let paymentHashes = payments.filter(payment => {
-                return payment.stageHash == nextStageHash;
-            }).map(payment => payment.paymentHash);
+            building = true;
+            let payments = await db.pendingPayments(nextStageHeight, true);
+            let paymentHashes = payments.map(payment => payment.paymentHash);
             if (paymentHashes.length > 0) {
-                building = true;
                 let tree = new IndexedMerkleTree();
                 console.log('Building Stage Height:' + nextStageHeight);
                 await tree.build(nextStageHeight, paymentHashes);
                 let rootHash = '0x' + tree.rootHash;
                 // rootHash should be pushed into pending rootHash
                 await db.pushPendingRootHash(rootHash, nextStageHeight);
+                db.relax();
                 res.send({ ok: true, rootHash: rootHash, stageHeight: nextStageHeight });
             } else {
+                db.relax();
+                building = false;
                 res.send({ ok: false, message: 'Payments are empty.', code: ResultTypes.PAYMENTS_ARE_EMPTY });
             }
         }
