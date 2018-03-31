@@ -1,4 +1,5 @@
 let env = require('./env');
+let ResultTypes = require('./types/result');
 let EthUtils = require('ethereumjs-util');
 let MongoClient = require('mongodb').MongoClient;
 
@@ -95,19 +96,43 @@ let DB = function () {
     };
 
     this.savePayments = async (payments) => {
-        try {
-            let _payments = await this.db.collection('payments');
-            let result = await _payments.insertMany(payments);
-            return result;
-        } catch (e) {
-            console.error(e);
+        let treenodesCollection = await this.db.collection('treenodes');
+        let paymentsCollection = await this.db.collection('payments');
+        let containsKnownPayment = false;
+
+        for (let i = 0; i < payments.length; i++) {
+            let payment = payments[i];
+            let count = await paymentsCollection.find({ paymentHash: payment.paymentHash}).count();
+            if (count > 0) {
+                containsKnownPayment = true;
+            }
+        }
+
+        if (containsKnownPayment) {
+            return ResultTypes.CONTAINS_KNOWN_PAYMENT;
+        } else {
+            for (let i = 0 ; i < payments.length; i++) {
+                let payment = payments[i];
+                let paymentStageHeight = parseInt(payment.stageHeight);
+                let count = await treenodesCollection.find({ stageHeight: paymentStageHeight }).count();
+                let stageHasBeenBuilt = (count > 0);
+                if (stageHasBeenBuilt) {
+                    return ResultTypes.STAGE_HAS_BEEN_BUILT;
+                }
+            }
+            let result = await paymentsCollection.insertMany(payments);
+            if (result.result.ok) {
+                return ResultTypes.OK;
+            } else {
+                return ResultTypes.INSERT_FAIL;
+            }
         }
     };
 
     this.getPayment = async (paymentHash) => {
         try {
-            let _payments = await this.db.collection('payments');
-            return await _payments.findOne({ paymentHash: paymentHash });
+            let payments = await this.db.collection('payments');
+            return await payments.findOne({ paymentHash: paymentHash });
         } catch (e) {
             console.error(e);
         }

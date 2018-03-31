@@ -7,6 +7,7 @@ let db = require('./db');
 let IndexedMerkleTree = require('./indexedMerkleTree/IndexedMerkleTree');
 let Sidechain = require('./utils/SideChain');
 let Web3 = require('web3');
+let ResultTypes = require('./types/result');
 
 let app = express();
 app.use(bodyParser.json());
@@ -47,7 +48,6 @@ web3.eth.filter('latest').watch((err, blockHash) => {
 
                 if (status) {
                     let stageHash = receipt.logs[0].topics[1].substring(2);
-                    console.log('status: ' + status);
                     console.log('stageHash: ' + stageHash);
 
                     // Clear pending pool
@@ -81,49 +81,93 @@ app.get('/slice', async function (req, res) {
     }
 });
 
+function filterInvalidSig(payments) {
+    // validate signatures of payments
+    let validPayments = payments.filter((payment) => {
+        let message = payment.stageHash + payment.paymentHash;
+        let msgHash = EthUtils.sha3(message);
+        let prefix = new Buffer('\x19Ethereum Signed Message:\n');
+        let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+
+        let publicKey = EthUtils.ecrecover(ethMsgHash, payment.v, payment.r, payment.s);
+        let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
+
+        return account == address;
+    });
+
+    return validPayments;
+}
+
 app.post('/send/payments', async function (req, res) {
     try {
         let payments = req.body.payments;
+        let success = false;
+        let message = 'Something went wrong.';
+        let code = ResultTypes.SOMETHING_WENT_WRONG;
+
+        if (payments.length <= 0) {
+            message = 'Payments are empty.';
+            code = ResultTypes.PAYMENTS_ARE_EMPTY;
+        }
+
         let paymentHeights = payments.map(payment => payment.stageHeight);
         let stageHeight = await Sidechain.getContractStageHeight();
-        let buildingStageHeight = parseInt(stageHeight) + 1;
-        let shouldReject = paymentHeights.some(height => height <= buildingStageHeight);
-        if (building && shouldReject) {
-            res.send({ ok: false, message: 'Tree is currently building.', code: 1 });
+        let containsOrderPayments = paymentHeights.some(height => height <= stageHeight);
+        let containsInvalidFormatPayments = payments.some(payment => {
+            let isNotValid = false;
+            if (!payment.hasOwnProperty('stageHeight') ||
+                !payment.hasOwnProperty('stageHash') ||
+                !payment.hasOwnProperty('paymentHash') ||
+                !payment.hasOwnProperty('cipherClient') ||
+                !payment.hasOwnProperty('cipherStakeholder') ||
+                !payment.hasOwnProperty('v') ||
+                !payment.hasOwnProperty('r') ||
+                !payment.hasOwnProperty('s')) {
+                isNotValid = true;
+            }
+            return isNotValid;
+        });
+        
+        let containsInvalidPaymentHash = payments.some(payment => {
+            return payment.paymentHash !== EthUtils.sha3(payment.cipherClient + payment.cipherStakeholder).toString('hex');
+        });
+
+        if (containsOrderPayments) {
+            message = 'Contains order payment.';
+            code = ResultTypes.CONTAINS_ORDER_PAYMENT;
+        } else if (containsInvalidFormatPayments) {
+            message = 'Contains invalid format payment.';
+            code = ResultTypes.CONTAINS_INVALID_FORMAT_PAYMENT;
+        } else if (containsInvalidPaymentHash) {
+            message = 'Contains invalid payment hash.';
+            code = ResultTypes.CONTAINS_INVALID_PAYMENT_HASH;
         } else {
-            console.log('Received payments: ' + payments.map(p => p.paymentHash));
-            if (payments.length > 0) {
-                // validate signatures of payments
-                let validPayments = payments.filter((payment) => {
-                    let message = payment.stageHash + payment.paymentHash;
-                    let msgHash = EthUtils.sha3(message);
-                    let prefix = new Buffer('\x19Ethereum Signed Message:\n');
-                    let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+            let validSigPayments = filterInvalidSig(payments);
 
-                    let publicKey = EthUtils.ecrecover(ethMsgHash, payment.v, payment.r, payment.s);
-                    let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
-
-                    return account == address;
-                });
-
-                let paymentCiphers = validPayments.map((paymentCipher) => {
+            if (payments.length > validSigPayments.length) {
+                message = 'Contains wrong signature payment.';
+                code = ResultTypes.WRONG_SIGNATURE;
+            } else {
+                validSigPayments = validSigPayments.map((paymentCipher) => {
                     paymentCipher.onChain = false;
                     return paymentCipher;
                 });
 
-                if (paymentCiphers.length > 0) {
-                    db.savePayments(paymentCiphers);
-                    res.send({ ok: true });
+                let result = await db.savePayments(validSigPayments);
+                if (result == ResultTypes.OK) {
+                    success = true;
+                    message = 'Success.';
+                    code = ResultTypes.OK;
                 } else {
-                    res.send({ ok: false, message: 'Payments are all invalid.' });
+                    message = 'Fail to save payments.';
+                    code = result;
                 }
-            } else {
-                res.send({ ok: false, message: 'Payments are empty.' });
             }
         }
+        res.send({ ok: success, message: message, code: code});
     } catch (e) {
         console.log(e);
-        res.status(500).send({errors: e.message});
+        res.status(500).send({ok: false, message: e.message, errors: e.message, code: ResultTypes.SOMETHING_WENT_WRONG});
     }
 });
 
@@ -151,10 +195,10 @@ app.get('/roothash', async function (req, res) {
                 pendingRoot = pendingRoot[0];
                 res.send({ok: true, rootHash: pendingRoot.rootHash, stageHeight: pendingRoot.stageHeight});
             } else {
-                res.send({ok: false, message: 'Target root hash not found.', code: 3 });
+                res.send({ok: false, message: 'Target root hash not found.', code: ResultTypes.TARGET_ROOT_HASH_BOT_FOUND });
             }
         } else if (building) {
-            res.send({ ok: false, message: 'Stage is currently building.', code: 1 });
+            res.send({ ok: false, message: 'Stage is currently building.', code: ResultTypes.STAGE_IS_CURRENTLY_BUILDING });
         } else {
             let stageHeight = await Sidechain.getContractStageHeight();
             let nextStageHeight = parseInt(stageHeight) + 1;
@@ -166,14 +210,14 @@ app.get('/roothash', async function (req, res) {
             if (paymentHashes.length > 0) {
                 building = true;
                 let tree = new IndexedMerkleTree();
+                console.log('Building Stage Height:' + nextStageHeight);
                 await tree.build(nextStageHeight, paymentHashes);
                 let rootHash = '0x' + tree.rootHash;
                 // rootHash should be pushed into pending rootHash
-                db.pushPendingRootHash(rootHash, nextStageHeight);
+                await db.pushPendingRootHash(rootHash, nextStageHeight);
                 res.send({ ok: true, rootHash: rootHash, stageHeight: nextStageHeight });
             } else {
-                building = false;
-                res.send({ ok: false, message: 'Payments are empty.', code: 2 });
+                res.send({ ok: false, message: 'Payments are empty.', code: ResultTypes.PAYMENTS_ARE_EMPTY });
             }
         }
     } catch (e) {
