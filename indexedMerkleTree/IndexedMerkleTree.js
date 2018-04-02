@@ -56,7 +56,7 @@ class IndexedMerkleTree {
             // 4. Compute rootHash
             while (nodeQueue.length > 1) {
                 let node = nodeQueue.shift();
-                db.saveTreeNode(node, stageHeight);
+                await db.saveTreeNode(node, stageHeight);
 
                 if (node.treeNodeIndex % 2 == 0) {
                     nodeQueue.push(node);
@@ -69,7 +69,7 @@ class IndexedMerkleTree {
             }
 
             // 5. Save rootNode to DB
-            db.saveTreeNode(nodeQueue[0], stageHeight);
+            await db.saveTreeNode(nodeQueue[0], stageHeight);
             this.rootHash = nodeQueue[0].treeNodeHash;
 
             return this.rootHash;

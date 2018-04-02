@@ -40,7 +40,7 @@ web3.eth.filter('latest').watch((err, blockHash) => {
     } else {
         let block = web3.eth.getBlock(blockHash);
         let txHashes = block.transactions;
-        txHashes.forEach(txHash => {
+        txHashes.forEach(async (txHash) => {
             // Check if the addNewStageTx is included
             if (addNewStageTxs.includes(txHash)) {
                 let receipt = web3.eth.getTransactionReceipt(txHash);
@@ -51,7 +51,7 @@ web3.eth.filter('latest').watch((err, blockHash) => {
                     console.log('stageHash: ' + stageHash);
 
                     // Clear pending pool
-                    db.clearPendingPayments(stageHash);
+                    await db.clearPendingPayments(stageHash);
                 }
                 building = false;
             }
@@ -235,7 +235,7 @@ app.post('/commit/payments', async function (req, res) {
             console.log('Committed txHash: ' + txHash);
             // Add txHash to addNewStageTxs pool
             addNewStageTxs.push(txHash);
-            db.clearPendingRootHash(rootHash);
+            await db.clearPendingRootHash(rootHash);
             res.send({ ok: true, txHash: txHash });
         } else {
             res.send({ ok: false, errors: 'Does not provide rootHash.' });
