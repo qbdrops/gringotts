@@ -226,23 +226,26 @@ app.get('/roothash', async function (req, res) {
 });
 
 app.post('/commit/payments', async function (req, res) {
-    try {
-        let serializedTx = req.body.serializedTx;
-        let rootHash = req.body.rootHash;
+    try{
         if (rootHash) {
+            try {
             let txHash = web3.eth.sendRawTransaction(serializedTx);
-            console.log('Committed txHash: ' + txHash);
-            // Add txHash to addNewStageTxs pool
-            addNewStageTxs.push(txHash);
+                console.log('Committed txHash: ' + txHash);
+                // Add txHash to addNewStageTxs pool
+                addNewStageTxs.push(txHash);
+            } catch (e) {
+                building = false;
+                console.log(e);
+                res.status(500).send({ ok: false, errors: e.message });
+            }
             await db.clearPendingRootHash(rootHash);
             res.send({ ok: true, txHash: txHash });
         } else {
             res.send({ ok: false, errors: 'Does not provide rootHash.' });
         }
     } catch (e) {
-        building = false;
         console.log(e);
-        res.status(500).send({ ok: false, errors: e.message });
+        res.send({ ok: false, errors: e.message });
     }
 });
 
