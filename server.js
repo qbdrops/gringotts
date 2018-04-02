@@ -202,7 +202,6 @@ app.get('/roothash', async function (req, res) {
         } else {
             let stageHeight = await Sidechain.getContractStageHeight();
             let nextStageHeight = parseInt(stageHeight) + 1;
-            let nextStageHash = EthUtils.sha3(nextStageHeight.toString()).toString('hex');
             building = true;
             let payments = await db.pendingPayments(nextStageHeight, true);
             let paymentHashes = payments.map(payment => payment.paymentHash);

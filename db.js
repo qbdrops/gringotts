@@ -168,8 +168,8 @@ let DB = function () {
 
     this.getPaymentsFromStageHash = async (stageHash) => {
         try {
-            let _payments = await this.db.collection('payments');
-            let payments = await _payments.find({ stageHash: stageHash }).toArray();
+            let collection = await this.db.collection('payments');
+            let payments = await collection.find({ stageHash: stageHash }).toArray();
             payments = payments.map(payment => payment.paymentHash);
             return payments;
         } catch (e) {
@@ -179,8 +179,8 @@ let DB = function () {
 
     this.getPaymentSize = async (stageHeight) => {
         try {
-            let _payments = await this.db.collection('payments');
-            return await _payments.count({ stageHeight: stageHeight });
+            let payments = await this.db.collection('payments');
+            return await payments.count({ stageHeight: stageHeight });
         } catch (e) {
             console.error(e);
         }
@@ -188,8 +188,8 @@ let DB = function () {
 
     this.getPaymentByIndex = async (stageHeight, treeNodeIndex) => {
         try {
-            let _payments = await this.db.collection('payments');
-            return await _payments.find({ stageHeight: stageHeight, treeNodeIndex: treeNodeIndex }).toArray();
+            let payments = await this.db.collection('payments');
+            return await payments.find({ stageHeight: stageHeight, treeNodeIndex: treeNodeIndex }).toArray();
         } catch (e) {
             console.error(e);
         }
@@ -197,8 +197,8 @@ let DB = function () {
 
     this.updatePaymentNodeIndex = async (paymentHash, treeNodeIndex) => {
         try {
-            let _payments = await this.db.collection('payments');
-            _payments.update({ paymentHash: paymentHash }, { $set: { treeNodeIndex: treeNodeIndex } });
+            let payments = await this.db.collection('payments');
+            await payments.update({ paymentHash: paymentHash }, { $set: { treeNodeIndex: treeNodeIndex } });
         } catch (e) {
             console.error(e);
         }
@@ -206,9 +206,9 @@ let DB = function () {
 
     this.saveTreeNode = async (treeNode, stageHeight) => {
         try {
-            let _treeNodes = await this.db.collection('treenodes');
+            let collection = await this.db.collection('treenodes');
             treeNode.stageHeight = stageHeight;
-            let result = await _treeNodes.update({ stageHeight: stageHeight, treeNodeIndex: treeNode.treeNodeIndex }, treeNode, { upsert: true });
+            let result = await collection.update({ stageHeight: stageHeight, treeNodeIndex: treeNode.treeNodeIndex }, treeNode, { upsert: true });
             return result;
         } catch (e) {
             console.error(e);
@@ -217,8 +217,8 @@ let DB = function () {
 
     this.getTreeNode = async (stageHeight, treeNodeIndex) => {
         try {
-            let _treeNodes = await this.db.collection('treenodes');
-            let result = await _treeNodes.findOne({ stageHeight: stageHeight, treeNodeIndex: treeNodeIndex });
+            let collection = await this.db.collection('treenodes');
+            let result = await collection.findOne({ stageHeight: stageHeight, treeNodeIndex: treeNodeIndex });
             return result;
         } catch (e) {
             console.error(e);
@@ -227,8 +227,8 @@ let DB = function () {
 
     this.getSlice = async (stageHeight, sliceIndexes) => {
         try {
-            let _treenodes = await this.db.collection('treenodes');
-            let slice = await _treenodes.find({ stageHeight: stageHeight, treeNodeIndex: { $in: sliceIndexes }}).toArray();
+            let collection = await this.db.collection('treenodes');
+            let slice = await collection.find({ stageHeight: stageHeight, treeNodeIndex: { $in: sliceIndexes }}).toArray();
             slice = slice.sort((a, b) => (a.treeNodeIndex < b.treeNodeIndex));
             return slice;
         } catch (e) {
