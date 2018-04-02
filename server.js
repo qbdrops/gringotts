@@ -20,7 +20,6 @@ var io = require('socket.io')(server);
 const privatekey = env.privateKey;
 const publickey = '0x' + EthUtils.privateToPublic('0x' + privatekey).toString('hex');
 const account = '0x' + EthUtils.pubToAddress(publickey).toString('hex');
-
 let building = false;
 let addNewStageTxs = [];
 
@@ -241,6 +240,7 @@ app.post('/commit/payments', async function (req, res) {
             res.send({ ok: false, errors: 'Does not provide rootHash.' });
         }
     } catch (e) {
+        building = false;
         console.log(e);
         res.status(500).send({ ok: false, errors: e.message });
     }
