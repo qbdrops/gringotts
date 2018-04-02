@@ -227,9 +227,12 @@ app.get('/roothash', async function (req, res) {
 
 app.post('/commit/payments', async function (req, res) {
     try{
+        let rootHash = req.body.rootHash;
+        let serializedTx = req.body.serializedTx;
         if (rootHash) {
+            let txHash;
             try {
-            let txHash = web3.eth.sendRawTransaction(serializedTx);
+                txHash = web3.eth.sendRawTransaction(serializedTx);
                 console.log('Committed txHash: ' + txHash);
                 // Add txHash to addNewStageTxs pool
                 addNewStageTxs.push(txHash);
