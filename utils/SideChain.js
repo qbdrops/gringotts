@@ -37,7 +37,7 @@ let Sidechain = function () {
     };
 
     this.getFinalizedTime = async () => {
-        let stageHeight = await this.getLatestStageHeight();
+        let stageHeight = await this.getSidechainStageHeight();
         if (stageHeight > 0) {
             let stage = this.getStage(stageHeight.toString());
             return stage.finalizedTime();
@@ -77,14 +77,14 @@ let Sidechain = function () {
         return payments;
     };
 
-    this.getLatestStageHeight = async () => {
+    this.getSidechainStageHeight = async () => {
         let stageHeight = await db.lastestStageHeight();
         return stageHeight;
     };
 
     this.pendingStages = async () => {
         let finalizedHeight = IFCContract.stageHeight();
-        let latestStageHeight = await this.getLatestStageHeight();
+        let latestStageHeight = await this.getSidechainStageHeight();
         if (latestStageHeight > finalizedHeight) {
             let pendingStages = [];
             for (let i = finalizedHeight; i < latestStageHeight; i++) {

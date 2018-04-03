@@ -251,7 +251,7 @@ app.post('/commit/payments', async function (req, res) {
     }
 });
 
-app.get('/contract/address/ifc', async function (req, res) {
+app.get('/contract/address', async function (req, res) {
     try {
         res.send({address: env.IFCContractAddress});
     } catch (e) {
@@ -260,20 +260,9 @@ app.get('/contract/address/ifc', async function (req, res) {
     }
 });
 
-app.get('/latest/objections/count', async function (req, res) {
+app.get('/sidechain/stage/height', async function (req, res) {
     try {
-        let objections = Sidechain.getLatestObjections();
-        console.log(objections);
-        res.send({objectionCount: objections.length});
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
-
-app.get('/latest/stage/height', async function (req, res) {
-    try {
-        let height = await Sidechain.getLatestStageHeight();
+        let height = await Sidechain.getSidechainStageHeight();
         res.send({height: height});
     } catch (e) {
         console.log(e);
@@ -308,7 +297,7 @@ app.get('/latest/payments', async function (req, res) {
     try {
         let size = req.query.size;
         size = parseInt(size);
-        let stageHeight = await Sidechain.getLatestStageHeight();
+        let stageHeight = await Sidechain.getSidechainStageHeight();
         let result = await db.getPayments(stageHeight, size);
         res.send(result);
     } catch (e) {
