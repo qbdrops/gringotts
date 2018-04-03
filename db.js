@@ -4,10 +4,18 @@ let EthUtils = require('ethereumjs-util');
 let MongoClient = require('mongodb').MongoClient;
 
 let url = env.mongodbUrl;
+let stopReceiveStage = null;
+let acceptableStage = null;
+
 let DB = function () {
-    this.stopReceiveStage = null,
+    this.acceptStage = (stageHeight) => {
+        acceptableStage = stageHeight;
+    },
+    this.cancelStage = () => {
+        acceptableStage = null;
+    },
     this.relax = () => {
-        this.stopReceiveStage = null;
+        stopReceiveStage = null;
     },
     this.getOrNewStageHeight = async () => {
         try {
@@ -63,7 +71,7 @@ let DB = function () {
             let payments;
             if (stageHeight) {
                 if (lock) {
-                    this.stopReceiveStage = stageHeight;
+                    stopReceiveStage = stageHeight;
                 }
                 payments = await collection.find({ onChain: false, stageHeight: stageHeight }).toArray();
             } else {
@@ -102,8 +110,15 @@ let DB = function () {
     this.viableStageHeight = async () => {
         try {
             let collection = await this.db.collection('payments');
-            let latestBuildingStage = await collection.find({onChain: false}).sort({stageHeight: -1}).limit(1).next();
+            let latestBuildingStage = await collection.find({onChain: false}).sort({stageHeight: 1}).limit(1).next();
             let latestBuiltStage = await collection.find({onChain: true}).sort({stageHeight: -1}).limit(1).next();
+            if (stopReceiveStage) {
+                return parseInt(stopReceiveStage) + 1;
+            }
+
+            if (acceptableStage) {
+                return acceptableStage;
+            }
 
             if (latestBuildingStage && latestBuildingStage.stageHeight) {
                 return parseInt(latestBuildingStage.stageHeight);
@@ -147,12 +162,17 @@ let DB = function () {
                 let payment = payments[i];
                 let paymentStageHeight = parseInt(payment.stageHeight);
                 let count = await treenodesCollection.find({ stageHeight: paymentStageHeight }).count();
-                let isNotValid = (paymentStageHeight == this.stopReceiveStage);
+                let isNotValid = (paymentStageHeight == stopReceiveStage);
                 let stageHasBeenBuilt = (count > 0);
                 if (stageHasBeenBuilt || isNotValid) {
                     return ResultTypes.STAGE_HAS_BEEN_BUILT;
                 }
+
+                if (stopReceiveStage && ((paymentStageHeight - 1) !== stopReceiveStage)) {
+                    return ResultTypes.CONTAINS_OVER_HEIGHT_PAYMENT;
+                }
             }
+
             let result = await paymentsCollection.insertMany(payments);
             if (result.result.ok) {
                 return ResultTypes.OK;

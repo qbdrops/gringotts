@@ -21,6 +21,8 @@ const web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 const account = env.serverAddress;
 let building = false;
 let addNewStageTxs = [];
+let rootHashStageMap = {};
+let txHashRootHashMap = {};
 
 io.on('connection', async function (socket) {
     console.log('connected');
@@ -52,6 +54,9 @@ web3.eth.filter('latest').watch((err, blockHash) => {
                     await db.clearPendingPayments(stageHash);
                 }
                 building = false;
+                let rootHash = txHashRootHashMap[txHash];
+                let stageHeight = rootHashStageMap[rootHash];
+                db.cancelStage(stageHeight);
             }
         });
     }
@@ -208,6 +213,7 @@ app.get('/roothash', async function (req, res) {
                 console.log('Building Stage Height:' + nextStageHeight);
                 await tree.build(nextStageHeight, paymentHashes);
                 let rootHash = '0x' + tree.rootHash;
+                rootHashStageMap[rootHash] = nextStageHeight + 1;
                 // rootHash should be pushed into pending rootHash
                 await db.pushPendingRootHash(rootHash, nextStageHeight);
                 db.relax();
@@ -232,6 +238,8 @@ app.post('/commit/payments', async function (req, res) {
             let txHash;
             try {
                 txHash = web3.eth.sendRawTransaction(serializedTx);
+                txHashRootHashMap[txHash] = rootHash;
+                db.acceptStage(rootHashStageMap[rootHash]);
                 console.log('Committed txHash: ' + txHash);
                 // Add txHash to addNewStageTxs pool
                 addNewStageTxs.push(txHash);
