@@ -85,7 +85,7 @@ let DB = function () {
         }
     };
 
-    this.lastestStageHeight = async () => {
+    this.stageHeight = async () => {
         try {
             let collection = await this.db.collection('payments');
             let result = await collection.find().sort({stageHeight: -1}).limit(1).next();
@@ -94,6 +94,24 @@ let DB = function () {
                 stageHeight = result.stageHeight;
             }
             return stageHeight;
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    this.viableStageHeight = async () => {
+        try {
+            let collection = await this.db.collection('payments');
+            let latestBuildingStage = await collection.find({onChain: false}).sort({stageHeight: -1}).limit(1).next();
+            let latestBuiltStage = await collection.find({onChain: true}).sort({stageHeight: -1}).limit(1).next();
+
+            if (latestBuildingStage && latestBuildingStage.stageHeight) {
+                return parseInt(latestBuildingStage.stageHeight);
+            } else if (latestBuiltStage && latestBuiltStage.stageHeight) {
+                return parseInt(latestBuiltStage.stageHeight) + 1;
+            }
+
+            return 1;
         } catch (e) {
             console.error(e);
         }

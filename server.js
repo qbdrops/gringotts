@@ -270,6 +270,16 @@ app.get('/sidechain/stage/height', async function (req, res) {
     }
 });
 
+app.get('/viable/stage/height', async function (req, res) {
+    try {
+        let height = await db.viableStageHeight();
+        res.send({height: height});
+    } catch (e) {
+        console.log(e);
+        res.status(500).send({errors: e.message});
+    }
+});
+
 app.get('/balance', async function (req, res) {
     try {
         let address = req.query.address;

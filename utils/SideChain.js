@@ -78,7 +78,7 @@ let Sidechain = function () {
     };
 
     this.getSidechainStageHeight = async () => {
-        let stageHeight = await db.lastestStageHeight();
+        let stageHeight = await db.stageHeight();
         return stageHeight;
     };
 
