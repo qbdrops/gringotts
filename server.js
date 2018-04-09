@@ -17,9 +17,8 @@ app.use(cors());
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
 
-const privatekey = env.privateKey;
-const publickey = '0x' + EthUtils.privateToPublic('0x' + privatekey).toString('hex');
-const account = '0x' + EthUtils.pubToAddress(publickey).toString('hex');
+const web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
+const account = env.serverAddress;
 let building = false;
 let addNewStageTxs = [];
 
@@ -30,7 +29,7 @@ io.on('connection', async function (socket) {
     });
 });
 
-let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
+let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
 
 // Watch latest block
 web3.eth.filter('latest').watch((err, blockHash) => {
@@ -293,16 +292,6 @@ app.get('/balance', async function (req, res) {
     }
 });
 
-app.get('/agent/address', async function (req, res) {
-    try {
-        let address = env.account;
-        res.send({address: address});
-    } catch (e) {
-        console.log(e);
-        res.status(500).send({errors: e.message});
-    }
-});
-
 app.get('/payments', async function (req, res) {
     try {
         let stageHeight = req.query.stage_id;
@@ -384,9 +373,6 @@ app.post('/reset', async function (req, res) {
 
 server.listen(3000, async function () {
     try {
-        console.log(privatekey);
-        console.log(publickey);
-        console.log(account);
         console.log('App listening on port 3000!');
     } catch (e) {
         console.error(e.message);

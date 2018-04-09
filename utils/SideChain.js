@@ -5,8 +5,8 @@ let fs = require('fs');
 
 const IFCContractAddress = env.IFCContractAddress;
 let web3 = new Web3(new Web3.providers.HttpProvider(env.web3Url));
-const IFC = JSON.parse(fs.readFileSync('./build/contracts/IFC.json'));
-const Stage = JSON.parse(fs.readFileSync('./build/contracts/Stage.json'));
+const IFC = JSON.parse(fs.readFileSync('./abi/IFC.json'));
+const Stage = JSON.parse(fs.readFileSync('./abi/Stage.json'));
 
 const IFCABI = IFC.abi;
 const IFCContractClass = web3.eth.contract(IFCABI);
