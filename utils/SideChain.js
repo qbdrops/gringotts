@@ -87,7 +87,7 @@ let Sidechain = function () {
         let latestStageHeight = await this.getSidechainStageHeight();
         if (latestStageHeight > finalizedHeight) {
             let pendingStages = [];
-            for (let i = finalizedHeight; i < latestStageHeight; i++) {
+            for (let i = parseInt(finalizedHeight); i < latestStageHeight; i++) {
                 pendingStages.push(i + 1);
             }
             return pendingStages;
