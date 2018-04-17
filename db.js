@@ -20,12 +20,12 @@ let DB = function () {
   this.getOrNewStageHeight = async () => {
     try {
       let collection = await this.db.collection('stage_height');
-      let lastestStage = await collection.findOne({_id: 1});
+      let lastestStage = await collection.findOne({ _id: 1 });
       if (lastestStage) {
         let height = lastestStage.stageHeight;
         return height;
       } else {
-        let result = await collection.save({_id: 1, stageHeight: 0});
+        let result = await collection.save({ _id: 1, stageHeight: 0 });
         if (result) {
           return 0;
         }
@@ -48,7 +48,7 @@ let DB = function () {
   this.pushPendingRootHash = async (rootHash, stageHeight) => {
     try {
       let collection = await this.db.collection('pending_roothashes');
-      let result = await collection.save({rootHash: rootHash, stageHeight: stageHeight, onChain: false});
+      let result = await collection.save({ rootHash: rootHash, stageHeight: stageHeight, onChain: false });
       return result;
     } catch (e) {
       console.error(e);
@@ -96,7 +96,7 @@ let DB = function () {
   this.stageHeight = async () => {
     try {
       let collection = await this.db.collection('payments');
-      let result = await collection.find().sort({stageHeight: -1}).limit(1).next();
+      let result = await collection.find().sort({ stageHeight: -1 }).limit(1).next();
       let stageHeight = 0;
       if (result) {
         stageHeight = result.stageHeight;
@@ -110,8 +110,8 @@ let DB = function () {
   this.viableStageHeight = async () => {
     try {
       let collection = await this.db.collection('payments');
-      let latestBuildingStage = await collection.find({onChain: false}).sort({stageHeight: 1}).limit(1).next();
-      let latestBuiltStage = await collection.find({onChain: true}).sort({stageHeight: -1}).limit(1).next();
+      let latestBuildingStage = await collection.find({ onChain: false }).sort({ stageHeight: 1 }).limit(1).next();
+      let latestBuiltStage = await collection.find({ onChain: true }).sort({ stageHeight: -1 }).limit(1).next();
       if (stopReceiveStage) {
         return parseInt(stopReceiveStage) + 1;
       }
@@ -135,7 +135,7 @@ let DB = function () {
   this.getStage = async (stageHeight) => {
     try {
       let treeCollection = await this.db.collection('payments');
-      let result = await treeCollection.find({stageHeight: {$eq: parseInt(stageHeight)}}).toArray();
+      let result = await treeCollection.find({ stageHeight: { $eq: parseInt(stageHeight) } }).toArray();
       return result;
     } catch (e) {
       console.error(e);
@@ -149,7 +149,7 @@ let DB = function () {
 
     for (let i = 0; i < payments.length; i++) {
       let payment = payments[i];
-      let count = await paymentsCollection.find({ paymentHash: payment.paymentHash}).count();
+      let count = await paymentsCollection.find({ paymentHash: payment.paymentHash }).count();
       if (count > 0) {
         containsKnownPayment = true;
       }
@@ -196,9 +196,9 @@ let DB = function () {
       let payments = await this.db.collection('payments');
       let result = null;
       if (limitSize) {
-        result = await payments.find({stageHeight: {$eq: parseInt(stageHeight)}}).limit(limitSize).toArray();
+        result = await payments.find({ stageHeight: { $eq: parseInt(stageHeight) } }).limit(limitSize).toArray();
       } else {
-        result = await payments.find({stageHeight: {$eq: parseInt(stageHeight)}}).toArray();
+        result = await payments.find({ stageHeight: { $eq: parseInt(stageHeight) } }).toArray();
       }
       return result;
     } catch (e) {
@@ -268,7 +268,7 @@ let DB = function () {
   this.getSlice = async (stageHeight, sliceIndexes) => {
     try {
       let collection = await this.db.collection('treenodes');
-      let slice = await collection.find({ stageHeight: stageHeight, treeNodeIndex: { $in: sliceIndexes }}).toArray();
+      let slice = await collection.find({ stageHeight: stageHeight, treeNodeIndex: { $in: sliceIndexes } }).toArray();
       slice = slice.sort((a, b) => (a.treeNodeIndex < b.treeNodeIndex));
       return slice;
     } catch (e) {
@@ -294,9 +294,9 @@ let DB = function () {
     try {
       let users = await this.db.collection('rsa_publickeys');
       let cps = await this.db.collection('cp_publickeys');
-      let userPublicKey = await users.findOne({'_id' : 1});
-      let cpsPublicKey = await cps.findOne({'_id' : 1});
-      return {userPublicKey: userPublicKey, cpsPublicKey: cpsPublicKey};
+      let userPublicKey = await users.findOne({ '_id' : 1 });
+      let cpsPublicKey = await cps.findOne({ '_id' : 1 });
+      return { userPublicKey: userPublicKey, cpsPublicKey: cpsPublicKey };
     } catch (e) {
       console.log(e);
     }
@@ -305,7 +305,7 @@ let DB = function () {
   this.getUserAddress = async () => {
     try {
       let users = await this.db.collection('ecc_publickeys');
-      let userPublicKey = await users.findOne({'_id' : 1});
+      let userPublicKey = await users.findOne({ '_id' : 1 });
       let account = '0x' + EthUtils.pubToAddress(userPublicKey.publickey).toString('hex');
       return account;
     } catch (e) {

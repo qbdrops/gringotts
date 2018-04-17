@@ -64,7 +64,7 @@ class IndexedMerkleTree {
           let leftNode = nodeQueue.pop();
           let parentNodeHash = this._sha3(leftNode.treeNodeHash.concat(node.treeNodeHash));
           let parentNodeIndex = parseInt(leftNode.treeNodeIndex / 2);
-          nodeQueue.push({ treeNodeIndex: parentNodeIndex, treeNodeHash: parentNodeHash});
+          nodeQueue.push({ treeNodeIndex: parentNodeIndex, treeNodeHash: parentNodeHash });
         }
       }
 

@@ -11,7 +11,7 @@ let ResultTypes = require('./types/result');
 
 let app = express();
 app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({extended: false}));
+app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cors());
 
 var server = require('http').createServer(app);
@@ -19,6 +19,7 @@ var io = require('socket.io')(server);
 
 const web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 const account = env.serverAddress;
+const sidechainAddress = env.sidechainAddress;
 let building = false;
 let addNewStageTxs = [];
 let rootHashStageMap = {};
@@ -80,7 +81,7 @@ app.get('/slice', async function (req, res) {
     res.send({ slice: slice, paymentHashArray: paymentHashArray, treeNodeIndex: treeNodeIndex });
   } catch (e) {
     console.log(e);
-    res.status(500).send({errors: e.message});
+    res.status(500).send({ errors: e.message });
   }
 });
 
@@ -167,10 +168,10 @@ app.post('/send/payments', async function (req, res) {
         }
       }
     }
-    res.send({ ok: success, message: message, code: code});
+    res.send({ ok: success, message: message, code: code });
   } catch (e) {
     console.log(e);
-    res.status(500).send({ok: false, message: e.message, errors: e.message, code: ResultTypes.SOMETHING_WENT_WRONG});
+    res.status(500).send({ ok: false, message: e.message, errors: e.message, code: ResultTypes.SOMETHING_WENT_WRONG });
   }
 });
 
@@ -196,9 +197,9 @@ app.get('/roothash', async function (req, res) {
 
       if (pendingRoot.length >= 1) {
         pendingRoot = pendingRoot[0];
-        res.send({ok: true, rootHash: pendingRoot.rootHash, stageHeight: pendingRoot.stageHeight});
+        res.send({ ok: true, rootHash: pendingRoot.rootHash, stageHeight: pendingRoot.stageHeight });
       } else {
-        res.send({ok: false, message: 'Target root hash not found.', code: ResultTypes.TARGET_ROOT_HASH_BOT_FOUND });
+        res.send({ ok: false, message: 'Target root hash not found.', code: ResultTypes.TARGET_ROOT_HASH_BOT_FOUND });
       }
     } else if (building) {
       res.send({ ok: false, message: 'Stage is currently building.', code: ResultTypes.STAGE_IS_CURRENTLY_BUILDING });
@@ -261,30 +262,30 @@ app.post('/commit/payments', async function (req, res) {
 
 app.get('/contract/address', async function (req, res) {
   try {
-    res.send({address: env.IFCContractAddress});
+    res.send({ address: sidechainAddress });
   } catch (e) {
     console.log(e);
-    res.status(500).send({errors: e.message});
+    res.status(500).send({ errors: e.message });
   }
 });
 
 app.get('/sidechain/stage/height', async function (req, res) {
   try {
     let height = await Sidechain.getSidechainStageHeight();
-    res.send({height: height});
+    res.send({ height: height });
   } catch (e) {
     console.log(e);
-    res.status(500).send({errors: e.message});
+    res.status(500).send({ errors: e.message });
   }
 });
 
 app.get('/viable/stage/height', async function (req, res) {
   try {
     let height = await db.viableStageHeight();
-    res.send({height: height});
+    res.send({ height: height });
   } catch (e) {
     console.log(e);
-    res.status(500).send({errors: e.message});
+    res.status(500).send({ errors: e.message });
   }
 });
 
@@ -292,10 +293,10 @@ app.get('/balance', async function (req, res) {
   try {
     let address = req.query.address;
     let balance = Sidechain.getBalance(address);
-    res.send({balance: balance});
+    res.send({ balance: balance });
   } catch (e) {
     console.log(e);
-    res.status(500).send({errors: e.message});
+    res.status(500).send({ errors: e.message });
   }
 });
 
@@ -307,7 +308,7 @@ app.get('/payments', async function (req, res) {
     res.send(result);
   } catch (e) {
     console.log(e);
-    res.status(500).send({errors: e.message});
+    res.status(500).send({ errors: e.message });
   }
 });
 
@@ -320,7 +321,7 @@ app.get('/latest/payments', async function (req, res) {
     res.send(result);
   } catch (e) {
     console.log(e);
-    res.status(500).send({errors: e.message});
+    res.status(500).send({ errors: e.message });
   }
 });
 
@@ -330,7 +331,7 @@ app.get('/pending/stages', async function (req, res) {
     res.send(pendingStages);
   } catch (e) {
     console.log(e);
-    res.status(500).send({errors: e.message});
+    res.status(500).send({ errors: e.message });
   }
 });
 
@@ -354,7 +355,7 @@ app.get('/finalized/time', async function (req, res) {
     });
   } catch (e) {
     console.log(e);
-    res.status(500).send({errors: e.message});
+    res.status(500).send({ errors: e.message });
   }
 });
 
@@ -364,7 +365,7 @@ app.get('/pending/payments', async function (req, res) {
     res.send(pendingPayments);
   } catch (e) {
     console.log(e);
-    res.status(500).send({errors: e.message});
+    res.status(500).send({ errors: e.message });
   }
 });
 
