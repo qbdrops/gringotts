@@ -11,7 +11,7 @@
     "rules": {
         "indent": [
             "error",
-            4
+            2
         ],
         "linebreak-style": [
             "error",
@@ -28,6 +28,9 @@
         "no-console": [
             "off"
         ],
-        "camelcase": [2, {"properties": "always"}]
+        "camelcase": [2, {"properties": "always"}],
+        "object-curly-spacing": [
+            "error", "always"
+        ]
     }
 }
