@@ -20,6 +20,7 @@ var io = require('socket.io')(server);
 const web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 const account = env.serverAddress;
 const sidechainAddress = env.sidechainAddress;
+const serverAddress = env.serverAddress;
 let building = false;
 let addNewStageTxs = [];
 let rootHashStageMap = {};
@@ -260,9 +261,18 @@ app.post('/commit/payments', async function (req, res) {
   }
 });
 
-app.get('/contract/address', async function (req, res) {
+app.get('/sidechain/address', async function (req, res) {
   try {
     res.send({ address: sidechainAddress });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send({ errors: e.message });
+  }
+});
+
+app.get('/server/address', async function (req, res) {
+  try {
+    res.send({ address: serverAddress });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
