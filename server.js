@@ -103,7 +103,7 @@ function filterInvalidSig(payments) {
   return validPayments;
 }
 
-app.post('/send/payments', async function (req, res) {
+app.post('/send/light_txs', async function (req, res) {
   try {
     let payments = req.body.payments;
     let success = false;
