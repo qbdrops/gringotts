@@ -87,20 +87,14 @@ app.get('/slice', async function (req, res) {
   }
 });
 
-function filterInvalidSig (lightTxs) {
+function isValidSig (lightTx) {
   // validate signatures of lightTxs
-  let validLightTxs = lightTxs.filter(lightTx => {
-    let msgHash = Buffer.from(lightTx.lightTxHash);
-    let prefix = new Buffer('\x19Ethereum Signed Message:\n');
-    let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
-
-    let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.serverLightTx.v, lightTx.sig.serverLightTx.r, lightTx.sig.serverLightTx.s);
-    let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
-
-    return account == address;
-  });
-
-  return validLightTxs;
+  let msgHash = Buffer.from(lightTx.lightTxHash);
+  let prefix = new Buffer('\x19Ethereum Signed Message:\n');
+  let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+  let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.serverLightTx.v, lightTx.sig.serverLightTx.r, lightTx.sig.serverLightTx.s);
+  let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
+  return account == address;
 }
 
 app.post('/send/light_tx', async function (req, res) {
@@ -119,24 +113,18 @@ app.post('/send/light_tx', async function (req, res) {
 
     let stageHeight = await Sidechain.getContractStageHeight();
 
-    let containsOrderPayments = (parseInt(lightTx.lightTxData.stageHeight) <= stageHeight);
+    let containsOlderPayments = (parseInt(lightTx.lightTxData.stageHeight) <= stageHeight);
 
-    if (containsOrderPayments) {
-      message = 'Contains order payment.';
-      code = ResultTypes.CONTAINS_ORDER_PAYMENT;
+    if (containsOlderPayments) {
+      message = 'Contains older payment.';
+      code = ResultTypes.CONTAINS_OLDER_PAYMENT;
     } else {
-      let validSigLightTxs = filterInvalidSig([lightTx]);
+      let isValidSigLightTx = isValidSig(lightTx);
 
-      if (validSigLightTxs.length == 0) {
-        message = 'Contains wrong signature payment.';
-        code = ResultTypes.WRONG_SIGNATURE;
-      } else {
-        validSigLightTxs = validSigLightTxs.map(lightTx => {
-          lightTx.onChain = false;
-          return lightTx;
-        });
+      if (isValidSigLightTx) {
+        lightTx.onChain = false;
 
-        let result = await db.savePayments(validSigLightTxs);
+        let result = await db.savePayments([lightTx]);
 
         if (result == ResultTypes.OK) {
           success = true;
@@ -146,8 +134,12 @@ app.post('/send/light_tx', async function (req, res) {
           message = 'Fail to save payments.';
           code = result;
         }
+      } else {
+        message = 'Contains wrong signature payment.';
+        code = ResultTypes.WRONG_SIGNATURE;
       }
     }
+
     res.send({ ok: success, message: message, code: code });
   } catch (e) {
     console.log(e);
