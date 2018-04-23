@@ -8,6 +8,7 @@ let IndexedMerkleTree = require('./indexedMerkleTree/IndexedMerkleTree');
 let Sidechain = require('./utils/SideChain');
 let Web3 = require('web3');
 let ResultTypes = require('./types/result');
+let LightTransaction = require('./models/light-transaction');
 
 let app = express();
 app.use(bodyParser.json());
@@ -86,79 +87,57 @@ app.get('/slice', async function (req, res) {
   }
 });
 
-function filterInvalidSig(payments) {
-  // validate signatures of payments
-  let validPayments = payments.filter((payment) => {
-    let message = payment.stageHash + payment.paymentHash;
-    let msgHash = EthUtils.sha3(message);
+function filterInvalidSig (lightTxs) {
+  // validate signatures of lightTxs
+  let validLightTxs = lightTxs.filter(lightTx => {
+    let msgHash = Buffer.from(lightTx.lightTxHash);
     let prefix = new Buffer('\x19Ethereum Signed Message:\n');
     let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
 
-    let publicKey = EthUtils.ecrecover(ethMsgHash, payment.v, payment.r, payment.s);
+    let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.serverLightTx.v, lightTx.sig.serverLightTx.r, lightTx.sig.serverLightTx.s);
     let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
 
     return account == address;
   });
 
-  return validPayments;
+  return validLightTxs;
 }
 
-app.post('/send/light_txs', async function (req, res) {
+app.post('/send/light_tx', async function (req, res) {
   try {
-    let payments = req.body.payments;
+    let lightTxJson = req.body.lightTxJson;
+    let lightTx = new LightTransaction(lightTxJson.lightTxData, lightTxJson.sig);
+
     let success = false;
     let message = 'Something went wrong.';
     let code = ResultTypes.SOMETHING_WENT_WRONG;
 
-    if (payments.length <= 0) {
-      message = 'Payments are empty.';
+    if (!lightTx) {
+      message = 'lightTxJson is empty.';
       code = ResultTypes.PAYMENTS_ARE_EMPTY;
     }
 
-    let paymentHeights = payments.map(payment => payment.stageHeight);
     let stageHeight = await Sidechain.getContractStageHeight();
-    let containsOrderPayments = paymentHeights.some(height => height <= stageHeight);
-    let containsInvalidFormatPayments = payments.some(payment => {
-      let isNotValid = false;
-      if (!payment.hasOwnProperty('stageHeight') ||
-                !payment.hasOwnProperty('stageHash') ||
-                !payment.hasOwnProperty('paymentHash') ||
-                !payment.hasOwnProperty('cipherClient') ||
-                !payment.hasOwnProperty('cipherStakeholder') ||
-                !payment.hasOwnProperty('v') ||
-                !payment.hasOwnProperty('r') ||
-                !payment.hasOwnProperty('s')) {
-        isNotValid = true;
-      }
-      return isNotValid;
-    });
-        
-    let containsInvalidPaymentHash = payments.some(payment => {
-      return payment.paymentHash !== EthUtils.sha3(payment.cipherClient + payment.cipherStakeholder).toString('hex');
-    });
+
+    let containsOrderPayments = (parseInt(lightTx.lightTxData.stageHeight) <= stageHeight);
 
     if (containsOrderPayments) {
       message = 'Contains order payment.';
       code = ResultTypes.CONTAINS_ORDER_PAYMENT;
-    } else if (containsInvalidFormatPayments) {
-      message = 'Contains invalid format payment.';
-      code = ResultTypes.CONTAINS_INVALID_FORMAT_PAYMENT;
-    } else if (containsInvalidPaymentHash) {
-      message = 'Contains invalid payment hash.';
-      code = ResultTypes.CONTAINS_INVALID_PAYMENT_HASH;
     } else {
-      let validSigPayments = filterInvalidSig(payments);
+      let validSigLightTxs = filterInvalidSig([lightTx]);
 
-      if (payments.length > validSigPayments.length) {
+      if (validSigLightTxs.length == 0) {
         message = 'Contains wrong signature payment.';
         code = ResultTypes.WRONG_SIGNATURE;
       } else {
-        validSigPayments = validSigPayments.map((paymentCipher) => {
-          paymentCipher.onChain = false;
-          return paymentCipher;
+        validSigLightTxs = validSigLightTxs.map(lightTx => {
+          lightTx.onChain = false;
+          return lightTx;
         });
 
-        let result = await db.savePayments(validSigPayments);
+        let result = await db.savePayments(validSigLightTxs);
+
         if (result == ResultTypes.OK) {
           success = true;
           message = 'Success.';
@@ -175,6 +154,79 @@ app.post('/send/light_txs', async function (req, res) {
     res.status(500).send({ ok: false, message: e.message, errors: e.message, code: ResultTypes.SOMETHING_WENT_WRONG });
   }
 });
+
+// app.post('/send/light_txs', async function (req, res) {
+//   try {
+//     let payments = req.body.payments;
+//     let success = false;
+//     let message = 'Something went wrong.';
+//     let code = ResultTypes.SOMETHING_WENT_WRONG;
+
+//     if (payments.length <= 0) {
+//       message = 'Payments are empty.';
+//       code = ResultTypes.PAYMENTS_ARE_EMPTY;
+//     }
+
+//     let paymentHeights = payments.map(payment => payment.stageHeight);
+//     let stageHeight = await Sidechain.getContractStageHeight();
+//     let containsOrderPayments = paymentHeights.some(height => height <= stageHeight);
+//     let containsInvalidFormatPayments = payments.some(payment => {
+//       let isNotValid = false;
+//       if (!payment.hasOwnProperty('stageHeight') ||
+//                 !payment.hasOwnProperty('stageHash') ||
+//                 !payment.hasOwnProperty('paymentHash') ||
+//                 !payment.hasOwnProperty('cipherClient') ||
+//                 !payment.hasOwnProperty('cipherStakeholder') ||
+//                 !payment.hasOwnProperty('v') ||
+//                 !payment.hasOwnProperty('r') ||
+//                 !payment.hasOwnProperty('s')) {
+//         isNotValid = true;
+//       }
+//       return isNotValid;
+//     });
+
+//     let containsInvalidPaymentHash = payments.some(payment => {
+//       return payment.paymentHash !== EthUtils.sha3(payment.cipherClient + payment.cipherStakeholder).toString('hex');
+//     });
+
+//     if (containsOrderPayments) {
+//       message = 'Contains order payment.';
+//       code = ResultTypes.CONTAINS_ORDER_PAYMENT;
+//     } else if (containsInvalidFormatPayments) {
+//       message = 'Contains invalid format payment.';
+//       code = ResultTypes.CONTAINS_INVALID_FORMAT_PAYMENT;
+//     } else if (containsInvalidPaymentHash) {
+//       message = 'Contains invalid payment hash.';
+//       code = ResultTypes.CONTAINS_INVALID_PAYMENT_HASH;
+//     } else {
+//       let validSigPayments = filterInvalidSig(payments);
+
+//       if (payments.length > validSigPayments.length) {
+//         message = 'Contains wrong signature payment.';
+//         code = ResultTypes.WRONG_SIGNATURE;
+//       } else {
+//         validSigPayments = validSigPayments.map((paymentCipher) => {
+//           paymentCipher.onChain = false;
+//           return paymentCipher;
+//         });
+
+//         let result = await db.savePayments(validSigPayments);
+//         if (result == ResultTypes.OK) {
+//           success = true;
+//           message = 'Success.';
+//           code = ResultTypes.OK;
+//         } else {
+//           message = 'Fail to save payments.';
+//           code = result;
+//         }
+//       }
+//     }
+//     res.send({ ok: success, message: message, code: code });
+//   } catch (e) {
+//     console.log(e);
+//     res.status(500).send({ ok: false, message: e.message, errors: e.message, code: ResultTypes.SOMETHING_WENT_WRONG });
+//   }
+// });
 
 app.get('/pending/roothashes', async function (req, res) {
   try {
