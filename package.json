@@ -11,6 +11,7 @@
   "author": "ifc-dev <dev@infinitechain.io>",
   "license": "ISC",
   "dependencies": {
+    "bignumber.js": "^6.0.0",
     "body-parser": "^1.18.2",
     "cors": "^2.8.4",
     "ethereumjs-util": "^5.1.2",

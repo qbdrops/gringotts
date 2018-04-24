@@ -46,7 +46,17 @@ class Receipt {
     this.lightTxData = lightTx.lightTxData;
     this.receiptData = orderedReceiptData;
     this.sig = lightTx.sig;
-    this.sig.serverReceipt = {};
+  }
+
+  toJson () {
+    let json = {
+      lightTxHash: this.lightTxHash,
+      lightTxData: this.lightTxData,
+      receiptHash: this.receiptHash,
+      receiptData: this.receiptData,
+      sig: this.sig
+    };
+    return json;
   }
 }
 

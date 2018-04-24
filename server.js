@@ -7,8 +7,15 @@ let db = require('./db');
 let IndexedMerkleTree = require('./indexedMerkleTree/IndexedMerkleTree');
 let Sidechain = require('./utils/SideChain');
 let Web3 = require('web3');
-let ResultTypes = require('./types/result');
+let ErrorCodes = require('./errors/codes');
 let LightTransaction = require('./models/light-transaction');
+let Receipt = require('./models/receipt');
+let BalanceSet = require('./utils/balance-set');
+let GSNGenerator = require('./utils/gsn-generator');
+let LightTxTypes = require('./models/types');
+let BigNumber = require('bignumber.js');
+let balanceSet = new BalanceSet(db);
+let gsnGenerator = new GSNGenerator(db);
 
 let app = express();
 app.use(bodyParser.json());
@@ -29,7 +36,7 @@ let txHashRootHashMap = {};
 
 io.on('connection', async function (socket) {
   console.log('connected');
-  socket.on('disconnect', function() {
+  socket.on('disconnect', function () {
     console.log('disconnected');
   });
 });
@@ -87,138 +94,118 @@ app.get('/slice', async function (req, res) {
   }
 });
 
-function isValidSig (lightTx) {
-  // validate signatures of lightTxs
-  let msgHash = Buffer.from(lightTx.lightTxHash);
-  let prefix = new Buffer('\x19Ethereum Signed Message:\n');
-  let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
-  let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.serverLightTx.v, lightTx.sig.serverLightTx.r, lightTx.sig.serverLightTx.s);
-  let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
-  return account == address;
+function isValidSig(lightTx) {
+  if (!lightTx.hasServerLightTxSig()) {
+    return false;
+  } else {
+    // validate signatures of lightTxs
+    let msgHash = Buffer.from(lightTx.lightTxHash);
+    let prefix = new Buffer('\x19Ethereum Signed Message:\n');
+    let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+    let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.serverLightTx.v, lightTx.sig.serverLightTx.r, lightTx.sig.serverLightTx.s);
+    let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
+    return account == address;
+  }
 }
 
 app.post('/send/light_tx', async function (req, res) {
   try {
     let lightTxJson = req.body.lightTxJson;
-    let lightTx = new LightTransaction(lightTxJson.lightTxData, lightTxJson.sig);
 
+    let lightTx = new LightTransaction(lightTxJson.lightTxData, lightTxJson.sig);
     let success = false;
     let message = 'Something went wrong.';
-    let code = ResultTypes.SOMETHING_WENT_WRONG;
-
-    if (!lightTx) {
-      message = 'lightTxJson is empty.';
-      code = ResultTypes.PAYMENTS_ARE_EMPTY;
-    }
-
+    let code = ErrorCodes.SOMETHING_WENT_WRONG;
     let stageHeight = await Sidechain.getContractStageHeight();
-
     let containsOlderPayments = (parseInt(lightTx.lightTxData.stageHeight) <= stageHeight);
+    let receipt = null;
 
     if (containsOlderPayments) {
       message = 'Contains older payment.';
-      code = ResultTypes.CONTAINS_OLDER_PAYMENT;
+      code = ErrorCodes.CONTAINS_OLDER_RECEIPT;
     } else {
       let isValidSigLightTx = isValidSig(lightTx);
-
       if (isValidSigLightTx) {
         lightTx.onChain = false;
+        let type = lightTx.type();
+        let fromAddress = lightTx.lightTxData.from;
+        let toAddress = lightTx.lightTxData.to;
+        let fromBalance = '0000000000000000000000000000000000000000000000000000000000000000';
+        let toBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 
-        let result = await db.savePayments([lightTx]);
+        if (type === LightTxTypes.deposit) {
+          let value = new BigNumber('0x' + lightTx.lightTxData.value);
+          toBalance = await balanceSet.getBalance(toAddress);
+          toBalance = new BigNumber('0x' + toBalance);
+          toBalance = toBalance.plus(value);
 
-        if (result == ResultTypes.OK) {
+          toBalance = toBalance.toString(16).padStart(64, '0');
+          balanceSet.setBalance(toAddress, toBalance);
+        } else if ((type === LightTxTypes.withdrawal) ||
+                    type === LightTxTypes.instantWithdrawal) {
+          let value = new BigNumber('0x' + lightTx.lightTxData.value);
+          fromBalance = await balanceSet.getBalance(fromAddress);
+          fromBalance = new BigNumber('0x' + fromBalance);
+          fromBalance = fromBalance.minus(value);
+
+          fromBalance = fromBalance.toString(16).padStart(64, '0');
+          balanceSet.setBalance(fromAddress, fromBalance);
+        } else if (type === LightTxTypes.remittance) {
+          let value = new BigNumber('0x' + lightTx.lightTxData.value);
+          fromBalance = await balanceSet.getBalance(fromAddress);
+          fromBalance = new BigNumber('0x' + fromBalance);
+          toBalance = await balanceSet.getBalance(toAddress);
+          toBalance = new BigNumber('0x' + toBalance);
+
+          fromBalance = fromBalance.minus(value);
+          toBalance = toBalance.plus(value);
+
+          fromBalance = fromBalance.toString(16).padStart(64, '0');
+          toBalance = toBalance.toString(16).padStart(64, '0');
+
+          balanceSet.setBalance(fromAddress, fromBalance);
+          balanceSet.setBalance(toAddress, toBalance);
+        }
+
+        let gsn = await gsnGenerator.getGSN();
+        gsn = gsn.toString(16).padStart(64, '0');
+        let receiptJson = lightTx.toJson();
+        receiptJson.receiptData = {
+          GSN: gsn,
+          lightTxHash: lightTx.lightTxHash,
+          fromBalance: fromBalance,
+          toBalance: toBalance,
+        };
+
+        receipt = new Receipt(receiptJson);
+        console.log(receipt);
+
+        let result = await db.saveReceipt(receipt);
+
+        if (result == ErrorCodes.OK) {
           success = true;
           message = 'Success.';
-          code = ResultTypes.OK;
+          code = ErrorCodes.OK;
         } else {
-          message = 'Fail to save payments.';
+          message = 'Fail to save receipt.';
           code = result;
         }
       } else {
-        message = 'Contains wrong signature payment.';
-        code = ResultTypes.WRONG_SIGNATURE;
+        message = 'Contains wrong signature receipt.';
+        code = ErrorCodes.WRONG_SIGNATURE;
       }
     }
 
-    res.send({ ok: success, message: message, code: code });
+    if (success) {
+      res.send({ ok: true, receipt: receipt });
+    } else {
+      res.send({ ok: false, message: message, code: code });
+    }
   } catch (e) {
     console.log(e);
-    res.status(500).send({ ok: false, message: e.message, errors: e.message, code: ResultTypes.SOMETHING_WENT_WRONG });
+    res.status(500).send({ ok: false, message: e.message, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
   }
 });
-
-// app.post('/send/light_txs', async function (req, res) {
-//   try {
-//     let payments = req.body.payments;
-//     let success = false;
-//     let message = 'Something went wrong.';
-//     let code = ResultTypes.SOMETHING_WENT_WRONG;
-
-//     if (payments.length <= 0) {
-//       message = 'Payments are empty.';
-//       code = ResultTypes.PAYMENTS_ARE_EMPTY;
-//     }
-
-//     let paymentHeights = payments.map(payment => payment.stageHeight);
-//     let stageHeight = await Sidechain.getContractStageHeight();
-//     let containsOrderPayments = paymentHeights.some(height => height <= stageHeight);
-//     let containsInvalidFormatPayments = payments.some(payment => {
-//       let isNotValid = false;
-//       if (!payment.hasOwnProperty('stageHeight') ||
-//                 !payment.hasOwnProperty('stageHash') ||
-//                 !payment.hasOwnProperty('paymentHash') ||
-//                 !payment.hasOwnProperty('cipherClient') ||
-//                 !payment.hasOwnProperty('cipherStakeholder') ||
-//                 !payment.hasOwnProperty('v') ||
-//                 !payment.hasOwnProperty('r') ||
-//                 !payment.hasOwnProperty('s')) {
-//         isNotValid = true;
-//       }
-//       return isNotValid;
-//     });
-
-//     let containsInvalidPaymentHash = payments.some(payment => {
-//       return payment.paymentHash !== EthUtils.sha3(payment.cipherClient + payment.cipherStakeholder).toString('hex');
-//     });
-
-//     if (containsOrderPayments) {
-//       message = 'Contains order payment.';
-//       code = ResultTypes.CONTAINS_ORDER_PAYMENT;
-//     } else if (containsInvalidFormatPayments) {
-//       message = 'Contains invalid format payment.';
-//       code = ResultTypes.CONTAINS_INVALID_FORMAT_PAYMENT;
-//     } else if (containsInvalidPaymentHash) {
-//       message = 'Contains invalid payment hash.';
-//       code = ResultTypes.CONTAINS_INVALID_PAYMENT_HASH;
-//     } else {
-//       let validSigPayments = filterInvalidSig(payments);
-
-//       if (payments.length > validSigPayments.length) {
-//         message = 'Contains wrong signature payment.';
-//         code = ResultTypes.WRONG_SIGNATURE;
-//       } else {
-//         validSigPayments = validSigPayments.map((paymentCipher) => {
-//           paymentCipher.onChain = false;
-//           return paymentCipher;
-//         });
-
-//         let result = await db.savePayments(validSigPayments);
-//         if (result == ResultTypes.OK) {
-//           success = true;
-//           message = 'Success.';
-//           code = ResultTypes.OK;
-//         } else {
-//           message = 'Fail to save payments.';
-//           code = result;
-//         }
-//       }
-//     }
-//     res.send({ ok: success, message: message, code: code });
-//   } catch (e) {
-//     console.log(e);
-//     res.status(500).send({ ok: false, message: e.message, errors: e.message, code: ResultTypes.SOMETHING_WENT_WRONG });
-//   }
-// });
 
 app.get('/pending/roothashes', async function (req, res) {
   try {
@@ -244,10 +231,10 @@ app.get('/roothash', async function (req, res) {
         pendingRoot = pendingRoot[0];
         res.send({ ok: true, rootHash: pendingRoot.rootHash, stageHeight: pendingRoot.stageHeight });
       } else {
-        res.send({ ok: false, message: 'Target root hash not found.', code: ResultTypes.TARGET_ROOT_HASH_BOT_FOUND });
+        res.send({ ok: false, message: 'Target root hash not found.', code: ErrorCodes.TARGET_ROOT_HASH_NOT_FOUND });
       }
     } else if (building) {
-      res.send({ ok: false, message: 'Stage is currently building.', code: ResultTypes.STAGE_IS_CURRENTLY_BUILDING });
+      res.send({ ok: false, message: 'Stage is currently building.', code: ErrorCodes.STAGE_IS_CURRENTLY_BUILDING });
     } else {
       let stageHeight = await Sidechain.getContractStageHeight();
       let nextStageHeight = parseInt(stageHeight) + 1;
@@ -267,7 +254,7 @@ app.get('/roothash', async function (req, res) {
       } else {
         db.relax();
         building = false;
-        res.send({ ok: false, message: 'Payments are empty.', code: ResultTypes.PAYMENTS_ARE_EMPTY });
+        res.send({ ok: false, message: 'Receipts are empty.', code: ErrorCodes.RECEIPTS_ARE_EMPTY });
       }
     }
   } catch (e) {
@@ -277,7 +264,7 @@ app.get('/roothash', async function (req, res) {
 });
 
 app.post('/commit/payments', async function (req, res) {
-  try{
+  try {
     let rootHash = req.body.rootHash;
     let serializedTx = req.body.serializedTx;
     if (rootHash) {

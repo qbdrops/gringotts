@@ -1,5 +1,5 @@
 let env = require('./env');
-let ResultTypes = require('./types/result');
+let ErrorCodes = require('./errors/codes');
 let EthUtils = require('ethereumjs-util');
 let MongoClient = require('mongodb').MongoClient;
 
@@ -142,42 +142,36 @@ let DB = function () {
     }
   };
 
-  this.savePayments = async (payments) => {
-    let treenodesCollection = await this.db.collection('treenodes');
-    let paymentsCollection = await this.db.collection('payments');
-    let containsKnownPayment = false;
+  this.saveReceipt = async (receipt) => {
+    let treenodesCollection = await this.db.collection('receipt_treenodes');
+    let receiptsCollection = await this.db.collection('receipts');
+    let containsKnownReceipt = false;
 
-    for (let i = 0; i < payments.length; i++) {
-      let payment = payments[i];
-      let count = await paymentsCollection.find({ paymentHash: payment.paymentHash }).count();
-      if (count > 0) {
-        containsKnownPayment = true;
-      }
+    let count = await receiptsCollection.find({ receiptHash: receipt.receiptHash }).count();
+    if (count > 0) {
+      containsKnownReceipt = true;
     }
 
-    if (containsKnownPayment) {
-      return ResultTypes.CONTAINS_KNOWN_PAYMENT;
+    if (containsKnownReceipt) {
+      return ErrorCodes.CONTAINS_KNOWN_RECEIPT;
     } else {
-      for (let i = 0 ; i < payments.length; i++) {
-        let payment = payments[i];
-        let paymentStageHeight = parseInt(payment.stageHeight);
-        let count = await treenodesCollection.find({ stageHeight: paymentStageHeight }).count();
-        let isNotValid = (paymentStageHeight == stopReceiveStage);
-        let stageHasBeenBuilt = (count > 0);
-        if (stageHasBeenBuilt || isNotValid) {
-          return ResultTypes.STAGE_HAS_BEEN_BUILT;
-        }
-
-        if (stopReceiveStage && ((paymentStageHeight - 1) !== stopReceiveStage)) {
-          return ResultTypes.CONTAINS_OVER_HEIGHT_PAYMENT;
-        }
+      let receiptStageHeight = parseInt(receipt.lightTxData.stageHeight);
+      let count = await treenodesCollection.find({ stageHeight: receiptStageHeight }).count();
+      let isNotValid = (receiptStageHeight == stopReceiveStage);
+      let stageHasBeenBuilt = (count > 0);
+      if (stageHasBeenBuilt || isNotValid) {
+        return ErrorCodes.STAGE_HAS_BEEN_BUILT;
       }
 
-      let result = await paymentsCollection.insertMany(payments);
+      if (stopReceiveStage && ((receiptStageHeight - 1) !== stopReceiveStage)) {
+        return ErrorCodes.CONTAINS_OVER_HEIGHT_RECEIPT;
+      }
+
+      let result = await receiptsCollection.insert(receipt);
       if (result.result.ok) {
-        return ResultTypes.OK;
+        return ErrorCodes.OK;
       } else {
-        return ResultTypes.INSERT_FAIL;
+        return ErrorCodes.INSERT_FAIL;
       }
     }
   };
