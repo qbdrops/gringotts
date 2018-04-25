@@ -42,9 +42,11 @@ class Receipt {
     assert(lightTx.lightTxHash === receiptJson.receiptData.lightTxHash, 'The \'lightTxHash\' is different in receiptData and lightTransaction.');
 
     this.lightTxHash = lightTx.lightTxHash;
-    this.receiptHash = EthUtils.sha3(JSON.stringify(this.receiptData)).toString('hex');
     this.lightTxData = lightTx.lightTxData;
     this.receiptData = orderedReceiptData;
+    this.receiptHash = EthUtils.sha3(
+      Object.values(this.receiptData).reduce((acc, curr) => acc + curr, '')
+    ).toString('hex');
     this.sig = lightTx.sig;
   }
 

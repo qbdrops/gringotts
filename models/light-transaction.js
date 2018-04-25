@@ -44,7 +44,9 @@ class LightTransaction {
     });
 
     this.lightTxData = this._normalize(orderedLightTxData);
-    this.lightTxHash = EthUtils.sha3(JSON.stringify(this.lightTxData)).toString('hex');
+    this.lightTxHash = EthUtils.sha3(
+      Object.values(this.lightTxData).reduce((acc, curr) => acc + curr, '')
+    ).toString('hex');
     this.sig = sig;
   }
 
