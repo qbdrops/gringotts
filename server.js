@@ -99,9 +99,9 @@ function isValidSig(lightTx) {
     return false;
   } else {
     // validate signatures of lightTxs
-    let msgHash = Buffer.from(lightTx.lightTxHash);
-    let prefix = new Buffer('\x19Ethereum Signed Message:\n');
-    let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, new Buffer(String(msgHash.length)), msgHash]));
+    let msgHash = Buffer.from(lightTx.lightTxHash, 'hex');
+    let prefix = new Buffer('\x19Ethereum Signed Message:\n32');
+    let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, msgHash]));
     let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.serverLightTx.v, lightTx.sig.serverLightTx.r, lightTx.sig.serverLightTx.s);
     let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
     return account == address;
