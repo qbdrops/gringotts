@@ -49,12 +49,12 @@ class Receipt {
     ).toString('hex');
     this.sig = receiptJson.sig;
     // Initialize serverReceipt sig if it is undefined.
-    if (!this.sig.serverReceipt) {
+    if (!this.sig.serverReceipt || !this.hasServerReceiptSig()) {
       this.sig.serverReceipt = {};
     }
   }
 
-  _normalize = (receiptData) => {
+  _normalize (receiptData) {
     receiptData.GSN         = receiptData.GSN.toString(16).padStart(64, '0').slice(-64);
     receiptData.fromBalance = receiptData.fromBalance.toString(16).padStart(64, '0').slice(-64);
     receiptData.toBalance   = receiptData.toBalance.toString(16).padStart(64, '0').slice(-64);
