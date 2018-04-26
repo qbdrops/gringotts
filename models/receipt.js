@@ -29,8 +29,6 @@ class Receipt {
 
     // Check lightTxData format
     let lightTx = new LightTransaction(receiptJson.lightTxData, receiptJson.sig);
-
-    // check if clientLightTx and serverLightTx are empty or not.
     assert(lightTx.hasClientLightTxSig(), '\'clientLightTx\' signature is empty.');
     assert(lightTx.hasServerLightTxSig(), '\'serverLightTx\' signature is empty.');
 
@@ -49,7 +47,11 @@ class Receipt {
     this.receiptHash = EthUtils.sha3(
       Object.values(this.receiptData).reduce((acc, curr) => acc + curr, '')
     ).toString('hex');
-    this.sig = lightTx.sig;
+    this.sig = receiptJson.sig;
+    // Initialize serverReceipt sig if it is undefined.
+    if (!this.sig.serverReceipt) {
+      this.sig.serverReceipt = {};
+    }
   }
 
   _normalize = (receiptData) => {
