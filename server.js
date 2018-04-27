@@ -129,7 +129,7 @@ app.post('/send/light_tx', async function (req, res) {
   try {
     let lightTxJson = req.body.lightTxJson;
 
-    let lightTx = new LightTransaction(lightTxJson.lightTxData, lightTxJson.sig);
+    let lightTx = new LightTransaction(lightTxJson);
     let success = false;
     let message = 'Something went wrong.';
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
