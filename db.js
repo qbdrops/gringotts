@@ -142,6 +142,21 @@ let DB = function () {
     }
   };
 
+  this.isLightTxExisted = async (lightTxHash) => {
+    try {
+      let containsKnownLightTx = false;
+      let receiptsCollection = await this.db.collection('receipts');
+      let count = await receiptsCollection.find({ lightTxHash: lightTxHash }).count();
+      if (count > 0) {
+        containsKnownLightTx = true;
+      }
+
+      return containsKnownLightTx;
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   this.saveReceipt = async (receipt) => {
     let treenodesCollection = await this.db.collection('receipt_treenodes');
     let receiptsCollection = await this.db.collection('receipts');

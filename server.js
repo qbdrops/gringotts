@@ -111,7 +111,7 @@ app.get('/slice', async function (req, res) {
   }
 });
 
-function isValidSig(lightTx) {
+function isValidSig (lightTx) {
   if (!lightTx.hasServerLightTxSig()) {
     return false;
   } else {
@@ -125,11 +125,65 @@ function isValidSig(lightTx) {
   }
 }
 
+let updateBalance = async (lightTx) => {
+  let type = lightTx.type();
+  let fromAddress = lightTx.lightTxData.from;
+  let toAddress = lightTx.lightTxData.to;
+  let fromBalance = '0000000000000000000000000000000000000000000000000000000000000000';
+  let toBalance = '0000000000000000000000000000000000000000000000000000000000000000';
+
+  if (type === LightTxTypes.deposit) {
+    let value = new BigNumber('0x' + lightTx.lightTxData.value);
+    toBalance = await balanceSet.getBalance(toAddress);
+    toBalance = new BigNumber('0x' + toBalance);
+    toBalance = toBalance.plus(value);
+
+    toBalance = toBalance.toString(16).padStart(64, '0');
+    balanceSet.setBalance(toAddress, toBalance);
+    return { ok: true, fromBalance: fromBalance, toBalance: toBalance };
+  } else if ((type === LightTxTypes.withdrawal) ||
+              type === LightTxTypes.instantWithdrawal) {
+    let value = new BigNumber('0x' + lightTx.lightTxData.value);
+    fromBalance = await balanceSet.getBalance(fromAddress);
+    fromBalance = new BigNumber('0x' + fromBalance);
+
+    if (fromBalance.isGreaterThanOrEqualTo(value)) {
+      fromBalance = fromBalance.minus(value);
+      fromBalance = fromBalance.toString(16).padStart(64, '0');
+      balanceSet.setBalance(fromAddress, fromBalance);
+      return { ok: true, fromBalance: fromBalance, toBalance: toBalance };
+    } else {
+      return { ok: false };
+    }
+  } else if (type === LightTxTypes.remittance) {
+    let value = new BigNumber('0x' + lightTx.lightTxData.value);
+    fromBalance = await balanceSet.getBalance(fromAddress);
+    fromBalance = new BigNumber('0x' + fromBalance);
+    toBalance = await balanceSet.getBalance(toAddress);
+    toBalance = new BigNumber('0x' + toBalance);
+
+    if (fromBalance.isGreaterThanOrEqualTo(value)) {
+      fromBalance = fromBalance.minus(value);
+      toBalance = toBalance.plus(value);
+
+      fromBalance = fromBalance.toString(16).padStart(64, '0');
+      toBalance = toBalance.toString(16).padStart(64, '0');
+
+      balanceSet.setBalance(fromAddress, fromBalance);
+      balanceSet.setBalance(toAddress, toBalance);
+      return { ok: true, fromBalance: fromBalance, toBalance: toBalance };
+    } else {
+      return { ok: false };
+    }
+  }
+};
+
 app.post('/send/light_tx', async function (req, res) {
   try {
     let lightTxJson = req.body.lightTxJson;
-
     let lightTx = new LightTransaction(lightTxJson);
+    let isExisted = await db.isLightTxExisted(lightTx.lightTxHash);
+
     let success = false;
     let message = 'Something went wrong.';
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
@@ -140,72 +194,42 @@ app.post('/send/light_tx', async function (req, res) {
     if (containsOlderPayments) {
       message = 'Contains older payment.';
       code = ErrorCodes.CONTAINS_OLDER_RECEIPT;
+    } else if (isExisted) {
+      message = 'Contains known light transaction.';
+      code = ErrorCodes.CONTAINS_KNOWN_LIGHT_TX;
     } else {
       let isValidSigLightTx = isValidSig(lightTx);
       if (isValidSigLightTx) {
         lightTx.onChain = false;
-        let type = lightTx.type();
-        let fromAddress = lightTx.lightTxData.from;
-        let toAddress = lightTx.lightTxData.to;
-        let fromBalance = '0000000000000000000000000000000000000000000000000000000000000000';
-        let toBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 
-        if (type === LightTxTypes.deposit) {
-          let value = new BigNumber('0x' + lightTx.lightTxData.value);
-          toBalance = await balanceSet.getBalance(toAddress);
-          toBalance = new BigNumber('0x' + toBalance);
-          toBalance = toBalance.plus(value);
+        let updateResult = await updateBalance(lightTx);
 
-          toBalance = toBalance.toString(16).padStart(64, '0');
-          balanceSet.setBalance(toAddress, toBalance);
-        } else if ((type === LightTxTypes.withdrawal) ||
-                    type === LightTxTypes.instantWithdrawal) {
-          let value = new BigNumber('0x' + lightTx.lightTxData.value);
-          fromBalance = await balanceSet.getBalance(fromAddress);
-          fromBalance = new BigNumber('0x' + fromBalance);
-          fromBalance = fromBalance.minus(value);
+        if (updateResult.ok) {
+          let gsn = await gsnGenerator.getGSN();
+          gsn = gsn.toString(16).padStart(64, '0');
+          let receiptJson = lightTx.toJson();
+          receiptJson.receiptData = {
+            GSN: gsn,
+            lightTxHash: lightTx.lightTxHash,
+            fromBalance: updateResult.fromBalance,
+            toBalance: updateResult.toBalance,
+          };
+  
+          receipt = new Receipt(receiptJson);
+          console.log(receipt);
 
-          fromBalance = fromBalance.toString(16).padStart(64, '0');
-          balanceSet.setBalance(fromAddress, fromBalance);
-        } else if (type === LightTxTypes.remittance) {
-          let value = new BigNumber('0x' + lightTx.lightTxData.value);
-          fromBalance = await balanceSet.getBalance(fromAddress);
-          fromBalance = new BigNumber('0x' + fromBalance);
-          toBalance = await balanceSet.getBalance(toAddress);
-          toBalance = new BigNumber('0x' + toBalance);
-
-          fromBalance = fromBalance.minus(value);
-          toBalance = toBalance.plus(value);
-
-          fromBalance = fromBalance.toString(16).padStart(64, '0');
-          toBalance = toBalance.toString(16).padStart(64, '0');
-
-          balanceSet.setBalance(fromAddress, fromBalance);
-          balanceSet.setBalance(toAddress, toBalance);
-        }
-
-        let gsn = await gsnGenerator.getGSN();
-        gsn = gsn.toString(16).padStart(64, '0');
-        let receiptJson = lightTx.toJson();
-        receiptJson.receiptData = {
-          GSN: gsn,
-          lightTxHash: lightTx.lightTxHash,
-          fromBalance: fromBalance,
-          toBalance: toBalance,
-        };
-
-        receipt = new Receipt(receiptJson);
-        console.log(receipt);
-
-        let result = await db.saveReceipt(receipt);
-
-        if (result == ErrorCodes.OK) {
-          success = true;
-          message = 'Success.';
-          code = ErrorCodes.OK;
+          let dbResult = await db.saveReceipt(receipt);
+          if (dbResult == ErrorCodes.OK) {
+            success = true;
+            message = 'Success.';
+            code = ErrorCodes.OK;
+          } else {
+            message = 'Fail to save receipt.';
+            code = dbResult;
+          }
         } else {
-          message = 'Fail to save receipt.';
-          code = result;
+          message = 'Insufficient balance.';
+          code = ErrorCodes.INSUFFICIENT_BALANCE;
         }
       } else {
         message = 'Contains wrong signature receipt.';
