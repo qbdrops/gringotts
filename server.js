@@ -72,6 +72,23 @@ web3.eth.filter('latest').watch((err, blockHash) => {
   }
 });
 
+app.get('/balance/:address', async function (req, res) {
+  try {
+    let address = req.params.address;
+    if (address) {
+      address = address.padStart(64, '0');
+      let balance = await balanceSet.getBalance(address);
+      balance = new BigNumber('0x' + balance);
+
+      res.send({ balance: balance.toString() });
+    } else {
+      res.status(400).send({ errors: 'Parameter address is missing.' });
+    }
+  } catch (e) {
+    res.status(500).send({ errors: e.message });
+  }
+});
+
 app.get('/slice', async function (req, res) {
   try {
     let query = req.query;

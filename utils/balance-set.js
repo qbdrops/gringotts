@@ -16,7 +16,6 @@ class BalanceSet {
   }
 
   getBalance (address) {
-    console.log(address);
     return new Promise ((resolve) => {
       if (this.balanceSet.hasOwnProperty(address)) {
         if (!this.lock) {
