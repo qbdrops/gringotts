@@ -7,9 +7,12 @@ const allowedSigKeys = ['clientLightTx', 'serverLightTx'];
 const instantWithdrawalLimit = 10;
 
 class LightTransaction {
-  constructor (lightTxData, sig = {}) {
-    // Set default sig
-    sig = Object.assign({ clientLightTx: {}, serverLightTx: {} }, sig);
+  constructor (lightTxJson) {
+    // Check if recceiptJson has correct keys
+    assert(lightTxJson.hasOwnProperty('lightTxData'), 'Paramter \'lightTxJson\' should have key \'lightTxData\'.');
+
+    let lightTxData = lightTxJson.lightTxData;
+    let sig = Object.assign({ clientLightTx: {}, serverLightTx: {} }, lightTxJson.sig);
 
     // Remove keys which are not in the whitelist
     Object.keys(lightTxData).forEach(key => {

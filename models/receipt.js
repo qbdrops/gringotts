@@ -28,7 +28,10 @@ class Receipt {
     });
 
     // Check lightTxData format
-    let lightTx = new LightTransaction(receiptJson.lightTxData, receiptJson.sig);
+    let lightTx = new LightTransaction({
+      lightTxData: receiptJson.lightTxData,
+      sig: receiptJson.sig
+    });
     assert(lightTx.hasClientLightTxSig(), '\'clientLightTx\' signature is empty.');
     assert(lightTx.hasServerLightTxSig(), '\'serverLightTx\' signature is empty.');
 
