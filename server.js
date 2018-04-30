@@ -130,8 +130,8 @@ let updateBalance = async (lightTx) => {
   let type = lightTx.type();
   let fromAddress = lightTx.lightTxData.from;
   let toAddress = lightTx.lightTxData.to;
-  let fromBalance = '0000000000000000000000000000000000000000000000000000000000000000';
-  let toBalance = '0000000000000000000000000000000000000000000000000000000000000000';
+  let fromBalance = burnAddress;
+  let toBalance = burnAddress;
 
   if (type === LightTxTypes.deposit) {
     let value = new BigNumber('0x' + lightTx.lightTxData.value);
