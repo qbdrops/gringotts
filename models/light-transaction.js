@@ -118,25 +118,28 @@ class LightTransaction {
     return JSON.stringify(this.toJson());
   }
 
-  static parseProposal (eventData) {
-    let lightTxData = {
-      from: '0',
-      to: eventData._client,
-      value: eventData._value,
-      LSN: eventData._lsn,
-      fee: eventData._fee,
-      stageHeight: eventData._stageHeight
-    };
+  static parseProposal (type, eventData) {
+    assert(Object.values(types).includes(type), 'Invalid type.');
 
-    let sig = {
-      clientLightTx: {
-        v: eventData._v,
-        r: eventData._r,
-        s: eventData._s
+    let lightTxJson = {
+      lightTxData: {
+        from: (type == types.withdrawal) ? eventData._client : '0',
+        to: (type == types.deposit) ? eventData._client : '0',
+        value: eventData._value,
+        LSN: eventData._lsn,
+        fee: eventData._fee,
+        stageHeight: eventData._stageHeight
+      },
+      sig: {
+        clientLightTx: {
+          v: eventData._v,
+          r: eventData._r,
+          s: eventData._s
+        }
       }
     };
 
-    let lightTx = new LightTransaction(lightTxData, sig);
+    let lightTx = new LightTransaction(lightTxJson);
     return lightTx;
   }
 }
