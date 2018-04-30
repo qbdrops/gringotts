@@ -10,6 +10,7 @@ let Web3 = require('web3');
 let ErrorCodes = require('./errors/codes');
 let LightTransaction = require('./models/light-transaction');
 let Receipt = require('./models/receipt');
+let BalanceSet = require('./utils/balance-set');
 let GSNGenerator = require('./utils/gsn-generator');
 let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
@@ -18,6 +19,7 @@ let leveldown = require('leveldown');
 var transaction = require('level-transactions');
 let chain = levelup(leveldown('./sidechaindata'));
 let gsnGenerator = new GSNGenerator(chain);
+let balanceSet = new BalanceSet(chain);
 
 let app = express();
 app.use(bodyParser.json());
@@ -80,14 +82,9 @@ app.get('/balance/:address', async function (req, res) {
     let address = req.params.address;
     address = address.padStart(64, '0');
     if (address && (address != burnAddress)) {
-      try {
-        let balance = await chain.get('balance::' + address);
-        balance = new BigNumber('0x' + balance);
-        res.send({ balance: balance.toString() });
-      } catch (e) {
-        let balance = new BigNumber('0x' + initBalance);
-        res.send({ balance: balance.toString() });
-      }
+      let balance = await balanceSet.getBalance(address);
+      balance = new BigNumber('0x' + balance);
+      res.send({ balance: balance.toString() });
     } else {
       res.status(400).send({ errors: 'Parameter address is missing.' });
     }
@@ -144,11 +141,7 @@ let applyLightTx = async (lightTx) => {
 
     if (type === LightTxTypes.deposit) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
-      try {
-        toBalance = await chain.get('balance::' + toAddress);
-      } catch (e) {
-        toBalance = initBalance;
-      }
+      toBalance = await balanceSet.getBalance(toAddress);
       toBalance = new BigNumber('0x' + toBalance);
       toBalance = toBalance.plus(value);
       toBalance = toBalance.toString(16).padStart(64, '0');
@@ -156,15 +149,11 @@ let applyLightTx = async (lightTx) => {
       console.log('Deposit');
       console.log(toAddress);
       console.log(toBalance);
-      await dbTx.put('balance::' + toAddress, toBalance);
+      await balanceSet.setBalance(toAddress, toBalance, dbTx);
     } else if ((type === LightTxTypes.withdrawal) ||
                 type === LightTxTypes.instantWithdrawal) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
-      try {
-        fromBalance = await chain.get('balance::' + fromAddress);
-      } catch (e) {
-        fromBalance = initBalance;
-      }
+      fromBalance = await balanceSet.getBalance(fromAddress);
       fromBalance = new BigNumber('0x' + fromBalance);
 
       console.log('withdrawal or instantWithdrawal');
@@ -172,7 +161,7 @@ let applyLightTx = async (lightTx) => {
       if (fromBalance.isGreaterThanOrEqualTo(value)) {
         fromBalance = fromBalance.minus(value);
         fromBalance = fromBalance.toString(16).padStart(64, '0');
-        await dbTx.put('balance::' + fromAddress, fromBalance);
+        await balanceSet.setBalance(fromAddress, fromBalance, dbTx);
       } else {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
@@ -180,17 +169,8 @@ let applyLightTx = async (lightTx) => {
     } else if (type === LightTxTypes.remittance) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
 
-      try {
-        fromBalance = await chain.get('balance::' + fromAddress);
-      } catch (e) {
-        fromBalance = initBalance;
-      }
-
-      try {
-        toBalance = await chain.get('balance::' + toAddress);
-      } catch (e) {
-        toBalance = initBalance;
-      }
+      fromBalance = await balanceSet.getBalance(fromAddress);
+      toBalance = await balanceSet.getBalance(toAddress);
 
       fromBalance = new BigNumber('0x' + fromBalance);
       toBalance = new BigNumber('0x' + toBalance);
@@ -207,8 +187,8 @@ let applyLightTx = async (lightTx) => {
         fromBalance = fromBalance.toString(16).padStart(64, '0');
         toBalance = toBalance.toString(16).padStart(64, '0');
 
-        await dbTx.put('balance::' + fromAddress, fromBalance);
-        await dbTx.put('balance::' + toAddress, toBalance);
+        await balanceSet.setBalance(fromAddress, fromBalance, dbTx);
+        await balanceSet.setBalance(toAddress, toBalance, dbTx);
       } else {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
