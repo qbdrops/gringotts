@@ -10,12 +10,14 @@ let Web3 = require('web3');
 let ErrorCodes = require('./errors/codes');
 let LightTransaction = require('./models/light-transaction');
 let Receipt = require('./models/receipt');
-let BalanceSet = require('./utils/balance-set');
 let GSNGenerator = require('./utils/gsn-generator');
 let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
-let balanceSet = new BalanceSet(db);
 let gsnGenerator = new GSNGenerator(db);
+let levelup = require('levelup');
+let leveldown = require('leveldown');
+var transaction = require('level-transactions');
+let chain = levelup(leveldown('./sidechaindata'));
 
 let app = express();
 app.use(bodyParser.json());
@@ -34,7 +36,7 @@ let addNewStageTxs = [];
 let rootHashStageMap = {};
 let txHashRootHashMap = {};
 let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
-
+let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 io.on('connection', async function (socket) {
   console.log('connected');
   socket.on('disconnect', function () {
@@ -78,10 +80,14 @@ app.get('/balance/:address', async function (req, res) {
     let address = req.params.address;
     address = address.padStart(64, '0');
     if (address && (address != burnAddress)) {
-      let balance = await balanceSet.getBalance(address);
-      balance = new BigNumber('0x' + balance);
-
-      res.send({ balance: balance.toString() });
+      try {
+        let balance = await chain.get('balance::' + address);
+        balance = new BigNumber('0x' + balance);
+        res.send({ balance: balance.toString() });
+      } catch (e) {
+        let balance = new BigNumber('0x' + initBalance);
+        res.send({ balance: balance.toString() });
+      }
     } else {
       res.status(400).send({ errors: 'Parameter address is missing.' });
     }
@@ -126,57 +132,126 @@ function isValidSig (lightTx) {
   }
 }
 
-let updateBalance = async (lightTx) => {
-  let type = lightTx.type();
-  let fromAddress = lightTx.lightTxData.from;
-  let toAddress = lightTx.lightTxData.to;
-  let fromBalance = burnAddress;
-  let toBalance = burnAddress;
+let updateBalance = (lightTx) => {
+  return new Promise ((resolve) => {
+    let dbTx = transaction(chain);
+    let type = lightTx.type();
+    let fromAddress = lightTx.lightTxData.from;
+    let toAddress = lightTx.lightTxData.to;
+    let fromBalance = initBalance;
+    let toBalance = initBalance;
 
-  if (type === LightTxTypes.deposit) {
-    let value = new BigNumber('0x' + lightTx.lightTxData.value);
-    toBalance = await balanceSet.getBalance(toAddress);
-    toBalance = new BigNumber('0x' + toBalance);
-    toBalance = toBalance.plus(value);
+    if (type === LightTxTypes.deposit) {
+      let value = new BigNumber('0x' + lightTx.lightTxData.value);
+      dbTx.get('balance::' + toAddress, (err, existedBalance) => {
+        if (err) {
+          toBalance = initBalance;
+        } else {
+          toBalance = existedBalance;
+        }
 
-    toBalance = toBalance.toString(16).padStart(64, '0');
-    balanceSet.setBalance(toAddress, toBalance);
-    return { ok: true, fromBalance: fromBalance, toBalance: toBalance };
-  } else if ((type === LightTxTypes.withdrawal) ||
-              type === LightTxTypes.instantWithdrawal) {
-    let value = new BigNumber('0x' + lightTx.lightTxData.value);
-    fromBalance = await balanceSet.getBalance(fromAddress);
-    fromBalance = new BigNumber('0x' + fromBalance);
+        toBalance = new BigNumber('0x' + toBalance);
+        toBalance = toBalance.plus(value);
+        toBalance = toBalance.toString(16).padStart(64, '0');
 
-    if (fromBalance.isGreaterThanOrEqualTo(value)) {
-      fromBalance = fromBalance.minus(value);
-      fromBalance = fromBalance.toString(16).padStart(64, '0');
-      balanceSet.setBalance(fromAddress, fromBalance);
-      return { ok: true, fromBalance: fromBalance, toBalance: toBalance };
-    } else {
-      return { ok: false };
+        dbTx.put('balance::' + toAddress, toBalance, (err) => {
+          if (err) {
+            dbTx.rollback(new Error('Fail to update balance.'));
+          }
+        });
+      });
+
+      dbTx.commit((err) => {
+        if (err) {
+          resolve({ ok: false });
+        } else {
+          resolve({ ok: true, fromBalance: fromBalance, toBalance: toBalance });
+        }
+      });
+    } else if ((type === LightTxTypes.withdrawal) ||
+                type === LightTxTypes.instantWithdrawal) {
+      let value = new BigNumber('0x' + lightTx.lightTxData.value);
+
+      dbTx.get('balance::' + fromAddress, (err, existedBalance) => {
+        if (err) {
+          fromBalance = initBalance;
+        } else {
+          fromBalance = existedBalance;
+        }
+
+        fromBalance = new BigNumber('0x' + fromBalance);
+        if (fromBalance.isGreaterThanOrEqualTo(value)) {
+          fromBalance = fromBalance.minus(value);
+          fromBalance = fromBalance.toString(16).padStart(64, '0');
+          dbTx.put('balance::' + fromAddress, fromBalance, (err) => {
+            if (err) {
+              dbTx.rollback(new Error('Fail to update balance.'));
+            }
+          });
+        } else {
+          return dbTx.rollback(new Error('Insufficient balance.'));
+        }
+      });
+
+      dbTx.commit((err) => {
+        if (err) {
+          resolve({ ok: false });
+        } else {
+          resolve({ ok: true, fromBalance: fromBalance, toBalance: toBalance });
+        }
+      });
+    } else if (type === LightTxTypes.remittance) {
+      let value = new BigNumber('0x' + lightTx.lightTxData.value);
+      
+      dbTx.get('balance::' + fromAddress, (err, existedFromBalance) => {
+        if (err) {
+          fromBalance = initBalance;
+        } else {
+          fromBalance = existedFromBalance;
+        }
+
+        dbTx.get('balance::' + toAddress, (err, existedToBalance) => {
+          if (err) {
+            toBalance = initBalance;
+          } else {
+            toBalance = existedToBalance;
+          }
+
+          fromBalance = new BigNumber('0x' + fromBalance);
+          toBalance = new BigNumber('0x' + toBalance);
+
+          if (fromBalance.isGreaterThanOrEqualTo(value)) {
+            fromBalance = fromBalance.minus(value);
+            toBalance = toBalance.plus(value);
+    
+            fromBalance = fromBalance.toString(16).padStart(64, '0');
+            toBalance = toBalance.toString(16).padStart(64, '0');
+
+            dbTx.put('balance::' + fromAddress, fromBalance, (err) => {
+              if (err) {
+                dbTx.rollback(new Error('Fail to update balance.'));
+              }
+              dbTx.put('balance::' + toAddress, toBalance, (err) => {
+                if (err) {
+                  dbTx.rollback(new Error('Fail to update balance.'));
+                }
+              });
+            });
+          } else {
+            return dbTx.rollback(new Error('Insufficient balance.'));
+          }
+        });
+      });
+
+      dbTx.commit((err) => {
+        if (err) {
+          resolve({ ok: false });
+        } else {
+          resolve({ ok: true, fromBalance: fromBalance, toBalance: toBalance });
+        }
+      });
     }
-  } else if (type === LightTxTypes.remittance) {
-    let value = new BigNumber('0x' + lightTx.lightTxData.value);
-    fromBalance = await balanceSet.getBalance(fromAddress);
-    fromBalance = new BigNumber('0x' + fromBalance);
-    toBalance = await balanceSet.getBalance(toAddress);
-    toBalance = new BigNumber('0x' + toBalance);
-
-    if (fromBalance.isGreaterThanOrEqualTo(value)) {
-      fromBalance = fromBalance.minus(value);
-      toBalance = toBalance.plus(value);
-
-      fromBalance = fromBalance.toString(16).padStart(64, '0');
-      toBalance = toBalance.toString(16).padStart(64, '0');
-
-      balanceSet.setBalance(fromAddress, fromBalance);
-      balanceSet.setBalance(toAddress, toBalance);
-      return { ok: true, fromBalance: fromBalance, toBalance: toBalance };
-    } else {
-      return { ok: false };
-    }
-  }
+  });
 };
 
 app.post('/send/light_tx', async function (req, res) {
@@ -207,7 +282,6 @@ app.post('/send/light_tx', async function (req, res) {
 
         if (updateResult.ok) {
           let gsn = await gsnGenerator.getGSN();
-          gsn = gsn.toString(16).padStart(64, '0');
           let receiptJson = lightTx.toJson();
           receiptJson.receiptData = {
             GSN: gsn,
@@ -215,7 +289,7 @@ app.post('/send/light_tx', async function (req, res) {
             fromBalance: updateResult.fromBalance,
             toBalance: updateResult.toBalance,
           };
-  
+
           receipt = new Receipt(receiptJson);
           console.log(receipt);
 

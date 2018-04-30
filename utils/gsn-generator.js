@@ -13,6 +13,7 @@ class GSNGenerator {
     if (!this.lock) {
       this.lock = true;
       let gsn = this._increment();
+      gsn = gsn.toString(16).padStart(64, '0');
       this.lock = false;
       return gsn;
     } else {
