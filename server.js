@@ -33,6 +33,7 @@ let building = false;
 let addNewStageTxs = [];
 let rootHashStageMap = {};
 let txHashRootHashMap = {};
+let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
 
 io.on('connection', async function (socket) {
   console.log('connected');
@@ -75,8 +76,8 @@ web3.eth.filter('latest').watch((err, blockHash) => {
 app.get('/balance/:address', async function (req, res) {
   try {
     let address = req.params.address;
-    if (address) {
-      address = address.padStart(64, '0');
+    address = address.padStart(64, '0');
+    if (address && (address != burnAddress)) {
       let balance = await balanceSet.getBalance(address);
       balance = new BigNumber('0x' + balance);
 
