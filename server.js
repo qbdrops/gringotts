@@ -3,7 +3,6 @@ let express = require('express');
 let bodyParser = require('body-parser');
 let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
-let db = require('./db');
 let IndexedMerkleTree = require('./indexedMerkleTree/IndexedMerkleTree');
 let Sidechain = require('./utils/SideChain');
 let Web3 = require('web3');
@@ -14,12 +13,22 @@ let BalanceSet = require('./utils/balance-set');
 let GSNGenerator = require('./utils/gsn-generator');
 let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
-let levelup = require('levelup');
-let leveldown = require('leveldown');
+let db = require('./db');
 var transaction = require('level-transactions');
-let chain = levelup(leveldown('./sidechaindata'));
+let chain = db.getSideChain();
 let gsnGenerator = new GSNGenerator(chain);
 let balanceSet = new BalanceSet(chain);
+let offchainReceipts = [];
+
+chain.get('offchain_receipts', (err, existedOffchainReceipts) => {
+  let receipts;
+  if (err) {
+    receipts = [];
+  } else {
+    receipts = JSON.parse(existedOffchainReceipts);
+  }
+  offchainReceipts = receipts;
+});
 
 let app = express();
 app.use(bodyParser.json());
@@ -66,7 +75,23 @@ web3.eth.filter('latest').watch((err, blockHash) => {
           console.log('stageHash: ' + stageHash);
 
           // Clear pending pool
-          await db.clearPendingPayments(stageHash);
+          let targetReceipts = offchainReceipts.filter((receipt) => {
+            return receipt.lightTxData.stageHeight == stageHeight;
+          });
+
+          // Remove offchain receipt json
+          for (let i = 0; i < offchainReceipts.length; i++) {
+            let offchainReceipt = offchainReceipts[i];
+            for (let j = 0; j < targetReceipts.length; j++) {
+              let targetReceipt = targetReceipts[j];
+              if (offchainReceipt.receiptHash == targetReceipt.receiptHash) {
+                offchainReceipts.splice(i, 1);
+              }
+            }
+          }
+
+          // remove from level db
+          await db.updateOffchainRecepts(offchainReceipts);
         }
         building = false;
         let rootHash = txHashRootHashMap[txHash];
@@ -241,6 +266,18 @@ let applyLightTx = async (lightTx) => {
         throw new Error('Contains over height receipt.');
       }
 
+      let hit = false;
+      offchainReceipts.forEach((offchainReceipt) => {
+        if (offchainReceipt.receiptHash == receipt.receiptHash) {
+          hit = true;
+        }
+      });
+      if (!hit) {
+        let receiptJson = receipt.toJson();
+        offchainReceipts.push(receiptJson);
+        await dbTx.put('offchain_receipts', JSON.stringify(offchainReceipts));
+      }
+
       await dbTx.put('receipt::' + receipt.receiptHash, JSON.stringify(receipt.toJson()));
       await dbTx.commit((err) => {
         if (err) {
@@ -280,8 +317,6 @@ app.post('/send/light_tx', async function (req, res) {
     } else {
       let isValidSigLightTx = isValidSig(lightTx);
       if (isValidSigLightTx) {
-        lightTx.onChain = false;
-
         let updateResult = await applyLightTx(lightTx);
 
         if (updateResult.ok) {
@@ -340,12 +375,12 @@ app.get('/roothash', async function (req, res) {
       let stageHeight = await Sidechain.getContractStageHeight();
       let nextStageHeight = parseInt(stageHeight) + 1;
       building = true;
-      let payments = await db.pendingPayments(nextStageHeight, true);
-      let paymentHashes = payments.map(payment => payment.paymentHash);
-      if (paymentHashes.length > 0) {
+      let receipts = await db.pendingReceipts(nextStageHeight, true);
+      let receiptHashes = receipts.map(receipt => receipt.receiptHash);
+      if (receiptHashes.length > 0) {
         let tree = new IndexedMerkleTree();
         console.log('Building Stage Height:' + nextStageHeight);
-        await tree.build(nextStageHeight, paymentHashes);
+        await tree.build(nextStageHeight, receiptHashes);
         let rootHash = '0x' + tree.rootHash;
         rootHashStageMap[rootHash] = nextStageHeight + 1;
         // rootHash should be pushed into pending rootHash
@@ -501,10 +536,9 @@ app.get('/finalized/time', async function (req, res) {
   }
 });
 
-app.get('/pending/payments', async function (req, res) {
+app.get('/pending/receipts', async function (req, res) {
   try {
-    let pendingPayments = await Sidechain.pendingPayments();
-    res.send(pendingPayments);
+    res.send(offchainReceipts);
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });

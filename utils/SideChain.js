@@ -71,11 +71,6 @@ let Sidechain = function () {
   this.getContractStageHeight = async () => {
     return IFCContract.stageHeight();
   };
-    
-  this.pendingPayments = async () => {
-    let payments = await db.pendingPayments();
-    return payments;
-  };
 
   this.getSidechainStageHeight = async () => {
     let stageHeight = await db.stageHeight();
