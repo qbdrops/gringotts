@@ -8,6 +8,9 @@ let stopReceiveStage = null;
 let acceptableStage = null;
 
 let DB = function () {
+  this.getStopReceiveStage = () => {
+    return stopReceiveStage;
+  },
   this.acceptStage = (stageHeight) => {
     acceptableStage = stageHeight;
   },

@@ -13,11 +13,11 @@ let Receipt = require('./models/receipt');
 let GSNGenerator = require('./utils/gsn-generator');
 let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
-let gsnGenerator = new GSNGenerator(db);
 let levelup = require('levelup');
 let leveldown = require('leveldown');
 var transaction = require('level-transactions');
 let chain = levelup(leveldown('./sidechaindata'));
+let gsnGenerator = new GSNGenerator(chain);
 
 let app = express();
 app.use(bodyParser.json());
@@ -132,9 +132,10 @@ function isValidSig (lightTx) {
   }
 }
 
-let updateBalance = (lightTx) => {
-  return new Promise ((resolve) => {
-    let dbTx = transaction(chain);
+let applyLightTx = async (lightTx) => {
+  let dbTx = transaction(chain);
+  let code = ErrorCodes.SOMETHING_WENT_WRONG;
+  try {
     let type = lightTx.type();
     let fromAddress = lightTx.lightTxData.from;
     let toAddress = lightTx.lightTxData.to;
@@ -143,115 +144,138 @@ let updateBalance = (lightTx) => {
 
     if (type === LightTxTypes.deposit) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
-      dbTx.get('balance::' + toAddress, (err, existedBalance) => {
-        if (err) {
-          toBalance = initBalance;
-        } else {
-          toBalance = existedBalance;
-        }
+      try {
+        toBalance = await chain.get('balance::' + toAddress);
+      } catch (e) {
+        toBalance = initBalance;
+      }
+      toBalance = new BigNumber('0x' + toBalance);
+      toBalance = toBalance.plus(value);
+      toBalance = toBalance.toString(16).padStart(64, '0');
 
-        toBalance = new BigNumber('0x' + toBalance);
-        toBalance = toBalance.plus(value);
-        toBalance = toBalance.toString(16).padStart(64, '0');
-
-        dbTx.put('balance::' + toAddress, toBalance, (err) => {
-          if (err) {
-            dbTx.rollback(new Error('Fail to update balance.'));
-          }
-        });
-      });
-
-      dbTx.commit((err) => {
-        if (err) {
-          resolve({ ok: false });
-        } else {
-          resolve({ ok: true, fromBalance: fromBalance, toBalance: toBalance });
-        }
-      });
+      console.log('Deposit');
+      console.log(toAddress);
+      console.log(toBalance);
+      await dbTx.put('balance::' + toAddress, toBalance);
     } else if ((type === LightTxTypes.withdrawal) ||
                 type === LightTxTypes.instantWithdrawal) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
+      try {
+        fromBalance = await chain.get('balance::' + fromAddress);
+      } catch (e) {
+        fromBalance = initBalance;
+      }
+      fromBalance = new BigNumber('0x' + fromBalance);
 
-      dbTx.get('balance::' + fromAddress, (err, existedBalance) => {
-        if (err) {
-          fromBalance = initBalance;
-        } else {
-          fromBalance = existedBalance;
-        }
-
-        fromBalance = new BigNumber('0x' + fromBalance);
-        if (fromBalance.isGreaterThanOrEqualTo(value)) {
-          fromBalance = fromBalance.minus(value);
-          fromBalance = fromBalance.toString(16).padStart(64, '0');
-          dbTx.put('balance::' + fromAddress, fromBalance, (err) => {
-            if (err) {
-              dbTx.rollback(new Error('Fail to update balance.'));
-            }
-          });
-        } else {
-          return dbTx.rollback(new Error('Insufficient balance.'));
-        }
-      });
-
-      dbTx.commit((err) => {
-        if (err) {
-          resolve({ ok: false });
-        } else {
-          resolve({ ok: true, fromBalance: fromBalance, toBalance: toBalance });
-        }
-      });
+      console.log('withdrawal or instantWithdrawal');
+      console.log(fromBalance);
+      if (fromBalance.isGreaterThanOrEqualTo(value)) {
+        fromBalance = fromBalance.minus(value);
+        fromBalance = fromBalance.toString(16).padStart(64, '0');
+        await dbTx.put('balance::' + fromAddress, fromBalance);
+      } else {
+        code = ErrorCodes.INSUFFICIENT_BALANCE;
+        throw new Error('Insufficient balance.');
+      }
     } else if (type === LightTxTypes.remittance) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
-      
-      dbTx.get('balance::' + fromAddress, (err, existedFromBalance) => {
-        if (err) {
-          fromBalance = initBalance;
-        } else {
-          fromBalance = existedFromBalance;
-        }
 
-        dbTx.get('balance::' + toAddress, (err, existedToBalance) => {
-          if (err) {
-            toBalance = initBalance;
-          } else {
-            toBalance = existedToBalance;
-          }
+      try {
+        fromBalance = await chain.get('balance::' + fromAddress);
+      } catch (e) {
+        fromBalance = initBalance;
+      }
 
-          fromBalance = new BigNumber('0x' + fromBalance);
-          toBalance = new BigNumber('0x' + toBalance);
+      try {
+        toBalance = await chain.get('balance::' + toAddress);
+      } catch (e) {
+        toBalance = initBalance;
+      }
 
-          if (fromBalance.isGreaterThanOrEqualTo(value)) {
-            fromBalance = fromBalance.minus(value);
-            toBalance = toBalance.plus(value);
-    
-            fromBalance = fromBalance.toString(16).padStart(64, '0');
-            toBalance = toBalance.toString(16).padStart(64, '0');
+      fromBalance = new BigNumber('0x' + fromBalance);
+      toBalance = new BigNumber('0x' + toBalance);
+      console.log('Remittance');
+      console.log(fromAddress);
+      console.log(toAddress);
+      console.log(fromBalance);
+      console.log(toBalance);
 
-            dbTx.put('balance::' + fromAddress, fromBalance, (err) => {
-              if (err) {
-                dbTx.rollback(new Error('Fail to update balance.'));
-              }
-              dbTx.put('balance::' + toAddress, toBalance, (err) => {
-                if (err) {
-                  dbTx.rollback(new Error('Fail to update balance.'));
-                }
-              });
-            });
-          } else {
-            return dbTx.rollback(new Error('Insufficient balance.'));
-          }
-        });
-      });
+      if (fromBalance.isGreaterThanOrEqualTo(value)) {
+        fromBalance = fromBalance.minus(value);
+        toBalance = toBalance.plus(value);
 
-      dbTx.commit((err) => {
-        if (err) {
-          resolve({ ok: false });
-        } else {
-          resolve({ ok: true, fromBalance: fromBalance, toBalance: toBalance });
-        }
-      });
+        fromBalance = fromBalance.toString(16).padStart(64, '0');
+        toBalance = toBalance.toString(16).padStart(64, '0');
+
+        await dbTx.put('balance::' + fromAddress, fromBalance);
+        await dbTx.put('balance::' + toAddress, toBalance);
+      } else {
+        code = ErrorCodes.INSUFFICIENT_BALANCE;
+        throw new Error('Insufficient balance.');
+      }
     }
-  });
+
+    // GSN
+    let gsn = await gsnGenerator.getGSN();
+    let receiptJson = lightTx.toJson();
+    receiptJson.receiptData = {
+      GSN: gsn,
+      lightTxHash: lightTx.lightTxHash,
+      fromBalance: fromBalance,
+      toBalance: toBalance,
+    };
+
+    let receipt = new Receipt(receiptJson);
+
+    // Save Receipt
+    let containsKnownReceipt = false;
+    let stageHasBeenBuilt = false;
+
+    try {
+      await chain.get('receipt::' + receipt.receiptHash);
+      containsKnownReceipt = true;
+    } catch (e) {
+      // No known receipt, do nothing
+    }
+
+    if (containsKnownReceipt) {
+      code = ErrorCodes.CONTAINS_KNOWN_RECEIPT;
+      throw new Error('Contains known receipt.');
+    } else {
+      let receiptStageHeight = parseInt(receipt.lightTxData.stageHeight);
+      try {
+        await chain.get('stage::' + receiptStageHeight);
+        stageHasBeenBuilt = true;
+      } catch (e) {
+        // Stage does not existed, do nothing
+      }
+      let stopReceiveStage = db.getStopReceiveStage();
+      let isNotValid = (receiptStageHeight == stopReceiveStage);
+      if (stageHasBeenBuilt || isNotValid) {
+        code = ErrorCodes.STAGE_HAS_BEEN_BUILT;
+        throw new Error('Stage has been built.');
+      }
+
+      if (stopReceiveStage && ((receiptStageHeight - 1) !== stopReceiveStage)) {
+        code = ErrorCodes.CONTAINS_OVER_HEIGHT_RECEIPT;
+        throw new Error('Contains over height receipt.');
+      }
+
+      await dbTx.put('receipt::' + receipt.receiptHash, JSON.stringify(receipt.toJson()));
+      await dbTx.commit((err) => {
+        if (err) {
+          console.error(err);
+        } else {
+          console.log('commited');
+        }
+      });
+      return { ok: true, receipt: receipt };
+    }
+  } catch (e) {
+    console.error(e);
+    dbTx.rollback(e);
+    return { ok: false, code: code, message: e.message };
+  }
 };
 
 app.post('/send/light_tx', async function (req, res) {
@@ -278,33 +302,14 @@ app.post('/send/light_tx', async function (req, res) {
       if (isValidSigLightTx) {
         lightTx.onChain = false;
 
-        let updateResult = await updateBalance(lightTx);
+        let updateResult = await applyLightTx(lightTx);
 
         if (updateResult.ok) {
-          let gsn = await gsnGenerator.getGSN();
-          let receiptJson = lightTx.toJson();
-          receiptJson.receiptData = {
-            GSN: gsn,
-            lightTxHash: lightTx.lightTxHash,
-            fromBalance: updateResult.fromBalance,
-            toBalance: updateResult.toBalance,
-          };
-
-          receipt = new Receipt(receiptJson);
-          console.log(receipt);
-
-          let dbResult = await db.saveReceipt(receipt);
-          if (dbResult == ErrorCodes.OK) {
-            success = true;
-            message = 'Success.';
-            code = ErrorCodes.OK;
-          } else {
-            message = 'Fail to save receipt.';
-            code = dbResult;
-          }
+          success = true;
+          receipt = updateResult.receipt;
         } else {
-          message = 'Insufficient balance.';
-          code = ErrorCodes.INSUFFICIENT_BALANCE;
+          message = updateResult.message;
+          code = updateResult.code;
         }
       } else {
         message = 'Contains wrong signature receipt.';

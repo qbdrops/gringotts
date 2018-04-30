@@ -1,12 +1,22 @@
 class GSNGenerator {
-  constructor (db) {
-    this.db = db;
-    this.gsn = 0;
+  constructor (chain) {
+    this.chain = chain;
     this.lock = false;
+    this.chain.get('GSN', (err, exsitedGSN) => {
+      if (err) {
+        this.chain.put('GSN', 0);
+        this.gsn = 0;
+      } else {
+        this.gsn = parseInt(exsitedGSN);
+      }
+    });
   }
 
   _increment () {
-    return ++this.gsn;
+    let gsn = this.gsn + 1;
+    this.gsn++;
+    this.chain.put('GSN', gsn);
+    return gsn;
   }
 
   _getGSN () {
