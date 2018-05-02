@@ -232,7 +232,7 @@ let _applyLightTx = async (lightTx) => {
     let stageHasBeenBuilt = false;
 
     try {
-      chain.get('receipt::' + receipt.receiptHash);
+      await chain.get('receipt::' + receipt.receiptHash);
       containsKnownReceipt = true;
     } catch (e) {
       if (e.type == 'NotFoundError') {
@@ -249,7 +249,7 @@ let _applyLightTx = async (lightTx) => {
     } else {
       let receiptStageHeight = parseInt(receipt.lightTxData.stageHeight);
       try {
-        chain.get('stage::' + receiptStageHeight);
+        await chain.get('stage::' + receiptStageHeight);
         stageHasBeenBuilt = true;
       } catch (e) {
         if (e.type == 'NotFoundError') {
