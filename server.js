@@ -4,7 +4,7 @@ let bodyParser = require('body-parser');
 let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
 let IndexedMerkleTree = require('./indexedMerkleTree/IndexedMerkleTree');
-let Sidechain = require('./utils/SideChain');
+let Sidechain = require('./utils/sidechain');
 let Web3 = require('web3');
 let ErrorCodes = require('./errors/codes');
 let LightTransaction = require('./models/light-transaction');
@@ -15,7 +15,7 @@ let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
 let db = require('./db');
 var transaction = require('level-transactions');
-let chain = db.getSideChain();
+let chain = db.getSidechain();
 let gsnGenerator = new GSNGenerator(chain);
 let balanceSet = new BalanceSet(chain);
 let offchainReceipts = [];
@@ -173,10 +173,6 @@ let _applyLightTx = async (lightTx) => {
       toBalance = new BigNumber('0x' + toBalance);
       toBalance = toBalance.plus(value);
       toBalance = toBalance.toString(16).padStart(64, '0');
-
-      console.log('Deposit');
-      console.log(toAddress);
-      console.log(toBalance);
       await balanceSet.setBalance(toAddress, toBalance, dbTx);
     } else if ((type === LightTxTypes.withdrawal) ||
               (type === LightTxTypes.instantWithdrawal)) {
@@ -184,9 +180,6 @@ let _applyLightTx = async (lightTx) => {
       fromBalance = await balanceSet.getBalance(fromAddress);
       oldFromBalance = fromBalance;
       fromBalance = new BigNumber('0x' + fromBalance);
-
-      console.log('withdrawal or instantWithdrawal');
-      console.log(fromBalance);
       if (fromBalance.isGreaterThanOrEqualTo(value)) {
         fromBalance = fromBalance.minus(value);
         fromBalance = fromBalance.toString(16).padStart(64, '0');
@@ -204,12 +197,6 @@ let _applyLightTx = async (lightTx) => {
       oldToBalance = toBalance;
       fromBalance = new BigNumber('0x' + fromBalance);
       toBalance = new BigNumber('0x' + toBalance);
-      console.log('Remittance');
-      console.log(fromAddress);
-      console.log(toAddress);
-      console.log(fromBalance);
-      console.log(toBalance);
-
       if (fromBalance.isGreaterThanOrEqualTo(value)) {
         fromBalance = fromBalance.minus(value);
         toBalance = toBalance.plus(value);

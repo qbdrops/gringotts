@@ -13,7 +13,7 @@ let acceptableStage = null;
 
 let DB = function () {
   this.chain = chain;
-  this.getSideChain = () => {
+  this.getSidechain = () => {
     return this.chain;
   },
   this.getStopReceiveStage = () => {
