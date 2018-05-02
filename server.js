@@ -232,7 +232,7 @@ let _applyLightTx = async (lightTx) => {
     let stageHasBeenBuilt = false;
 
     try {
-      await chain.get('receipt::' + receipt.receiptHash);
+      chain.get('receipt::' + receipt.receiptHash);
       containsKnownReceipt = true;
     } catch (e) {
       if (e.type == 'NotFoundError') {
@@ -249,7 +249,7 @@ let _applyLightTx = async (lightTx) => {
     } else {
       let receiptStageHeight = parseInt(receipt.lightTxData.stageHeight);
       try {
-        await chain.get('stage::' + receiptStageHeight);
+        chain.get('stage::' + receiptStageHeight);
         stageHasBeenBuilt = true;
       } catch (e) {
         if (e.type == 'NotFoundError') {
@@ -280,17 +280,11 @@ let _applyLightTx = async (lightTx) => {
       if (!hit) {
         let receiptJson = receipt.toJson();
         offchainReceipts.push(receiptJson);
-        await dbTx.put('offchain_receipts', JSON.stringify(offchainReceipts));
+        dbTx.put('offchain_receipts', JSON.stringify(offchainReceipts));
       }
 
-      await dbTx.put('receipt::' + receipt.receiptHash, JSON.stringify(receipt.toJson()));
-      await dbTx.commit((err) => {
-        if (err) {
-          console.error(err);
-        } else {
-          console.log('commited');
-        }
-      });
+      dbTx.put('receipt::' + receipt.receiptHash, JSON.stringify(receipt.toJson()));
+      dbTx.commit();
       return { ok: true, receipt: receipt };
     }
   } catch (e) {
@@ -328,7 +322,7 @@ let applyLightTx = (lightTx) => {
           clearInterval(timerId);
           resolve(updateResult);
         }
-      }, 50);
+      }, Math.floor(Math.random() * 1000));
     }
   });
 };
