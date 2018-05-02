@@ -320,11 +320,12 @@ let applyLightTx = (lightTx) => {
       lightTxLock = false;
       resolve(updateResult);
     } else {
-      setInterval(async () => {
+      let timerId = setInterval(async () => {
         if (!lightTxLock) {
           lightTxLock = true;
           let updateResult = await _applyLightTx(lightTx);
           lightTxLock = false;
+          clearInterval(timerId);
           resolve(updateResult);
         }
       }, 50);
