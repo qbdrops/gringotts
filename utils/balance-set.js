@@ -9,8 +9,11 @@ class BalanceSet {
     this.chain.get('balances', (err, balanceSetJson) => {
       let balanceSet = {};
       if (err) {
-        // First start
-        this.chain.put('balances', JSON.stringify(balanceSet));
+        if (err.type == 'NotFoundError') {
+          this.chain.put('balances', JSON.stringify(balanceSet));
+        } else {
+          throw new Error('Can not fetch balances from db.');
+        }
       } else {
         balanceSet = JSON.parse(balanceSetJson);
       }

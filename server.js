@@ -221,7 +221,7 @@ let applyLightTx = async (lightTx) => {
     }
 
     // GSN
-    let gsn = await gsnGenerator.getGSN();
+    let gsn = await gsnGenerator.getGSN(dbTx);
     let receiptJson = lightTx.toJson();
     receiptJson.receiptData = {
       GSN: gsn,
