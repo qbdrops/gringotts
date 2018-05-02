@@ -19,6 +19,7 @@ let chain = db.getSideChain();
 let gsnGenerator = new GSNGenerator(chain);
 let balanceSet = new BalanceSet(chain);
 let offchainReceipts = [];
+let lightTxLock = false;
 
 chain.get('offchain_receipts', (err, existedOffchainReceipts) => {
   let receipts;
@@ -154,19 +155,21 @@ function isValidSig (lightTx) {
   }
 }
 
-let applyLightTx = async (lightTx) => {
+let _applyLightTx = async (lightTx) => {
   let dbTx = transaction(chain);
   let code = ErrorCodes.SOMETHING_WENT_WRONG;
+  let type = lightTx.type();
+  let fromAddress = lightTx.lightTxData.from;
+  let toAddress = lightTx.lightTxData.to;
+  let fromBalance = initBalance;
+  let toBalance = initBalance;
+  let oldFromBalance;
+  let oldToBalance;
   try {
-    let type = lightTx.type();
-    let fromAddress = lightTx.lightTxData.from;
-    let toAddress = lightTx.lightTxData.to;
-    let fromBalance = initBalance;
-    let toBalance = initBalance;
-
     if (type === LightTxTypes.deposit) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
       toBalance = await balanceSet.getBalance(toAddress);
+      oldToBalance = toBalance;
       toBalance = new BigNumber('0x' + toBalance);
       toBalance = toBalance.plus(value);
       toBalance = toBalance.toString(16).padStart(64, '0');
@@ -176,9 +179,10 @@ let applyLightTx = async (lightTx) => {
       console.log(toBalance);
       await balanceSet.setBalance(toAddress, toBalance, dbTx);
     } else if ((type === LightTxTypes.withdrawal) ||
-                type === LightTxTypes.instantWithdrawal) {
+              (type === LightTxTypes.instantWithdrawal)) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
       fromBalance = await balanceSet.getBalance(fromAddress);
+      oldFromBalance = fromBalance;
       fromBalance = new BigNumber('0x' + fromBalance);
 
       console.log('withdrawal or instantWithdrawal');
@@ -195,8 +199,9 @@ let applyLightTx = async (lightTx) => {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
 
       fromBalance = await balanceSet.getBalance(fromAddress);
+      oldFromBalance = fromBalance;
       toBalance = await balanceSet.getBalance(toAddress);
-
+      oldToBalance = toBalance;
       fromBalance = new BigNumber('0x' + fromBalance);
       toBalance = new BigNumber('0x' + toBalance);
       console.log('Remittance');
@@ -218,6 +223,9 @@ let applyLightTx = async (lightTx) => {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
       }
+    } else {
+      code = ErrorCodes.INVALID_LIGHT_TX_TYPE;
+      throw new Error('Invalid light transaction type.');
     }
 
     // GSN
@@ -300,9 +308,41 @@ let applyLightTx = async (lightTx) => {
     }
   } catch (e) {
     console.error(e);
+    // rollback all modifications in the leveldb transaction
     dbTx.rollback(e);
+    // rollback balances in memory
+    if (type === LightTxTypes.deposit) {
+      await balanceSet.setBalance(toAddress, oldToBalance);
+    } else if ((type === LightTxTypes.withdrawal) ||
+              (type === LightTxTypes.instantWithdrawal)) {
+      await balanceSet.setBalance(fromAddress, oldFromBalance);
+    } else if (type === LightTxTypes.remittance) {
+      await balanceSet.setBalance(fromAddress, oldFromBalance);
+      await balanceSet.setBalance(toAddress, oldToBalance);
+    }
     return { ok: false, code: code, message: e.message };
   }
+};
+
+let applyLightTx = (lightTx) => {
+  // gringotts can only process one lightTx at the same time
+  return new Promise(async (resolve) => {
+    if (!lightTxLock) {
+      lightTxLock = true;
+      let updateResult = await _applyLightTx(lightTx);
+      lightTxLock = false;
+      resolve(updateResult);
+    } else {
+      setInterval(async () => {
+        if (!lightTxLock) {
+          lightTxLock = true;
+          let updateResult = await _applyLightTx(lightTx);
+          lightTxLock = false;
+          resolve(updateResult);
+        }
+      }, 50);
+    }
+  });
 };
 
 app.post('/send/light_tx', async function (req, res) {

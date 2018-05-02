@@ -49,13 +49,15 @@ class BalanceSet {
     });
   }
 
-  async setBalance (address, balance, dbTx) {
+  async setBalance (address, balance, leveldbTransaction) {
     assert((typeof balance === 'string') && (balance.toString().length === 64), 'Invalid balance.');
     this.lock = true;
     try {
       let balances = this.balanceSet;
       balances[address] = balance;
-      await dbTx.put('balances', JSON.stringify(balances));
+      if (leveldbTransaction) {
+        await leveldbTransaction.put('balances', JSON.stringify(balances));
+      }
       this.balanceSet[address] = balance;
     } catch(e) {
       console.error(e);
