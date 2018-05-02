@@ -240,7 +240,12 @@ let applyLightTx = async (lightTx) => {
       await chain.get('receipt::' + receipt.receiptHash);
       containsKnownReceipt = true;
     } catch (e) {
-      // No known receipt, do nothing
+      if (e.type == 'NotFoundError') {
+        // No known receipt, do nothing
+      } else {
+        code = ErrorCodes.SOMETHING_WENT_WRONG;
+        throw e;
+      }
     }
 
     if (containsKnownReceipt) {
@@ -252,7 +257,12 @@ let applyLightTx = async (lightTx) => {
         await chain.get('stage::' + receiptStageHeight);
         stageHasBeenBuilt = true;
       } catch (e) {
-        // Stage does not existed, do nothing
+        if (e.type == 'NotFoundError') {
+          // Stage does not existed, do nothing
+        } else {
+          code = ErrorCodes.SOMETHING_WENT_WRONG;
+          throw e;
+        }
       }
       let stopReceiveStage = db.getStopReceiveStage();
       let isNotValid = (receiptStageHeight == stopReceiveStage);
