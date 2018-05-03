@@ -5,10 +5,13 @@ class IndexedMerkleTree {
   constructor () {
     this.emptyNodeHash = this._sha3('none');
     this.rootHash = '';
+    this.stageHeight = null;
+    this.treeNodes = [];
   }
 
   async build (stageHeight, leafElements) {
     try {
+      this.stageHeight = stageHeight;
       let treeHeight = this._computeTreeHeight(leafElements.length);
 
       // 1. Compute treeNodeIndex for each paymentHash and group them by treeNodeIndex
@@ -16,7 +19,7 @@ class IndexedMerkleTree {
       for (let i = 0; i < leafElements.length; i++) {
         let el = leafElements[i];
         let index = this._computeLeafIndex(treeHeight, el);
-        await db.updatePaymentNodeIndex(el, index);
+        // await db.updatePaymentNodeIndex(el, index);
         leafElementsWithIndex.push({ treeNodeIndex: index.toString(), leafElement: el });
       }
       let leafElementMap = leafElementsWithIndex.reduce((acc, curr) => {
@@ -56,7 +59,8 @@ class IndexedMerkleTree {
       // 4. Compute rootHash
       while (nodeQueue.length > 1) {
         let node = nodeQueue.shift();
-        await db.saveTreeNode(node, stageHeight);
+        // await db.saveTreeNode(node, stageHeight);
+        this.treeNodes.push(node);
 
         if (node.treeNodeIndex % 2 == 0) {
           nodeQueue.push(node);
@@ -69,7 +73,9 @@ class IndexedMerkleTree {
       }
 
       // 5. Save rootNode to DB
-      await db.saveTreeNode(nodeQueue[0], stageHeight);
+      // await db.saveTreeNode(nodeQueue[0], stageHeight);
+      this.treeNodes.push(nodeQueue[0]);
+
       this.rootHash = nodeQueue[0].treeNodeHash;
 
       return this.rootHash;
