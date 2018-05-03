@@ -155,6 +155,18 @@ function isValidSig (lightTx) {
   }
 }
 
+app.get('/receipt/:lightTxHash', async function (req, res) {
+  try {
+    let lightTxHash = req.params.lightTxHash;
+    let receiptJson = await chain.get('receipt::' + lightTxHash);
+    let receipt = JSON.parse(receiptJson);
+    res.send(receipt);
+  } catch (e) {
+    console.error(e);
+    res.status(500).send({ ok: false, errors: e.message });
+  }
+});
+
 let _applyLightTx = async (lightTx) => {
   let dbTx = transaction(chain);
   let code = ErrorCodes.SOMETHING_WENT_WRONG;
@@ -283,7 +295,7 @@ let _applyLightTx = async (lightTx) => {
         dbTx.put('offchain_receipts', JSON.stringify(offchainReceipts));
       }
 
-      dbTx.put('receipt::' + receipt.receiptHash, JSON.stringify(receipt.toJson()));
+      dbTx.put('receipt::' + receipt.lightTxHash, JSON.stringify(receipt.toJson()));
       dbTx.commit();
       return { ok: true, receipt: receipt };
     }
@@ -322,7 +334,7 @@ let applyLightTx = (lightTx) => {
           clearInterval(timerId);
           resolve(updateResult);
         }
-      }, Math.floor(Math.random() * 1000));
+      }, Math.floor(Math.random() * 500));
     }
   });
 };
