@@ -10,12 +10,12 @@ class BalanceSet {
       let balanceSet = {};
       if (err) {
         if (err.type == 'NotFoundError') {
-          this.chain.put('balances', JSON.stringify(balanceSet));
+          this.chain.put('balances', balanceSet);
         } else {
           throw new Error('Can not fetch balances from db.');
         }
       } else {
-        balanceSet = JSON.parse(balanceSetJson);
+        balanceSet = balanceSetJson;
       }
       this.balanceSet = balanceSet;
     });
@@ -56,7 +56,7 @@ class BalanceSet {
       let balances = this.balanceSet;
       balances[address] = balance;
       if (leveldbTransaction) {
-        await leveldbTransaction.put('balances', JSON.stringify(balances));
+        await leveldbTransaction.put('balances', balances);
       }
       this.balanceSet[address] = balance;
     } catch(e) {

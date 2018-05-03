@@ -3,9 +3,8 @@ let ErrorCodes = require('./errors/codes');
 let EthUtils = require('ethereumjs-util');
 let MongoClient = require('mongodb').MongoClient;
 
-let levelup = require('levelup');
-let leveldown = require('leveldown');
-let chain = levelup(leveldown('./sidechaindata'));
+let level = require('level');
+let chain = level('./sidechaindata', { valueEncoding: 'json' });
 
 let url = env.mongodbUrl;
 let stopReceiveStage = null;

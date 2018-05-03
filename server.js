@@ -26,7 +26,7 @@ chain.get('offchain_receipts', (err, existedOffchainReceipts) => {
   if (err) {
     receipts = [];
   } else {
-    receipts = JSON.parse(existedOffchainReceipts);
+    receipts = existedOffchainReceipts;
   }
   offchainReceipts = receipts;
 });
@@ -158,8 +158,7 @@ function isValidSig (lightTx) {
 app.get('/receipt/:lightTxHash', async function (req, res) {
   try {
     let lightTxHash = req.params.lightTxHash;
-    let receiptJson = await chain.get('receipt::' + lightTxHash);
-    let receipt = JSON.parse(receiptJson);
+    let receipt = await chain.get('receipt::' + lightTxHash);
     res.send(receipt);
   } catch (e) {
     console.error(e);
@@ -292,10 +291,9 @@ let _applyLightTx = async (lightTx) => {
       if (!hit) {
         let receiptJson = receipt.toJson();
         offchainReceipts.push(receiptJson);
-        dbTx.put('offchain_receipts', JSON.stringify(offchainReceipts));
+        dbTx.put('offchain_receipts', offchainReceipts);
       }
-
-      dbTx.put('receipt::' + receipt.lightTxHash, JSON.stringify(receipt.toJson()));
+      dbTx.put('receipt::' + receipt.lightTxHash, receipt.toJson());
       dbTx.commit();
       return { ok: true, receipt: receipt };
     }
@@ -418,21 +416,23 @@ app.get('/roothash', async function (req, res) {
     } else {
       let stageHeight = await Sidechain.getContractStageHeight();
       let nextStageHeight = parseInt(stageHeight) + 1;
-      building = true;
-      let receipts = await db.pendingReceipts(nextStageHeight, true);
+      // building = true;
+      // let receipts = await db.pendingReceipts(nextStageHeight);
+      let receipts = await chain.get('offchain_receipts');
       let receiptHashes = receipts.map(receipt => receipt.receiptHash);
       if (receiptHashes.length > 0) {
         let tree = new IndexedMerkleTree();
         console.log('Building Stage Height:' + nextStageHeight);
         await tree.build(nextStageHeight, receiptHashes);
+        console.log(tree.treeNodes);
         let rootHash = '0x' + tree.rootHash;
         rootHashStageMap[rootHash] = nextStageHeight + 1;
         // rootHash should be pushed into pending rootHash
-        await db.pushPendingRootHash(rootHash, nextStageHeight);
-        db.relax();
+        // await db.pushPendingRootHash(rootHash, nextStageHeight);
+        // db.relax();
         res.send({ ok: true, rootHash: rootHash, stageHeight: nextStageHeight });
       } else {
-        db.relax();
+        // db.relax();
         building = false;
         res.send({ ok: false, message: 'Receipts are empty.', code: ErrorCodes.RECEIPTS_ARE_EMPTY });
       }
@@ -443,7 +443,7 @@ app.get('/roothash', async function (req, res) {
   }
 });
 
-app.post('/commit/payments', async function (req, res) {
+app.post('/attach', async function (req, res) {
   try {
     let rootHash = req.body.rootHash;
     let serializedTx = req.body.serializedTx;
