@@ -3,11 +3,22 @@ let ErrorCodes = require('./errors/codes');
 let EthUtils = require('ethereumjs-util');
 let MongoClient = require('mongodb').MongoClient;
 
+let levelup = require('levelup');
+let leveldown = require('leveldown');
+let chain = levelup(leveldown('./sidechaindata'));
+
 let url = env.mongodbUrl;
 let stopReceiveStage = null;
 let acceptableStage = null;
 
 let DB = function () {
+  this.chain = chain;
+  this.getSidechain = () => {
+    return this.chain;
+  },
+  this.getStopReceiveStage = () => {
+    return stopReceiveStage;
+  },
   this.acceptStage = (stageHeight) => {
     acceptableStage = stageHeight;
   },
@@ -36,61 +47,57 @@ let DB = function () {
   };
 
   this.pendingRootHashes = async () => {
-    try {
-      let collection = await this.db.collection('pending_roothashes');
-      let pendingRootHashes = await collection.find({ onChain: false }).toArray();
-      return pendingRootHashes;
-    } catch (e) {
-      console.error(e);
-    }
+    let pendingRootHashes = await chain.get('pending_roothashes');
+    pendingRootHashes = JSON.parse(pendingRootHashes);
+    pendingRootHashes = pendingRootHashes.filter((pendingRootHash) => {
+      return pendingRootHash.onChain == false;
+    });
+    return pendingRootHashes;
   };
 
   this.pushPendingRootHash = async (rootHash, stageHeight) => {
-    try {
-      let collection = await this.db.collection('pending_roothashes');
-      let result = await collection.save({ rootHash: rootHash, stageHeight: stageHeight, onChain: false });
-      return result;
-    } catch (e) {
-      console.error(e);
-    }
+    let pendingRootHashes = await chain.get('pending_roothashes');
+    pendingRootHashes = JSON.parse(pendingRootHashes);
+    pendingRootHashes.push({ rootHash: rootHash, stageHeight: stageHeight, onChain: false });
+    await chain.put('pending_roothashes', JSON.stringify(pendingRootHashes));
   };
 
   this.clearPendingRootHash = async (rootHash) => {
-    try {
-      let collection = await this.db.collection('pending_roothashes');
-      let result = await collection.update({ onChain: false, rootHash: rootHash }, { $set: { onChain: true } });
-      return result;
-    } catch (e) {
-      console.error(e);
+    let pendingRootHashes = await chain.get('pending_roothashes');
+    pendingRootHashes = JSON.parse(pendingRootHashes);
+    for (let i = 0; i < pendingRootHashes.length; i++) {
+      let pendingRootHash = pendingRootHashes[i];
+      if (pendingRootHash.rootHash == rootHash) {
+        pendingRootHashes[i] = { rootHash: rootHash, stageHeight: pendingRootHash.stageHeight, onChain: true };
+        await chain.put('pending_roothashes', JSON.stringify(pendingRootHashes));
+        break;
+      }
     }
   };
 
-  this.pendingPayments = async (stageHeight = null, lock = false) => {
+  this.pendingReceipts = async (stageHeight = null, lock = false) => {
+    let receipts;
     try {
-      let collection = await this.db.collection('payments');
-      let payments;
+      receipts = await chain.get('offchain_receipts');
+      receipts = JSON.parse(receipts);
       if (stageHeight) {
         if (lock) {
           stopReceiveStage = stageHeight;
         }
-        payments = await collection.find({ onChain: false, stageHeight: stageHeight }).toArray();
-      } else {
-        payments = await collection.find({ onChain: false }).toArray();
+        receipts = receipts.filter((receipt) => {
+          return receipt.stageHeight == stageHeight;
+        });
       }
-      return payments;
+      return receipts;
     } catch (e) {
-      console.error(e);
+      receipts = [];
+      await chain.put('offchain_receipts', JSON.stringify(receipts));
+      return receipts;
     }
   };
 
-  this.clearPendingPayments = async (stageHash) => {
-    try {
-      let collection = await this.db.collection('payments');
-      let result = await collection.update({ onChain: false, stageHash: stageHash }, { $set: { onChain: true } }, { multi: true });
-      return result;
-    } catch (e) {
-      console.error(e);
-    }
+  this.updateOffchainRecepts = async (offchainReceipts) => {
+    await chain.put('offchain_receipts', JSON.stringify(offchainReceipts));
   };
 
   this.stageHeight = async () => {

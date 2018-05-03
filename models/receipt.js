@@ -51,10 +51,6 @@ class Receipt {
       Object.values(this.receiptData).reduce((acc, curr) => acc + curr, '')
     ).toString('hex');
     this.sig = receiptJson.sig;
-    // Initialize serverReceipt sig if it is undefined.
-    if (!this.sig.serverReceipt || !this.hasServerReceiptSig()) {
-      this.sig.serverReceipt = {};
-    }
   }
 
   _normalize (receiptData) {
