@@ -14,7 +14,6 @@ let GSNGenerator = require('./utils/gsn-generator');
 let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
 let db = require('./db');
-var transaction = require('level-transactions');
 let chain = db.getSidechain();
 let gsnGenerator = new GSNGenerator(chain);
 let balanceSet = new BalanceSet(chain);
@@ -167,7 +166,6 @@ app.get('/receipt/:lightTxHash', async function (req, res) {
 });
 
 let _applyLightTx = async (lightTx) => {
-  let dbTx = transaction(chain);
   let code = ErrorCodes.SOMETHING_WENT_WRONG;
   let type = lightTx.type();
   let fromAddress = lightTx.lightTxData.from;
@@ -184,7 +182,7 @@ let _applyLightTx = async (lightTx) => {
       toBalance = new BigNumber('0x' + toBalance);
       toBalance = toBalance.plus(value);
       toBalance = toBalance.toString(16).padStart(64, '0');
-      await balanceSet.setBalance(toAddress, toBalance, dbTx);
+      await balanceSet.setBalance(toAddress, toBalance);
     } else if ((type === LightTxTypes.withdrawal) ||
               (type === LightTxTypes.instantWithdrawal)) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
@@ -194,7 +192,7 @@ let _applyLightTx = async (lightTx) => {
       if (fromBalance.isGreaterThanOrEqualTo(value)) {
         fromBalance = fromBalance.minus(value);
         fromBalance = fromBalance.toString(16).padStart(64, '0');
-        await balanceSet.setBalance(fromAddress, fromBalance, dbTx);
+        await balanceSet.setBalance(fromAddress, fromBalance);
       } else {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
@@ -215,8 +213,8 @@ let _applyLightTx = async (lightTx) => {
         fromBalance = fromBalance.toString(16).padStart(64, '0');
         toBalance = toBalance.toString(16).padStart(64, '0');
 
-        await balanceSet.setBalance(fromAddress, fromBalance, dbTx);
-        await balanceSet.setBalance(toAddress, toBalance, dbTx);
+        await balanceSet.setBalance(fromAddress, fromBalance);
+        await balanceSet.setBalance(toAddress, toBalance);
       } else {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
@@ -227,7 +225,7 @@ let _applyLightTx = async (lightTx) => {
     }
 
     // GSN
-    let gsn = await gsnGenerator.getGSN(dbTx);
+    let gsn = await gsnGenerator.getGSN();
     let receiptJson = lightTx.toJson();
     receiptJson.receiptData = {
       GSN: gsn,
@@ -282,25 +280,22 @@ let _applyLightTx = async (lightTx) => {
         throw new Error('Contains over height receipt.');
       }
 
-      let hit = false;
-      offchainReceipts.forEach((offchainReceipt) => {
-        if (offchainReceipt.receiptHash == receipt.receiptHash) {
-          hit = true;
-        }
-      });
-      if (!hit) {
-        let receiptJson = receipt.toJson();
-        offchainReceipts.push(receiptJson);
-        dbTx.put('offchain_receipts', offchainReceipts);
-      }
-      dbTx.put('receipt::' + receipt.lightTxHash, receipt.toJson());
-      dbTx.commit();
+      let receiptJson = receipt.toJson();
+      offchainReceipts.push(receiptJson);
+
+      await chain.batch()
+        .put('balances', balanceSet.balances())
+        .put('GSN', gsn)
+        .put('offchain_receipts', offchainReceipts)
+        .put('receipt::' + receipt.lightTxHash, receipt.toJson())
+        .write();
+
       return { ok: true, receipt: receipt };
     }
   } catch (e) {
     console.error(e);
     // rollback all modifications in the leveldb transaction
-    dbTx.rollback(e);
+    offchainReceipts.pop();
     // rollback balances in memory
     if (type === LightTxTypes.deposit) {
       await balanceSet.setBalance(toAddress, oldToBalance);

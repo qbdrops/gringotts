@@ -21,6 +21,10 @@ class BalanceSet {
     });
   }
 
+  balances () {
+    return this.balanceSet;
+  }
+
   _getBalance (address) {
     if (!this.lock) {
       return this.balanceSet[address];
@@ -49,15 +53,12 @@ class BalanceSet {
     });
   }
 
-  async setBalance (address, balance, leveldbTransaction) {
+  async setBalance (address, balance) {
     assert((typeof balance === 'string') && (balance.toString().length === 64), 'Invalid balance.');
     this.lock = true;
     try {
       let balances = this.balanceSet;
       balances[address] = balance;
-      if (leveldbTransaction) {
-        await leveldbTransaction.put('balances', balances);
-      }
       this.balanceSet[address] = balance;
     } catch(e) {
       console.error(e);
