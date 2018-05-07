@@ -1,27 +1,28 @@
 const EthUtils = require('ethereumjs-util');
-let db = require('../db');
+let assert = require('assert');
 
 class IndexedMerkleTree {
-  constructor () {
+  constructor (chain) {
+    this.chain = chain;
     this.emptyNodeHash = this._sha3('none');
-    this.rootHash = '';
+    this.receiptRootHash = '';
     this.stageHeight = null;
+    this.treeHeight = null;
     this.treeNodes = [];
   }
 
-  async build (stageHeight, leafElements) {
+  build (stageHeight, leafElements) {
     try {
       this.stageHeight = stageHeight;
-      let treeHeight = this._computeTreeHeight(leafElements.length);
+      this.treeHeight = this._computeTreeHeight(leafElements.length);
+      let treeHeight = this.treeHeight;
 
-      // 1. Compute treeNodeIndex for each paymentHash and group them by treeNodeIndex
-      let leafElementsWithIndex = [];
-      for (let i = 0; i < leafElements.length; i++) {
-        let el = leafElements[i];
-        let index = this._computeLeafIndex(treeHeight, el);
-        // await db.updatePaymentNodeIndex(el, index);
-        leafElementsWithIndex.push({ treeNodeIndex: index.toString(), leafElement: el });
-      }
+      // 1. Compute treeNodeIndex for each receiptHash and group them by treeNodeIndex
+      let leafElementsWithIndex = leafElements.map(element => {
+        let index = this.computeLeafIndex(element);
+        return { treeNodeIndex: index.toString(), leafElement: element };
+      });
+
       let leafElementMap = leafElementsWithIndex.reduce((acc, curr) => {
         let index = curr.treeNodeIndex;
         if (acc[index] == undefined) {
@@ -33,26 +34,28 @@ class IndexedMerkleTree {
       }, {});
 
       // 2. Compute treeNodeHash for each treeNodeIndex
+      let computedLeafElements = {};
       Object.keys(leafElementMap).forEach(index => {
         let _concatedElements = leafElementMap[index].sort().reduce((acc, curr) => {
           return acc.concat(curr);
         }, '');
         let treeNodeHash = this._sha3(_concatedElements);
-        leafElementMap[index] = treeNodeHash;
+        computedLeafElements[index] = treeNodeHash;
       });
 
       // 3. Make an array of treeNodes
       let nodeQueue = this._getLeafIndexRange(treeHeight).map(index => {
         var treeNodeHash = '';
-        if (leafElementMap[index] == undefined) {
+        if (computedLeafElements[index] == undefined) {
           treeNodeHash = this.emptyNodeHash;
         } else {
-          treeNodeHash = leafElementMap[index];
+          treeNodeHash = computedLeafElements[index];
         }
 
         return {
           treeNodeIndex: index,
-          treeNodeHash: treeNodeHash
+          treeNodeHash: treeNodeHash,
+          treeNodeElements: (leafElementMap[index] || [])
         };
       });
 
@@ -76,22 +79,20 @@ class IndexedMerkleTree {
       // await db.saveTreeNode(nodeQueue[0], stageHeight);
       this.treeNodes.push(nodeQueue[0]);
 
-      this.rootHash = nodeQueue[0].treeNodeHash;
+      this.receiptRootHash = nodeQueue[0].treeNodeHash;
 
-      return this.rootHash;
+      return this.receiptRootHash;
     } catch (e) {
       console.log(e);
     }
   }
 
-  async getSlice (stageHeight, leafElement) {
-    stageHeight = parseInt(stageHeight);
-    let size = await db.getPaymentSize(stageHeight);
-    let treeHeight = this._computeTreeHeight(size);
-    let index = this._computeLeafIndex(treeHeight, leafElement);
+  getSlice (leafElement) {
+    let index = this.computeLeafIndex(leafElement);
     let sliceIndexes = [];
 
-    let firstTreeNode = await db.getTreeNode(stageHeight, index);
+    // let firstTreeNode = await db.getTreeNode(stageHeight, index);
+    let firstTreeNode = this._getTreeNode(index);
 
     while (index != 1) {
       if (index % 2 == 0) {
@@ -102,7 +103,8 @@ class IndexedMerkleTree {
       index = parseInt(index / 2);
     }
 
-    let slice = await db.getSlice(stageHeight, sliceIndexes);
+    // let slice = await db.getSlice(stageHeight, sliceIndexes);
+    let slice = this._getSlice(sliceIndexes);
 
     // Put firstNode as the first element of slice
     slice.unshift(firstTreeNode);
@@ -117,14 +119,26 @@ class IndexedMerkleTree {
     return slice;
   }
 
-  async getAllLeafElements (stageHeight, leafElement) {
-    stageHeight = parseInt(stageHeight);
-    let size = await db.getPaymentSize(stageHeight);
-    let treeHeight = this._computeTreeHeight(size);
-    let index = this._computeLeafIndex(treeHeight, leafElement);
-    let leafElements = await db.getPaymentByIndex(stageHeight, index);
-    leafElements = leafElements.map(e => e.paymentHash).sort();
+  getAllLeafElements (leafElement) {
+    let index = this.computeLeafIndex(leafElement);
+    // let leafElements = await db.getPaymentByIndex(stageHeight, index);
+    let leafElements = this._getTreeNode(index).treeNodeElements.sort();
     return leafElements;
+  }
+
+  computeLeafIndex (leafElement) {
+    assert(this.treeHeight, 'Tree is not built yet.');
+    let h = parseInt(this._sha3(leafElement.toString()).substring(0, 12), 16);
+    let res = (1 << (this.treeHeight - 1)) + Math.abs(h) % (1 << (this.treeHeight - 1));
+    return res;
+  }
+
+  _getTreeNode (index) {
+    return this.treeNodes.filter(treeNode => treeNode.treeNodeIndex.toString() == index.toString())[0];
+  }
+
+  _getSlice (indexes) {
+    return this.treeNodes.filter(treeNode => indexes.includes(treeNode.treeNodeIndex));
   }
 
   _getLeafIndexRange(treeHeight) {
@@ -135,11 +149,6 @@ class IndexedMerkleTree {
       s.push(i);
     }
     return s;
-  }
-
-  _computeLeafIndex (treeHeight, leafElement) {
-    let h = parseInt(this._sha3(leafElement.toString()).substring(0, 12), 16);
-    return (1 << (treeHeight - 1)) + Math.abs(h) % (1 << (treeHeight - 1));
   }
 
   _computeTreeHeight (size) {
