@@ -47,7 +47,6 @@ let DB = function () {
 
   this.pendingRootHashes = async () => {
     let pendingRootHashes = await chain.get('pending_roothashes');
-    pendingRootHashes = JSON.parse(pendingRootHashes);
     pendingRootHashes = pendingRootHashes.filter((pendingRootHash) => {
       return pendingRootHash.onChain == false;
     });
@@ -55,20 +54,29 @@ let DB = function () {
   };
 
   this.pushPendingRootHash = async (rootHash, stageHeight) => {
-    let pendingRootHashes = await chain.get('pending_roothashes');
-    pendingRootHashes = JSON.parse(pendingRootHashes);
-    pendingRootHashes.push({ rootHash: rootHash, stageHeight: stageHeight, onChain: false });
-    await chain.put('pending_roothashes', JSON.stringify(pendingRootHashes));
+    let pendingRootHashes;
+    let element = { rootHash: rootHash, stageHeight: stageHeight, onChain: false };
+    try {
+      pendingRootHashes = await chain.get('pending_roothashes');
+      pendingRootHashes.push(element);
+      await chain.put('pending_roothashes', pendingRootHashes);
+    } catch (e) {
+      if (e.type == 'NotFoundError') {
+        pendingRootHashes = [element];
+        await chain.put('pending_roothashes', pendingRootHashes);
+      } else {
+        throw e;
+      }
+    }
   };
 
   this.clearPendingRootHash = async (rootHash) => {
     let pendingRootHashes = await chain.get('pending_roothashes');
-    pendingRootHashes = JSON.parse(pendingRootHashes);
     for (let i = 0; i < pendingRootHashes.length; i++) {
       let pendingRootHash = pendingRootHashes[i];
       if (pendingRootHash.rootHash == rootHash) {
         pendingRootHashes[i] = { rootHash: rootHash, stageHeight: pendingRootHash.stageHeight, onChain: true };
-        await chain.put('pending_roothashes', JSON.stringify(pendingRootHashes));
+        await chain.put('pending_roothashes', pendingRootHashes);
         break;
       }
     }
@@ -78,20 +86,23 @@ let DB = function () {
     let receipts;
     try {
       receipts = await chain.get('offchain_receipts');
-      receipts = JSON.parse(receipts);
       if (stageHeight) {
         if (lock) {
           stopReceiveStage = stageHeight;
         }
         receipts = receipts.filter((receipt) => {
-          return receipt.stageHeight == stageHeight;
+          return parseInt(receipt.lightTxData.stageHeight) == stageHeight;
         });
       }
       return receipts;
     } catch (e) {
-      receipts = [];
-      await chain.put('offchain_receipts', JSON.stringify(receipts));
-      return receipts;
+      if (e.type == 'NotFoundError') {
+        receipts = [];
+        await chain.put('offchain_receipts', receipts);
+        return receipts;
+      } else {
+        throw e;
+      }
     }
   };
 

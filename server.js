@@ -3,7 +3,8 @@ let express = require('express');
 let bodyParser = require('body-parser');
 let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
-let IndexedMerkleTree = require('./indexedMerkleTree/IndexedMerkleTree');
+let TreeManager = require('./utils/tree-manager');
+let IndexedMerkleTree = require('./utils/indexed-merkle-tree');
 let Sidechain = require('./utils/sidechain');
 let Web3 = require('web3');
 let ErrorCodes = require('./errors/codes');
@@ -15,6 +16,7 @@ let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
 let db = require('./db');
 let chain = db.getSidechain();
+let treeManager = new TreeManager(chain);
 let gsnGenerator = new GSNGenerator(chain);
 let balanceSet = new BalanceSet(chain);
 let offchainReceipts = [];
@@ -43,7 +45,7 @@ const account = env.serverAddress;
 const sidechainAddress = env.sidechainAddress;
 const serverAddress = env.serverAddress;
 let building = false;
-let addNewStageTxs = [];
+let attachTxs = [];
 let rootHashStageMap = {};
 let txHashRootHashMap = {};
 let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
@@ -66,7 +68,7 @@ web3.eth.filter('latest').watch((err, blockHash) => {
     let txHashes = block.transactions;
     txHashes.forEach(async (txHash) => {
       // Check if the addNewStageTx is included
-      if (addNewStageTxs.includes(txHash)) {
+      if (attachTxs.includes(txHash)) {
         let receipt = web3.eth.getTransactionReceipt(txHash);
         let status = parseInt(receipt.status);
 
@@ -122,18 +124,15 @@ app.get('/slice', async function (req, res) {
   try {
     let query = req.query;
     let stageHeight = query.stage_height;
-    let paymentHash = query.payment_hash;
+    let lightTxHash = query.light_tx_hash;
 
-    let tree = new IndexedMerkleTree();
-    let slice = await tree.getSlice(stageHeight, paymentHash);
-    let payment = await db.getPayment(paymentHash);
-    var treeNodeIndex;
-    if (payment) {
-      treeNodeIndex = payment.treeNodeIndex;
-    }
-    let paymentHashArray = await tree.getAllLeafElements(stageHeight, paymentHash);
+    let tree = treeManager.get(stageHeight);
+    let receipt = await chain.get('receipt::' + lightTxHash);
+    let slice = tree.getSlice(receipt.receiptHash);
+    let treeNodeIndex = tree.computeLeafIndex(receipt.receiptHash);
+    let receiptHashArray = tree.getAllLeafElements(receipt.receiptHash);
 
-    res.send({ slice: slice, paymentHashArray: paymentHashArray, treeNodeIndex: treeNodeIndex });
+    res.send({ slice: slice, receiptHashArray: receiptHashArray, treeNodeIndex: treeNodeIndex });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
@@ -241,7 +240,7 @@ let _applyLightTx = async (lightTx) => {
     let stageHasBeenBuilt = false;
 
     try {
-      await chain.get('receipt::' + receipt.receiptHash);
+      await chain.get('receipt::' + receipt.lightTxHash);
       containsKnownReceipt = true;
     } catch (e) {
       if (e.type == 'NotFoundError') {
@@ -411,23 +410,21 @@ app.get('/roothash', async function (req, res) {
     } else {
       let stageHeight = await Sidechain.getContractStageHeight();
       let nextStageHeight = parseInt(stageHeight) + 1;
-      // building = true;
-      // let receipts = await db.pendingReceipts(nextStageHeight);
-      let receipts = await chain.get('offchain_receipts');
+      let receipts = await db.pendingReceipts(nextStageHeight);
       let receiptHashes = receipts.map(receipt => receipt.receiptHash);
       if (receiptHashes.length > 0) {
         let tree = new IndexedMerkleTree();
-        console.log('Building Stage Height:' + nextStageHeight);
-        await tree.build(nextStageHeight, receiptHashes);
-        console.log(tree.treeNodes);
-        let rootHash = '0x' + tree.rootHash;
-        rootHashStageMap[rootHash] = nextStageHeight + 1;
+        treeManager.set(nextStageHeight, tree);
+        console.log('Building Stage Height: ' + nextStageHeight);
+        tree.build(nextStageHeight, receiptHashes);
+        let receiptRootHash = tree.receiptRootHash;
+        rootHashStageMap[receiptRootHash] = nextStageHeight + 1;
         // rootHash should be pushed into pending rootHash
-        // await db.pushPendingRootHash(rootHash, nextStageHeight);
-        // db.relax();
-        res.send({ ok: true, rootHash: rootHash, stageHeight: nextStageHeight });
+        await db.pushPendingRootHash(receiptRootHash, nextStageHeight);
+        db.relax();
+        res.send({ ok: true, receiptRootHash: receiptRootHash, stageHeight: nextStageHeight });
       } else {
-        // db.relax();
+        db.relax();
         building = false;
         res.send({ ok: false, message: 'Receipts are empty.', code: ErrorCodes.RECEIPTS_ARE_EMPTY });
       }
@@ -438,19 +435,34 @@ app.get('/roothash', async function (req, res) {
   }
 });
 
+app.get('/roothash/:stageHeight', async function (req, res) {
+  let stageHeight = req.params.stageHeight;
+  let tree = treeManager.get(stageHeight);
+
+  if (tree) {
+    res.send({ ok: true, receiptRootHash: tree.receiptRootHash });
+  } else {
+    res.send({ ok: false, message: 'StageHeight does not exist.' });
+  }
+});
+
 app.post('/attach', async function (req, res) {
   try {
     let rootHash = req.body.rootHash;
     let serializedTx = req.body.serializedTx;
+
     if (rootHash) {
       let txHash;
       try {
+        building = true;
         txHash = web3.eth.sendRawTransaction(serializedTx);
         txHashRootHashMap[txHash] = rootHash;
         db.acceptStage(rootHashStageMap[rootHash]);
+
         console.log('Committed txHash: ' + txHash);
-        // Add txHash to addNewStageTxs pool
-        addNewStageTxs.push(txHash);
+
+        // Add txHash to attachTxs pool
+        attachTxs.push(txHash);
       } catch (e) {
         building = false;
         console.log(e);
