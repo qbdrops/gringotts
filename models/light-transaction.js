@@ -2,7 +2,7 @@ let EthUtils = require('ethereumjs-util');
 let assert = require('assert');
 let types = require('./types.js');
 
-const allowedLightTxDataKeys = ['from', 'to', 'value', 'fee', 'LSN', 'stageHeight'];
+const allowedLightTxDataKeys = ['from', 'to', 'value', 'fee', 'LSN'];
 const allowedSigKeys = ['clientLightTx', 'serverLightTx'];
 const instantWithdrawalLimit = 10;
 
@@ -54,7 +54,6 @@ class LightTransaction {
   _normalize (lightTxData) {
     lightTxData.from        = lightTxData.from.padStart(64, '0').slice(-64);
     lightTxData.to          = lightTxData.to.padStart(64, '0').slice(-64);
-    lightTxData.stageHeight = this._to32BytesHex(lightTxData.stageHeight, false);
     lightTxData.LSN         = this._to32BytesHex(lightTxData.LSN, false);
     lightTxData.value       = this._to32BytesHex(lightTxData.value, true);
     lightTxData.fee         = this._to32BytesHex(lightTxData.fee, true);
@@ -127,8 +126,7 @@ class LightTransaction {
         to: (type == types.deposit) ? eventData._client : '0',
         value: eventData._value,
         LSN: eventData._lsn,
-        fee: eventData._fee,
-        stageHeight: eventData._stageHeight
+        fee: eventData._fee
       },
       sig: {
         clientLightTx: {
