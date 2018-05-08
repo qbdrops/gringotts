@@ -10,15 +10,19 @@ class BalanceSet {
       let balanceSet = {};
       if (err) {
         if (err.type == 'NotFoundError') {
-          this.chain.put('balances', JSON.stringify(balanceSet));
+          this.chain.put('balances', balanceSet);
         } else {
           throw new Error('Can not fetch balances from db.');
         }
       } else {
-        balanceSet = JSON.parse(balanceSetJson);
+        balanceSet = balanceSetJson;
       }
       this.balanceSet = balanceSet;
     });
+  }
+
+  balances () {
+    return this.balanceSet;
   }
 
   _getBalance (address) {
@@ -49,15 +53,12 @@ class BalanceSet {
     });
   }
 
-  async setBalance (address, balance, leveldbTransaction) {
+  async setBalance (address, balance) {
     assert((typeof balance === 'string') && (balance.toString().length === 64), 'Invalid balance.');
     this.lock = true;
     try {
       let balances = this.balanceSet;
       balances[address] = balance;
-      if (leveldbTransaction) {
-        await leveldbTransaction.put('balances', JSON.stringify(balances));
-      }
       this.balanceSet[address] = balance;
     } catch(e) {
       console.error(e);

@@ -4,7 +4,7 @@ let LightTransaction = require('./light-transaction');
 let types = require('./types');
 
 const allowedReceiptJsonKeys = ['lightTxHash', 'lightTxData', 'sig', 'receiptData'];
-const allowedReceiptDataKeys = ['GSN', 'lightTxHash', 'fromBalance', 'toBalance'];
+const allowedReceiptDataKeys = ['stageHeight', 'GSN', 'lightTxHash', 'fromBalance', 'toBalance'];
 const instantWithdrawalLimit = 10;
 
 class Receipt {
@@ -54,6 +54,7 @@ class Receipt {
   }
 
   _normalize (receiptData) {
+    receiptData.stageHeight = receiptData.stageHeight.toString(16).padStart(64, '0').slice(-64);
     receiptData.GSN         = receiptData.GSN.toString(16).padStart(64, '0').slice(-64);
     receiptData.fromBalance = receiptData.fromBalance.toString(16).padStart(64, '0').slice(-64);
     receiptData.toBalance   = receiptData.toBalance.toString(16).padStart(64, '0').slice(-64);

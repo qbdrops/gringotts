@@ -16,11 +16,10 @@ class GSNGenerator {
     });
   }
 
-  _getGSN (leveldbTransaction = null) {
+  _getGSN () {
     if (!this.lock) {
       this.lock = true;
       let gsn = this.gsn + 1;
-      leveldbTransaction.put('GSN', gsn);
       gsn = gsn.toString(16).padStart(64, '0');
       this.gsn++;
       this.lock = false;
@@ -30,14 +29,14 @@ class GSNGenerator {
     }
   }
 
-  getGSN (leveldbTransaction = null) {
+  getGSN () {
     return new Promise ((resolve) => {
-      let gsn = this._getGSN(leveldbTransaction);
+      let gsn = this._getGSN();
       if (gsn) {
         resolve(gsn);
       } else {
         let timerId = setInterval(() => {
-          gsn = this._getGSN(leveldbTransaction);
+          gsn = this._getGSN();
           if (gsn !== false) {
             resolve(gsn);
             clearInterval(timerId);

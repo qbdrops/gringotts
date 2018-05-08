@@ -3,9 +3,10 @@ let express = require('express');
 let bodyParser = require('body-parser');
 let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
-let IndexedMerkleTree = require('./indexedMerkleTree/IndexedMerkleTree');
-let Sidechain = require('./utils/sidechain');
+let TreeManager = require('./utils/tree-manager');
+let IndexedMerkleTree = require('./utils/indexed-merkle-tree');
 let Web3 = require('web3');
+let Sidechain = require('./abi/Sidechain.json');
 let ErrorCodes = require('./errors/codes');
 let LightTransaction = require('./models/light-transaction');
 let Receipt = require('./models/receipt');
@@ -14,19 +15,26 @@ let GSNGenerator = require('./utils/gsn-generator');
 let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
 let db = require('./db');
-var transaction = require('level-transactions');
 let chain = db.getSidechain();
+let treeManager = new TreeManager(chain);
 let gsnGenerator = new GSNGenerator(chain);
 let balanceSet = new BalanceSet(chain);
 let offchainReceipts = [];
 let lightTxLock = false;
+let expectedStageHeight;
 
 chain.get('offchain_receipts', (err, existedOffchainReceipts) => {
   let receipts;
   if (err) {
-    receipts = [];
+    if (err.type == 'NotFoundError') {
+      receipts = [];
+      expectedStageHeight = parseInt(sidechain.stageHeight()) + 1;
+    } else {
+      throw err;
+    }
   } else {
     receipts = JSON.parse(existedOffchainReceipts);
+    expectedStageHeight = parseInt(receipts[receipts.length - 1].receiptData.stageHeight) + 1;
   }
   offchainReceipts = receipts;
 });
@@ -43,10 +51,6 @@ const web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 const account = env.serverAddress;
 const sidechainAddress = env.sidechainAddress;
 const serverAddress = env.serverAddress;
-let building = false;
-let addNewStageTxs = [];
-let rootHashStageMap = {};
-let txHashRootHashMap = {};
 let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 io.on('connection', async function (socket) {
@@ -57,50 +61,31 @@ io.on('connection', async function (socket) {
 });
 
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
+let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
 
 // Watch latest block
-web3.eth.filter('latest').watch((err, blockHash) => {
-  if (err) {
-    console.log(err);
-  } else {
-    let block = web3.eth.getBlock(blockHash);
-    let txHashes = block.transactions;
-    txHashes.forEach(async (txHash) => {
-      // Check if the addNewStageTx is included
-      if (addNewStageTxs.includes(txHash)) {
-        let receipt = web3.eth.getTransactionReceipt(txHash);
-        let status = parseInt(receipt.status);
+sidechain.AttachStage({ toBlock: 'latest' }).watch(async (err, result) => {
+  console.log('attach');
+  let stageHeight = result.args._stageHright;
 
-        if (status) {
-          let stageHash = receipt.logs[0].topics[1].substring(2);
-          console.log('stageHash: ' + stageHash);
+  // Clear pending pool
+  let targetReceipts = offchainReceipts.filter((receipt) => {
+    return receipt.receiptData.stageHeight == stageHeight;
+  });
 
-          // Clear pending pool
-          let targetReceipts = offchainReceipts.filter((receipt) => {
-            return receipt.lightTxData.stageHeight == stageHeight;
-          });
-
-          // Remove offchain receipt json
-          for (let i = 0; i < offchainReceipts.length; i++) {
-            let offchainReceipt = offchainReceipts[i];
-            for (let j = 0; j < targetReceipts.length; j++) {
-              let targetReceipt = targetReceipts[j];
-              if (offchainReceipt.receiptHash == targetReceipt.receiptHash) {
-                offchainReceipts.splice(i, 1);
-              }
-            }
-          }
-
-          // remove from level db
-          await db.updateOffchainRecepts(offchainReceipts);
-        }
-        building = false;
-        let rootHash = txHashRootHashMap[txHash];
-        let stageHeight = rootHashStageMap[rootHash];
-        db.cancelStage(stageHeight);
+  // Remove offchain receipt json
+  for (let i = 0; i < offchainReceipts.length; i++) {
+    let offchainReceipt = offchainReceipts[i];
+    for (let j = 0; j < targetReceipts.length; j++) {
+      let targetReceipt = targetReceipts[j];
+      if (offchainReceipt.receiptHash == targetReceipt.receiptHash) {
+        offchainReceipts.splice(i, 1);
       }
-    });
+    }
   }
+
+  // remove from level db
+  await db.updateOffchainRecepts(offchainReceipts);
 });
 
 app.get('/balance/:address', async function (req, res) {
@@ -123,18 +108,15 @@ app.get('/slice', async function (req, res) {
   try {
     let query = req.query;
     let stageHeight = query.stage_height;
-    let paymentHash = query.payment_hash;
+    let lightTxHash = query.light_tx_hash;
 
-    let tree = new IndexedMerkleTree();
-    let slice = await tree.getSlice(stageHeight, paymentHash);
-    let payment = await db.getPayment(paymentHash);
-    var treeNodeIndex;
-    if (payment) {
-      treeNodeIndex = payment.treeNodeIndex;
-    }
-    let paymentHashArray = await tree.getAllLeafElements(stageHeight, paymentHash);
+    let tree = treeManager.get(stageHeight);
+    let receipt = await chain.get('receipt::' + lightTxHash);
+    let slice = tree.getSlice(receipt.receiptHash);
+    let treeNodeIndex = tree.computeLeafIndex(receipt.receiptHash);
+    let receiptHashArray = tree.getAllLeafElements(receipt.receiptHash);
 
-    res.send({ slice: slice, paymentHashArray: paymentHashArray, treeNodeIndex: treeNodeIndex });
+    res.send({ slice: slice, receiptHashArray: receiptHashArray, treeNodeIndex: treeNodeIndex });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
@@ -158,8 +140,7 @@ function isValidSig (lightTx) {
 app.get('/receipt/:lightTxHash', async function (req, res) {
   try {
     let lightTxHash = req.params.lightTxHash;
-    let receiptJson = await chain.get('receipt::' + lightTxHash);
-    let receipt = JSON.parse(receiptJson);
+    let receipt = await chain.get('receipt::' + lightTxHash);
     res.send(receipt);
   } catch (e) {
     console.error(e);
@@ -168,7 +149,6 @@ app.get('/receipt/:lightTxHash', async function (req, res) {
 });
 
 let _applyLightTx = async (lightTx) => {
-  let dbTx = transaction(chain);
   let code = ErrorCodes.SOMETHING_WENT_WRONG;
   let type = lightTx.type();
   let fromAddress = lightTx.lightTxData.from;
@@ -185,7 +165,7 @@ let _applyLightTx = async (lightTx) => {
       toBalance = new BigNumber('0x' + toBalance);
       toBalance = toBalance.plus(value);
       toBalance = toBalance.toString(16).padStart(64, '0');
-      await balanceSet.setBalance(toAddress, toBalance, dbTx);
+      await balanceSet.setBalance(toAddress, toBalance);
     } else if ((type === LightTxTypes.withdrawal) ||
               (type === LightTxTypes.instantWithdrawal)) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
@@ -195,7 +175,7 @@ let _applyLightTx = async (lightTx) => {
       if (fromBalance.isGreaterThanOrEqualTo(value)) {
         fromBalance = fromBalance.minus(value);
         fromBalance = fromBalance.toString(16).padStart(64, '0');
-        await balanceSet.setBalance(fromAddress, fromBalance, dbTx);
+        await balanceSet.setBalance(fromAddress, fromBalance);
       } else {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
@@ -216,8 +196,8 @@ let _applyLightTx = async (lightTx) => {
         fromBalance = fromBalance.toString(16).padStart(64, '0');
         toBalance = toBalance.toString(16).padStart(64, '0');
 
-        await balanceSet.setBalance(fromAddress, fromBalance, dbTx);
-        await balanceSet.setBalance(toAddress, toBalance, dbTx);
+        await balanceSet.setBalance(fromAddress, fromBalance);
+        await balanceSet.setBalance(toAddress, toBalance);
       } else {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
@@ -228,9 +208,10 @@ let _applyLightTx = async (lightTx) => {
     }
 
     // GSN
-    let gsn = await gsnGenerator.getGSN(dbTx);
+    let gsn = await gsnGenerator.getGSN();
     let receiptJson = lightTx.toJson();
     receiptJson.receiptData = {
+      stageHeight: expectedStageHeight,
       GSN: gsn,
       lightTxHash: lightTx.lightTxHash,
       fromBalance: fromBalance,
@@ -244,7 +225,7 @@ let _applyLightTx = async (lightTx) => {
     let stageHasBeenBuilt = false;
 
     try {
-      await chain.get('receipt::' + receipt.receiptHash);
+      await chain.get('receipt::' + receipt.lightTxHash);
       containsKnownReceipt = true;
     } catch (e) {
       if (e.type == 'NotFoundError') {
@@ -259,7 +240,7 @@ let _applyLightTx = async (lightTx) => {
       code = ErrorCodes.CONTAINS_KNOWN_RECEIPT;
       throw new Error('Contains known receipt.');
     } else {
-      let receiptStageHeight = parseInt(receipt.lightTxData.stageHeight);
+      let receiptStageHeight = parseInt(receipt.receiptData.stageHeight);
       try {
         await chain.get('stage::' + receiptStageHeight);
         stageHasBeenBuilt = true;
@@ -283,26 +264,22 @@ let _applyLightTx = async (lightTx) => {
         throw new Error('Contains over height receipt.');
       }
 
-      let hit = false;
-      offchainReceipts.forEach((offchainReceipt) => {
-        if (offchainReceipt.receiptHash == receipt.receiptHash) {
-          hit = true;
-        }
-      });
-      if (!hit) {
-        let receiptJson = receipt.toJson();
-        offchainReceipts.push(receiptJson);
-        dbTx.put('offchain_receipts', JSON.stringify(offchainReceipts));
-      }
+      let receiptJson = receipt.toJson();
+      offchainReceipts.push(receiptJson);
 
-      dbTx.put('receipt::' + receipt.lightTxHash, JSON.stringify(receipt.toJson()));
-      dbTx.commit();
+      await chain.batch()
+        .put('balances', balanceSet.balances())
+        .put('GSN', gsn)
+        .put('offchain_receipts', offchainReceipts)
+        .put('receipt::' + receipt.lightTxHash, receipt.toJson())
+        .write();
+
       return { ok: true, receipt: receipt };
     }
   } catch (e) {
     console.error(e);
     // rollback all modifications in the leveldb transaction
-    dbTx.rollback(e);
+    offchainReceipts.pop();
     // rollback balances in memory
     if (type === LightTxTypes.deposit) {
       await balanceSet.setBalance(toAddress, oldToBalance);
@@ -343,19 +320,21 @@ app.post('/send/light_tx', async function (req, res) {
   try {
     let lightTxJson = req.body.lightTxJson;
     let lightTx = new LightTransaction(lightTxJson);
-    let isExisted = await db.isLightTxExisted(lightTx.lightTxHash);
+    let isExisted = true;
+    try {
+      await chain.get('receipt::' + lightTx.lightTxHash);
+    } catch (e) {
+      if (e.type == 'NotFoundError') {
+        isExisted = false;
+      }
+    }
 
     let success = false;
     let message = 'Something went wrong.';
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
-    let stageHeight = await Sidechain.getContractStageHeight();
-    let containsOlderPayments = (parseInt(lightTx.lightTxData.stageHeight) <= stageHeight);
     let receipt = null;
 
-    if (containsOlderPayments) {
-      message = 'Contains older payment.';
-      code = ErrorCodes.CONTAINS_OLDER_RECEIPT;
-    } else if (isExisted) {
+    if (isExisted) {
       message = 'Contains known light transaction.';
       code = ErrorCodes.CONTAINS_KNOWN_LIGHT_TX;
     } else {
@@ -399,43 +378,18 @@ app.get('/pending/roothashes', async function (req, res) {
 
 app.get('/roothash', async function (req, res) {
   try {
-    let targetRootHash = req.query.rootHash;
-
-    if (targetRootHash) {
-      let pendingRootHashes = await db.pendingRootHashes();
-      let pendingRoot = pendingRootHashes.filter(root => {
-        return root.rootHash == targetRootHash;
-      });
-
-      if (pendingRoot.length >= 1) {
-        pendingRoot = pendingRoot[0];
-        res.send({ ok: true, rootHash: pendingRoot.rootHash, stageHeight: pendingRoot.stageHeight });
-      } else {
-        res.send({ ok: false, message: 'Target root hash not found.', code: ErrorCodes.TARGET_ROOT_HASH_NOT_FOUND });
-      }
-    } else if (building) {
-      res.send({ ok: false, message: 'Stage is currently building.', code: ErrorCodes.STAGE_IS_CURRENTLY_BUILDING });
+    let stageHeight = parseInt(sidechain.stageHeight()) + 1;
+    let receipts = await db.pendingReceipts(stageHeight);
+    let receiptHashes = receipts.map(receipt => receipt.receiptHash);
+    if (receiptHashes.length > 0) {
+      let tree = new IndexedMerkleTree();
+      treeManager.set(stageHeight, tree);
+      console.log('Building Stage Height: ' + stageHeight);
+      tree.build(stageHeight, receiptHashes);
+      let receiptRootHash = tree.receiptRootHash;
+      res.send({ ok: true, receiptRootHash: receiptRootHash, stageHeight: stageHeight });
     } else {
-      let stageHeight = await Sidechain.getContractStageHeight();
-      let nextStageHeight = parseInt(stageHeight) + 1;
-      building = true;
-      let receipts = await db.pendingReceipts(nextStageHeight, true);
-      let receiptHashes = receipts.map(receipt => receipt.receiptHash);
-      if (receiptHashes.length > 0) {
-        let tree = new IndexedMerkleTree();
-        console.log('Building Stage Height:' + nextStageHeight);
-        await tree.build(nextStageHeight, receiptHashes);
-        let rootHash = '0x' + tree.rootHash;
-        rootHashStageMap[rootHash] = nextStageHeight + 1;
-        // rootHash should be pushed into pending rootHash
-        await db.pushPendingRootHash(rootHash, nextStageHeight);
-        db.relax();
-        res.send({ ok: true, rootHash: rootHash, stageHeight: nextStageHeight });
-      } else {
-        db.relax();
-        building = false;
-        res.send({ ok: false, message: 'Receipts are empty.', code: ErrorCodes.RECEIPTS_ARE_EMPTY });
-      }
+      res.send({ ok: false, message: 'Receipts are empty.', code: ErrorCodes.RECEIPTS_ARE_EMPTY });
     }
   } catch (e) {
     console.log(e);
@@ -443,26 +397,57 @@ app.get('/roothash', async function (req, res) {
   }
 });
 
-app.post('/commit/payments', async function (req, res) {
+app.get('/roothash/:stageHeight', async function (req, res) {
+  let stageHeight = req.params.stageHeight;
+  let tree = treeManager.get(stageHeight);
+
+  if (tree) {
+    res.send({ ok: true, receiptRootHash: tree.receiptRootHash });
+  } else {
+    res.send({ ok: false, message: 'StageHeight does not exist.' });
+  }
+});
+
+app.post('/attach', async function (req, res) {
   try {
-    let rootHash = req.body.rootHash;
+    let stageHeight = req.body.stageHeight;
     let serializedTx = req.body.serializedTx;
-    if (rootHash) {
-      let txHash;
+
+    if (stageHeight) {
       try {
-        txHash = web3.eth.sendRawTransaction(serializedTx);
-        txHashRootHashMap[txHash] = rootHash;
-        db.acceptStage(rootHashStageMap[rootHash]);
-        console.log('Committed txHash: ' + txHash);
-        // Add txHash to addNewStageTxs pool
-        addNewStageTxs.push(txHash);
+        expectedStageHeight += 1;
+        let valid = false;
+        let receipts = await db.pendingReceipts(stageHeight);
+        let receiptHashes = receipts.map(receipt => receipt.receiptHash);
+        if (receiptHashes.length > 0) {
+          let tree = new IndexedMerkleTree();
+          console.log('Building Stage Height: ' + stageHeight);
+          tree.build(stageHeight, receiptHashes);
+          let receiptRootHash = tree.receiptRootHash;
+          let targetTree = treeManager.get(stageHeight);
+          let targetRootHash = targetTree.receiptRootHash;
+
+          console.log(receiptRootHash);
+          console.log(targetRootHash);
+          
+          if (receiptRootHash == targetRootHash) {
+            valid = true;
+          }
+        }
+
+        if (valid) {
+          let txHash = web3.eth.sendRawTransaction(serializedTx);
+          console.log('Committed txHash: ' + txHash);
+          // Add txHash to attachTxs pool
+          res.send({ ok: true, txHash: txHash });
+        } else {
+          throw new Error('Root hash are not match.');
+        }
       } catch (e) {
-        building = false;
+        expectedStageHeight -= 1;
         console.log(e);
         res.status(500).send({ ok: false, errors: e.message });
       }
-      await db.clearPendingRootHash(rootHash);
-      res.send({ ok: true, txHash: txHash });
     } else {
       res.send({ ok: false, errors: 'Does not provide rootHash.' });
     }
@@ -490,90 +475,10 @@ app.get('/server/address', async function (req, res) {
   }
 });
 
-app.get('/sidechain/stage/height', async function (req, res) {
-  try {
-    let height = await Sidechain.getSidechainStageHeight();
-    res.send({ height: height });
-  } catch (e) {
-    console.log(e);
-    res.status(500).send({ errors: e.message });
-  }
-});
-
 app.get('/viable/stage/height', async function (req, res) {
   try {
     let height = await db.viableStageHeight();
     res.send({ height: height });
-  } catch (e) {
-    console.log(e);
-    res.status(500).send({ errors: e.message });
-  }
-});
-
-app.get('/balance', async function (req, res) {
-  try {
-    let address = req.query.address;
-    let balance = Sidechain.getBalance(address);
-    res.send({ balance: balance });
-  } catch (e) {
-    console.log(e);
-    res.status(500).send({ errors: e.message });
-  }
-});
-
-app.get('/payments', async function (req, res) {
-  try {
-    let stageHeight = req.query.stage_id;
-    console.log(stageHeight);
-    let result = await db.getPayments(stageHeight);
-    res.send(result);
-  } catch (e) {
-    console.log(e);
-    res.status(500).send({ errors: e.message });
-  }
-});
-
-app.get('/latest/payments', async function (req, res) {
-  try {
-    let size = req.query.size;
-    size = parseInt(size);
-    let stageHeight = await Sidechain.getSidechainStageHeight();
-    let result = await db.getPayments(stageHeight, size);
-    res.send(result);
-  } catch (e) {
-    console.log(e);
-    res.status(500).send({ errors: e.message });
-  }
-});
-
-app.get('/pending/stages', async function (req, res) {
-  try {
-    let pendingStages = await Sidechain.pendingStages();
-    res.send(pendingStages);
-  } catch (e) {
-    console.log(e);
-    res.status(500).send({ errors: e.message });
-  }
-});
-
-app.get('/stage/:stageHash', async function (req, res) {
-  let stageHash = req.params.stageHash;
-  try {
-    let payments = await db.getPaymentsFromStageHash(stageHash);
-    res.send(payments);
-  } catch (e) {
-    console.log(e);
-    res.status(500).send({ errors: e.message });
-  }
-});
-
-app.get('/finalized/time', async function (req, res) {
-  try {
-    let finalizedTime = await Sidechain.getFinalizedTime();
-    console.log(finalizedTime);
-    res.send({
-      finalizedTime: finalizedTime
-    });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
@@ -586,16 +491,6 @@ app.get('/pending/receipts', async function (req, res) {
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
-  }
-});
-
-app.post('/reset', async function (req, res) {
-  try {
-    building = false;
-    res.send({ ok: true });
-  } catch (e) {
-    console.log(e);
-    res.status(500).send({ ok: false, errors: e.message });
   }
 });
 
