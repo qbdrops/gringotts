@@ -82,16 +82,13 @@ let DB = function () {
     }
   };
 
-  this.pendingReceipts = async (stageHeight = null, lock = false) => {
+  this.pendingReceipts = async (stageHeight = null) => {
     let receipts;
     try {
       receipts = await chain.get('offchain_receipts');
       if (stageHeight) {
-        if (lock) {
-          stopReceiveStage = stageHeight;
-        }
         receipts = receipts.filter((receipt) => {
-          return parseInt(receipt.lightTxData.stageHeight) == stageHeight;
+          return parseInt(receipt.receiptData.stageHeight) == stageHeight;
         });
       }
       return receipts;
@@ -187,7 +184,7 @@ let DB = function () {
     if (containsKnownReceipt) {
       return ErrorCodes.CONTAINS_KNOWN_RECEIPT;
     } else {
-      let receiptStageHeight = parseInt(receipt.lightTxData.stageHeight);
+      let receiptStageHeight = parseInt(receipt.receiptData.stageHeight);
       let count = await treenodesCollection.find({ stageHeight: receiptStageHeight }).count();
       let isNotValid = (receiptStageHeight == stopReceiveStage);
       let stageHasBeenBuilt = (count > 0);
