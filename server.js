@@ -21,13 +21,20 @@ let gsnGenerator = new GSNGenerator(chain);
 let balanceSet = new BalanceSet(chain);
 let offchainReceipts = [];
 let lightTxLock = false;
+let expectedStageHeight;
 
 chain.get('offchain_receipts', (err, existedOffchainReceipts) => {
   let receipts;
   if (err) {
-    receipts = [];
+    if (err.type == 'NotFoundError') {
+      receipts = [];
+      expectedStageHeight = parseInt(sidechain.stageHeight()) + 1;
+    } else {
+      throw err;
+    }
   } else {
-    receipts = existedOffchainReceipts;
+    receipts = JSON.parse(existedOffchainReceipts);
+    expectedStageHeight = parseInt(receipts[receipts.length - 1].receiptData.stageHeight) + 1;
   }
   offchainReceipts = receipts;
 });
@@ -44,9 +51,6 @@ const web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 const account = env.serverAddress;
 const sidechainAddress = env.sidechainAddress;
 const serverAddress = env.serverAddress;
-let attachTxs = [];
-let rootHashStageMap = {};
-let txHashRootHashMap = {};
 let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 io.on('connection', async function (socket) {
@@ -60,47 +64,28 @@ let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
 let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
 
 // Watch latest block
-web3.eth.filter('latest').watch((err, blockHash) => {
-  if (err) {
-    console.log(err);
-  } else {
-    let block = web3.eth.getBlock(blockHash);
-    let txHashes = block.transactions;
-    txHashes.forEach(async (txHash) => {
-      // Check if the addNewStageTx is included
-      if (attachTxs.includes(txHash)) {
-        let receipt = web3.eth.getTransactionReceipt(txHash);
-        let status = parseInt(receipt.status);
+sidechain.AttachStage({ toBlock: 'latest' }).watch(async (err, result) => {
+  console.log('attach');
+  let stageHeight = result.args._stageHright;
 
-        if (status) {
-          let stageHash = receipt.logs[0].topics[1].substring(2);
-          console.log('stageHash: ' + stageHash);
+  // Clear pending pool
+  let targetReceipts = offchainReceipts.filter((receipt) => {
+    return receipt.receiptData.stageHeight == stageHeight;
+  });
 
-          // Clear pending pool
-          let targetReceipts = offchainReceipts.filter((receipt) => {
-            return receipt.lightTxData.stageHeight == stageHeight;
-          });
-
-          // Remove offchain receipt json
-          for (let i = 0; i < offchainReceipts.length; i++) {
-            let offchainReceipt = offchainReceipts[i];
-            for (let j = 0; j < targetReceipts.length; j++) {
-              let targetReceipt = targetReceipts[j];
-              if (offchainReceipt.receiptHash == targetReceipt.receiptHash) {
-                offchainReceipts.splice(i, 1);
-              }
-            }
-          }
-
-          // remove from level db
-          await db.updateOffchainRecepts(offchainReceipts);
-        }
-        let rootHash = txHashRootHashMap[txHash];
-        let stageHeight = rootHashStageMap[rootHash];
-        db.cancelStage(stageHeight);
+  // Remove offchain receipt json
+  for (let i = 0; i < offchainReceipts.length; i++) {
+    let offchainReceipt = offchainReceipts[i];
+    for (let j = 0; j < targetReceipts.length; j++) {
+      let targetReceipt = targetReceipts[j];
+      if (offchainReceipt.receiptHash == targetReceipt.receiptHash) {
+        offchainReceipts.splice(i, 1);
       }
-    });
+    }
   }
+
+  // remove from level db
+  await db.updateOffchainRecepts(offchainReceipts);
 });
 
 app.get('/balance/:address', async function (req, res) {
@@ -226,6 +211,7 @@ let _applyLightTx = async (lightTx) => {
     let gsn = await gsnGenerator.getGSN();
     let receiptJson = lightTx.toJson();
     receiptJson.receiptData = {
+      stageHeight: expectedStageHeight,
       GSN: gsn,
       lightTxHash: lightTx.lightTxHash,
       fromBalance: fromBalance,
@@ -254,7 +240,7 @@ let _applyLightTx = async (lightTx) => {
       code = ErrorCodes.CONTAINS_KNOWN_RECEIPT;
       throw new Error('Contains known receipt.');
     } else {
-      let receiptStageHeight = parseInt(receipt.lightTxData.stageHeight);
+      let receiptStageHeight = parseInt(receipt.receiptData.stageHeight);
       try {
         await chain.get('stage::' + receiptStageHeight);
         stageHasBeenBuilt = true;
@@ -346,14 +332,9 @@ app.post('/send/light_tx', async function (req, res) {
     let success = false;
     let message = 'Something went wrong.';
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
-    let stageHeight = sidechain.stageHeight();
-    let containsOlderPayments = (parseInt(lightTx.lightTxData.stageHeight) <= stageHeight);
     let receipt = null;
 
-    if (containsOlderPayments) {
-      message = 'Contains older payment.';
-      code = ErrorCodes.CONTAINS_OLDER_RECEIPT;
-    } else if (isExisted) {
+    if (isExisted) {
       message = 'Contains known light transaction.';
       code = ErrorCodes.CONTAINS_KNOWN_LIGHT_TX;
     } else {
@@ -434,6 +415,7 @@ app.post('/attach', async function (req, res) {
 
     if (stageHeight) {
       try {
+        expectedStageHeight += 1;
         let valid = false;
         let receipts = await db.pendingReceipts(stageHeight);
         let receiptHashes = receipts.map(receipt => receipt.receiptHash);
@@ -462,6 +444,7 @@ app.post('/attach', async function (req, res) {
           throw new Error('Root hash are not match.');
         }
       } catch (e) {
+        expectedStageHeight -= 1;
         console.log(e);
         res.status(500).send({ ok: false, errors: e.message });
       }
