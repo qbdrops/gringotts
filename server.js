@@ -386,12 +386,17 @@ app.get('/roothash', async function (req, res) {
       treeManager.set(stageHeight, tree);
       console.log('Building Stage Height: ' + stageHeight);
       tree.build(stageHeight, receiptHashes);
+
+      expectedStageHeight += 1;
+
       let receiptRootHash = tree.receiptRootHash;
       res.send({ ok: true, receiptRootHash: receiptRootHash, stageHeight: stageHeight });
     } else {
       res.send({ ok: false, message: 'Receipts are empty.', code: ErrorCodes.RECEIPTS_ARE_EMPTY });
     }
   } catch (e) {
+    expectedStageHeight -= 1;
+
     console.log(e);
     res.status(500).send({ ok: false, errors: e.message });
   }
@@ -415,7 +420,6 @@ app.post('/attach', async function (req, res) {
 
     if (stageHeight) {
       try {
-        expectedStageHeight += 1;
         let valid = false;
         let receipts = await db.pendingReceipts(stageHeight);
         let receiptHashes = receipts.map(receipt => receipt.receiptHash);
@@ -444,7 +448,6 @@ app.post('/attach', async function (req, res) {
           throw new Error('Root hash are not match.');
         }
       } catch (e) {
-        expectedStageHeight -= 1;
         console.log(e);
         res.status(500).send({ ok: false, errors: e.message });
       }
