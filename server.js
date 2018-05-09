@@ -33,7 +33,7 @@ chain.get('offchain_receipts', (err, existedOffchainReceipts) => {
       throw err;
     }
   } else {
-    receipts = JSON.parse(existedOffchainReceipts);
+    receipts = existedOffchainReceipts;
     expectedStageHeight = parseInt(receipts[receipts.length - 1].receiptData.stageHeight) + 1;
   }
   offchainReceipts = receipts;
