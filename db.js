@@ -104,7 +104,7 @@ let DB = function () {
   };
 
   this.updateOffchainRecepts = async (offchainReceipts) => {
-    await chain.put('offchain_receipts', JSON.stringify(offchainReceipts));
+    await chain.put('offchain_receipts', offchainReceipts);
   };
 
   this.stageHeight = async () => {
