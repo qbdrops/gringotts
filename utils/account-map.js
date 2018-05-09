@@ -1,33 +1,34 @@
+let EthUtils = require('ethereumjs-util');
 let assert = require('assert');
 
-class BalanceMap {
+class AccountMap {
   constructor (chain) {
     this.chain = chain;
-    this.balanceMap = {};
+    this.accounts = {};
     this.lock = false;
 
-    this.chain.get('balances', (err, balanceMapJson) => {
-      let balanceMap = {};
+    this.chain.get('accounts', (err, accountsJson) => {
+      let accounts = {};
       if (err) {
         if (err.type == 'NotFoundError') {
-          this.chain.put('balances', balanceMap);
+          this.chain.put('accounts', accounts);
         } else {
-          throw new Error('Can not fetch balances from db.');
+          throw new Error('Can not fetch accounts from db.');
         }
       } else {
-        balanceMap = balanceMapJson;
+        accounts = accountsJson;
       }
-      this.balanceMap = balanceMap;
+      this.accounts = accounts;
     });
   }
 
-  balances () {
-    return this.balanceMap;
+  getAccounts () {
+    return this.accounts;
   }
 
   _getBalance (address) {
     if (!this.lock) {
-      return this.balanceMap[address];
+      return this.accounts[address].balance;
     } else {
       return false;
     }
@@ -35,7 +36,7 @@ class BalanceMap {
 
   getBalance (address) {
     return new Promise ((resolve) => {
-      if (this.balanceMap.hasOwnProperty(address)) {
+      if (this.accounts.hasOwnProperty(address)) {
         if (!this.lock) {
           resolve(this._getBalance(address));
         } else {
@@ -53,20 +54,36 @@ class BalanceMap {
     });
   }
 
+  hashes () {
+    return Object.values(this.accounts).map(account => account.accountHash);
+  }
+
   async setBalance (address, balance) {
+    assert((typeof address === 'string') && (address.toString().length === 64), 'Invalid address.');
     assert((typeof balance === 'string') && (balance.toString().length === 64), 'Invalid balance.');
     this.lock = true;
+
+    let accountData = {
+      address: address,
+      balance: balance
+    };
+
+    let accountHash = this._sha3(Object.values(accountData).reduce((acc, curr) => acc + curr, ''));
+    accountData.accountHash = accountHash;
+
     try {
-      let balances = this.balanceMap;
-      balances[address] = balance;
-      this.balanceMap[address] = balance;
+      this.accounts[address] = accountData;
     } catch(e) {
       console.error(e);
-      throw new Error('Fail to update balances.');
+      throw new Error('Fail to update account.');
     } finally {
       this.lock = false;
     }
   }
+
+  _sha3 (content) {
+    return EthUtils.sha3(content).toString('hex');
+  }
 }
 
-module.exports = BalanceMap;
+module.exports = AccountMap;
