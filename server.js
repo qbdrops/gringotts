@@ -10,7 +10,7 @@ let Sidechain = require('./abi/Sidechain.json');
 let ErrorCodes = require('./errors/codes');
 let LightTransaction = require('./models/light-transaction');
 let Receipt = require('./models/receipt');
-let BalanceMap = require('./utils/balance-map');
+let AccountMap = require('./utils/account-map');
 let GSNGenerator = require('./utils/gsn-generator');
 let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
@@ -18,7 +18,7 @@ let db = require('./db');
 let chain = db.getSidechain();
 let treeManager = new TreeManager(chain);
 let gsnGenerator = new GSNGenerator(chain);
-let balanceMap = new BalanceMap(chain);
+let accountMap = new AccountMap(chain);
 let offchainReceipts = [];
 let lightTxLock = false;
 let expectedStageHeight;
@@ -93,7 +93,7 @@ app.get('/balance/:address', async function (req, res) {
     let address = req.params.address;
     address = address.padStart(64, '0');
     if (address && (address != burnAddress)) {
-      let balance = await balanceMap.getBalance(address);
+      let balance = await accountMap.getBalance(address);
       balance = new BigNumber('0x' + balance);
       res.send({ balance: balance.toString() });
     } else {
@@ -110,11 +110,12 @@ app.get('/slice', async function (req, res) {
     let stageHeight = query.stage_height;
     let lightTxHash = query.light_tx_hash;
 
-    let tree = treeManager.get(stageHeight);
+    let trees = treeManager.getTrees(stageHeight);
+    let receiptTree = trees.receiptTree;
     let receipt = await chain.get('receipt::' + lightTxHash);
-    let slice = tree.getSlice(receipt.receiptHash);
-    let treeNodeIndex = tree.computeLeafIndex(receipt.receiptHash);
-    let receiptHashArray = tree.getAllLeafElements(receipt.receiptHash);
+    let slice = receiptTree.getSlice(receipt.receiptHash);
+    let treeNodeIndex = receiptTree.computeLeafIndex(receipt.receiptHash);
+    let receiptHashArray = receiptTree.getAllLeafElements(receipt.receiptHash);
 
     res.send({ slice: slice, receiptHashArray: receiptHashArray, treeNodeIndex: treeNodeIndex });
   } catch (e) {
@@ -160,22 +161,22 @@ let _applyLightTx = async (lightTx) => {
   try {
     if (type === LightTxTypes.deposit) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
-      toBalance = await balanceMap.getBalance(toAddress);
+      toBalance = await accountMap.getBalance(toAddress);
       oldToBalance = toBalance;
       toBalance = new BigNumber('0x' + toBalance);
       toBalance = toBalance.plus(value);
       toBalance = toBalance.toString(16).padStart(64, '0');
-      await balanceMap.setBalance(toAddress, toBalance);
+      await accountMap.setBalance(toAddress, toBalance);
     } else if ((type === LightTxTypes.withdrawal) ||
               (type === LightTxTypes.instantWithdrawal)) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
-      fromBalance = await balanceMap.getBalance(fromAddress);
+      fromBalance = await accountMap.getBalance(fromAddress);
       oldFromBalance = fromBalance;
       fromBalance = new BigNumber('0x' + fromBalance);
       if (fromBalance.isGreaterThanOrEqualTo(value)) {
         fromBalance = fromBalance.minus(value);
         fromBalance = fromBalance.toString(16).padStart(64, '0');
-        await balanceMap.setBalance(fromAddress, fromBalance);
+        await accountMap.setBalance(fromAddress, fromBalance);
       } else {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
@@ -183,9 +184,9 @@ let _applyLightTx = async (lightTx) => {
     } else if (type === LightTxTypes.remittance) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
 
-      fromBalance = await balanceMap.getBalance(fromAddress);
+      fromBalance = await accountMap.getBalance(fromAddress);
       oldFromBalance = fromBalance;
-      toBalance = await balanceMap.getBalance(toAddress);
+      toBalance = await accountMap.getBalance(toAddress);
       oldToBalance = toBalance;
       fromBalance = new BigNumber('0x' + fromBalance);
       toBalance = new BigNumber('0x' + toBalance);
@@ -196,8 +197,8 @@ let _applyLightTx = async (lightTx) => {
         fromBalance = fromBalance.toString(16).padStart(64, '0');
         toBalance = toBalance.toString(16).padStart(64, '0');
 
-        await balanceMap.setBalance(fromAddress, fromBalance);
-        await balanceMap.setBalance(toAddress, toBalance);
+        await accountMap.setBalance(fromAddress, fromBalance);
+        await accountMap.setBalance(toAddress, toBalance);
       } else {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
@@ -234,7 +235,7 @@ let _applyLightTx = async (lightTx) => {
     offchainReceipts.push(receipt.toJson());
 
     await chain.batch()
-      .put('balances', balanceMap.balances())
+      .put('accounts', accountMap.getAccounts())
       .put('GSN', gsn)
       .put('offchain_receipts', offchainReceipts)
       .put('receipt::' + receipt.lightTxHash, receipt.toJson())
@@ -247,13 +248,13 @@ let _applyLightTx = async (lightTx) => {
     offchainReceipts.pop();
     // rollback balances in memory
     if (type === LightTxTypes.deposit) {
-      await balanceMap.setBalance(toAddress, oldToBalance);
+      await accountMap.setBalance(toAddress, oldToBalance);
     } else if ((type === LightTxTypes.withdrawal) ||
               (type === LightTxTypes.instantWithdrawal)) {
-      await balanceMap.setBalance(fromAddress, oldFromBalance);
+      await accountMap.setBalance(fromAddress, oldFromBalance);
     } else if (type === LightTxTypes.remittance) {
-      await balanceMap.setBalance(fromAddress, oldFromBalance);
-      await balanceMap.setBalance(toAddress, oldToBalance);
+      await accountMap.setBalance(fromAddress, oldFromBalance);
+      await accountMap.setBalance(toAddress, oldToBalance);
     }
     return { ok: false, code: code, message: e.message };
   }
@@ -336,16 +337,23 @@ app.get('/roothash', async function (req, res) {
     let stageHeight = parseInt(sidechain.stageHeight()) + 1;
     let receipts = await db.pendingReceipts(stageHeight);
     let receiptHashes = receipts.map(receipt => receipt.receiptHash);
+    let accountHashes = accountMap.hashes();
+
     if (receiptHashes.length > 0) {
-      let tree = new IndexedMerkleTree();
-      treeManager.set(stageHeight, tree);
       console.log('Building Stage Height: ' + stageHeight);
-      tree.build(stageHeight, receiptHashes);
+      let receiptTree = new IndexedMerkleTree(stageHeight, receiptHashes);
+      let accountTree = new IndexedMerkleTree(stageHeight, accountHashes);
+
+      treeManager.setTrees(stageHeight, receiptTree, accountTree);
 
       expectedStageHeight += 1;
 
-      let receiptRootHash = tree.receiptRootHash;
-      res.send({ ok: true, receiptRootHash: receiptRootHash, stageHeight: stageHeight });
+      res.send({
+        ok: true,
+        stageHeight: stageHeight,
+        receiptRootHash: receiptTree.rootHash,
+        accountRootHash: accountTree.rootHash
+      });
     } else {
       res.send({ ok: false, message: 'Receipts are empty.', code: ErrorCodes.RECEIPTS_ARE_EMPTY });
     }
@@ -359,10 +367,10 @@ app.get('/roothash', async function (req, res) {
 
 app.get('/roothash/:stageHeight', async function (req, res) {
   let stageHeight = req.params.stageHeight;
-  let tree = treeManager.get(stageHeight);
+  let trees = treeManager.getTrees(stageHeight);
 
-  if (tree) {
-    res.send({ ok: true, receiptRootHash: tree.receiptRootHash });
+  if (trees) {
+    res.send({ ok: true, receiptRootHash: trees.receiptTree.rootHash, accountRootHash: trees.accountTree.rootHash });
   } else {
     res.send({ ok: false, message: 'StageHeight does not exist.' });
   }
@@ -375,33 +383,10 @@ app.post('/attach', async function (req, res) {
 
     if (stageHeight) {
       try {
-        let valid = false;
-        let receipts = await db.pendingReceipts(stageHeight);
-        let receiptHashes = receipts.map(receipt => receipt.receiptHash);
-        if (receiptHashes.length > 0) {
-          let tree = new IndexedMerkleTree();
-          console.log('Building Stage Height: ' + stageHeight);
-          tree.build(stageHeight, receiptHashes);
-          let receiptRootHash = tree.receiptRootHash;
-          let targetTree = treeManager.get(stageHeight);
-          let targetRootHash = targetTree.receiptRootHash;
-
-          console.log(receiptRootHash);
-          console.log(targetRootHash);
-          
-          if (receiptRootHash == targetRootHash) {
-            valid = true;
-          }
-        }
-
-        if (valid) {
-          let txHash = web3.eth.sendRawTransaction(serializedTx);
-          console.log('Committed txHash: ' + txHash);
-          // Add txHash to attachTxs pool
-          res.send({ ok: true, txHash: txHash });
-        } else {
-          throw new Error('Root hash are not match.');
-        }
+        let txHash = web3.eth.sendRawTransaction(serializedTx);
+        console.log('Committed txHash: ' + txHash);
+        // Add txHash to attachTxs pool
+        res.send({ ok: true, txHash: txHash });
       } catch (e) {
         console.log(e);
         res.status(500).send({ ok: false, errors: e.message });
