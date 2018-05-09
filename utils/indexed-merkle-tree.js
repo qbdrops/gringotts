@@ -5,7 +5,7 @@ class IndexedMerkleTree {
   constructor (chain) {
     this.chain = chain;
     this.emptyNodeHash = this._sha3('none');
-    this.receiptRootHash = '';
+    this.rootHash = '';
     this.stageHeight = null;
     this.treeHeight = null;
     this.treeNodes = [];
@@ -17,7 +17,7 @@ class IndexedMerkleTree {
       this.treeHeight = this._computeTreeHeight(leafElements.length);
       let treeHeight = this.treeHeight;
 
-      // 1. Compute treeNodeIndex for each receiptHash and group them by treeNodeIndex
+      // 1. Compute treeNodeIndex for each element and group them by treeNodeIndex
       let leafElementsWithIndex = leafElements.map(element => {
         let index = this.computeLeafIndex(element);
         return { treeNodeIndex: index.toString(), leafElement: element };
@@ -62,7 +62,6 @@ class IndexedMerkleTree {
       // 4. Compute rootHash
       while (nodeQueue.length > 1) {
         let node = nodeQueue.shift();
-        // await db.saveTreeNode(node, stageHeight);
         this.treeNodes.push(node);
 
         if (node.treeNodeIndex % 2 == 0) {
@@ -75,13 +74,10 @@ class IndexedMerkleTree {
         }
       }
 
-      // 5. Save rootNode to DB
-      // await db.saveTreeNode(nodeQueue[0], stageHeight);
       this.treeNodes.push(nodeQueue[0]);
+      this.rootHash = this._sha3(nodeQueue[0].treeNodeHash + this.stageHeight.toString(16).padStart(64, '0'));
 
-      this.receiptRootHash = nodeQueue[0].treeNodeHash;
-
-      return this.receiptRootHash;
+      return this.rootHash;
     } catch (e) {
       console.log(e);
     }
@@ -91,7 +87,6 @@ class IndexedMerkleTree {
     let index = this.computeLeafIndex(leafElement);
     let sliceIndexes = [];
 
-    // let firstTreeNode = await db.getTreeNode(stageHeight, index);
     let firstTreeNode = this._getTreeNode(index);
 
     while (index != 1) {
@@ -103,7 +98,6 @@ class IndexedMerkleTree {
       index = parseInt(index / 2);
     }
 
-    // let slice = await db.getSlice(stageHeight, sliceIndexes);
     let slice = this._getSlice(sliceIndexes);
 
     // Put firstNode as the first element of slice
@@ -121,7 +115,6 @@ class IndexedMerkleTree {
 
   getAllLeafElements (leafElement) {
     let index = this.computeLeafIndex(leafElement);
-    // let leafElements = await db.getPaymentByIndex(stageHeight, index);
     let leafElements = this._getTreeNode(index).treeNodeElements.sort();
     return leafElements;
   }
