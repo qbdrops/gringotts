@@ -220,13 +220,8 @@ let _applyLightTx = async (lightTx) => {
 
     let receipt = new Receipt(receiptJson);
 
-    // Save Receipt
-    let containsKnownReceipt = false;
-    let stageHasBeenBuilt = false;
-
     try {
       await chain.get('receipt::' + receipt.lightTxHash);
-      containsKnownReceipt = true;
     } catch (e) {
       if (e.type == 'NotFoundError') {
         // No known receipt, do nothing
@@ -236,46 +231,16 @@ let _applyLightTx = async (lightTx) => {
       }
     }
 
-    if (containsKnownReceipt) {
-      code = ErrorCodes.CONTAINS_KNOWN_RECEIPT;
-      throw new Error('Contains known receipt.');
-    } else {
-      let receiptStageHeight = parseInt(receipt.receiptData.stageHeight);
-      try {
-        await chain.get('stage::' + receiptStageHeight);
-        stageHasBeenBuilt = true;
-      } catch (e) {
-        if (e.type == 'NotFoundError') {
-          // Stage does not existed, do nothing
-        } else {
-          code = ErrorCodes.SOMETHING_WENT_WRONG;
-          throw e;
-        }
-      }
-      let stopReceiveStage = db.getStopReceiveStage();
-      let isNotValid = (receiptStageHeight == stopReceiveStage);
-      if (stageHasBeenBuilt || isNotValid) {
-        code = ErrorCodes.STAGE_HAS_BEEN_BUILT;
-        throw new Error('Stage has been built.');
-      }
+    offchainReceipts.push(receipt.toJson());
 
-      if (stopReceiveStage && ((receiptStageHeight - 1) !== stopReceiveStage)) {
-        code = ErrorCodes.CONTAINS_OVER_HEIGHT_RECEIPT;
-        throw new Error('Contains over height receipt.');
-      }
+    await chain.batch()
+      .put('balances', balanceSet.balances())
+      .put('GSN', gsn)
+      .put('offchain_receipts', offchainReceipts)
+      .put('receipt::' + receipt.lightTxHash, receipt.toJson())
+      .write();
 
-      let receiptJson = receipt.toJson();
-      offchainReceipts.push(receiptJson);
-
-      await chain.batch()
-        .put('balances', balanceSet.balances())
-        .put('GSN', gsn)
-        .put('offchain_receipts', offchainReceipts)
-        .put('receipt::' + receipt.lightTxHash, receipt.toJson())
-        .write();
-
-      return { ok: true, receipt: receipt };
-    }
+    return { ok: true, receipt: receipt };
   } catch (e) {
     console.error(e);
     // rollback all modifications in the leveldb transaction
@@ -363,16 +328,6 @@ app.post('/send/light_tx', async function (req, res) {
   } catch (e) {
     console.log(e);
     res.status(500).send({ ok: false, message: e.message, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
-  }
-});
-
-app.get('/pending/roothashes', async function (req, res) {
-  try {
-    let pendingRootHashes = await db.pendingRootHashes();
-    res.send(pendingRootHashes);
-  } catch (e) {
-    console.log(e);
-    res.status(500).send({ ok: false, errors: e.message });
   }
 });
 
@@ -472,16 +427,6 @@ app.get('/sidechain/address', async function (req, res) {
 app.get('/server/address', async function (req, res) {
   try {
     res.send({ address: serverAddress });
-  } catch (e) {
-    console.log(e);
-    res.status(500).send({ errors: e.message });
-  }
-});
-
-app.get('/viable/stage/height', async function (req, res) {
-  try {
-    let height = await db.viableStageHeight();
-    res.send({ height: height });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
