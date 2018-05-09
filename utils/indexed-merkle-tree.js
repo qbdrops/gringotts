@@ -2,23 +2,23 @@ const EthUtils = require('ethereumjs-util');
 let assert = require('assert');
 
 class IndexedMerkleTree {
-  constructor (chain) {
-    this.chain = chain;
+  constructor (stageHeight, leafElements) {
+    this.stageHeight = stageHeight;
+    this.leafElements = leafElements;
     this.emptyNodeHash = this._sha3('none');
     this.rootHash = '';
-    this.stageHeight = null;
     this.treeHeight = null;
     this.treeNodes = [];
+    this._build();
   }
 
-  build (stageHeight, leafElements) {
+  _build () {
     try {
-      this.stageHeight = stageHeight;
-      this.treeHeight = this._computeTreeHeight(leafElements.length);
+      this.treeHeight = this._computeTreeHeight(this.leafElements.length);
       let treeHeight = this.treeHeight;
 
       // 1. Compute treeNodeIndex for each element and group them by treeNodeIndex
-      let leafElementsWithIndex = leafElements.map(element => {
+      let leafElementsWithIndex = this.leafElements.map(element => {
         let index = this.computeLeafIndex(element);
         return { treeNodeIndex: index.toString(), leafElement: element };
       });
@@ -76,8 +76,6 @@ class IndexedMerkleTree {
 
       this.treeNodes.push(nodeQueue[0]);
       this.rootHash = this._sha3(nodeQueue[0].treeNodeHash + this.stageHeight.toString(16).padStart(64, '0'));
-
-      return this.rootHash;
     } catch (e) {
       console.log(e);
     }
