@@ -1,33 +1,33 @@
 let assert = require('assert');
 
-class BalanceSet {
+class BalanceMap {
   constructor (chain) {
     this.chain = chain;
-    this.balanceSet = {};
+    this.balanceMap = {};
     this.lock = false;
 
-    this.chain.get('balances', (err, balanceSetJson) => {
-      let balanceSet = {};
+    this.chain.get('balances', (err, balanceMapJson) => {
+      let balanceMap = {};
       if (err) {
         if (err.type == 'NotFoundError') {
-          this.chain.put('balances', balanceSet);
+          this.chain.put('balances', balanceMap);
         } else {
           throw new Error('Can not fetch balances from db.');
         }
       } else {
-        balanceSet = balanceSetJson;
+        balanceMap = balanceMapJson;
       }
-      this.balanceSet = balanceSet;
+      this.balanceMap = balanceMap;
     });
   }
 
   balances () {
-    return this.balanceSet;
+    return this.balanceMap;
   }
 
   _getBalance (address) {
     if (!this.lock) {
-      return this.balanceSet[address];
+      return this.balanceMap[address];
     } else {
       return false;
     }
@@ -35,7 +35,7 @@ class BalanceSet {
 
   getBalance (address) {
     return new Promise ((resolve) => {
-      if (this.balanceSet.hasOwnProperty(address)) {
+      if (this.balanceMap.hasOwnProperty(address)) {
         if (!this.lock) {
           resolve(this._getBalance(address));
         } else {
@@ -57,9 +57,9 @@ class BalanceSet {
     assert((typeof balance === 'string') && (balance.toString().length === 64), 'Invalid balance.');
     this.lock = true;
     try {
-      let balances = this.balanceSet;
+      let balances = this.balanceMap;
       balances[address] = balance;
-      this.balanceSet[address] = balance;
+      this.balanceMap[address] = balance;
     } catch(e) {
       console.error(e);
       throw new Error('Fail to update balances.');
@@ -69,4 +69,4 @@ class BalanceSet {
   }
 }
 
-module.exports = BalanceSet;
+module.exports = BalanceMap;

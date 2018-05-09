@@ -10,7 +10,7 @@ let Sidechain = require('./abi/Sidechain.json');
 let ErrorCodes = require('./errors/codes');
 let LightTransaction = require('./models/light-transaction');
 let Receipt = require('./models/receipt');
-let BalanceSet = require('./utils/balance-set');
+let BalanceMap = require('./utils/balance-map');
 let GSNGenerator = require('./utils/gsn-generator');
 let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
@@ -18,7 +18,7 @@ let db = require('./db');
 let chain = db.getSidechain();
 let treeManager = new TreeManager(chain);
 let gsnGenerator = new GSNGenerator(chain);
-let balanceSet = new BalanceSet(chain);
+let balanceMap = new BalanceMap(chain);
 let offchainReceipts = [];
 let lightTxLock = false;
 let expectedStageHeight;
@@ -93,7 +93,7 @@ app.get('/balance/:address', async function (req, res) {
     let address = req.params.address;
     address = address.padStart(64, '0');
     if (address && (address != burnAddress)) {
-      let balance = await balanceSet.getBalance(address);
+      let balance = await balanceMap.getBalance(address);
       balance = new BigNumber('0x' + balance);
       res.send({ balance: balance.toString() });
     } else {
@@ -160,22 +160,22 @@ let _applyLightTx = async (lightTx) => {
   try {
     if (type === LightTxTypes.deposit) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
-      toBalance = await balanceSet.getBalance(toAddress);
+      toBalance = await balanceMap.getBalance(toAddress);
       oldToBalance = toBalance;
       toBalance = new BigNumber('0x' + toBalance);
       toBalance = toBalance.plus(value);
       toBalance = toBalance.toString(16).padStart(64, '0');
-      await balanceSet.setBalance(toAddress, toBalance);
+      await balanceMap.setBalance(toAddress, toBalance);
     } else if ((type === LightTxTypes.withdrawal) ||
               (type === LightTxTypes.instantWithdrawal)) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
-      fromBalance = await balanceSet.getBalance(fromAddress);
+      fromBalance = await balanceMap.getBalance(fromAddress);
       oldFromBalance = fromBalance;
       fromBalance = new BigNumber('0x' + fromBalance);
       if (fromBalance.isGreaterThanOrEqualTo(value)) {
         fromBalance = fromBalance.minus(value);
         fromBalance = fromBalance.toString(16).padStart(64, '0');
-        await balanceSet.setBalance(fromAddress, fromBalance);
+        await balanceMap.setBalance(fromAddress, fromBalance);
       } else {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
@@ -183,9 +183,9 @@ let _applyLightTx = async (lightTx) => {
     } else if (type === LightTxTypes.remittance) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
 
-      fromBalance = await balanceSet.getBalance(fromAddress);
+      fromBalance = await balanceMap.getBalance(fromAddress);
       oldFromBalance = fromBalance;
-      toBalance = await balanceSet.getBalance(toAddress);
+      toBalance = await balanceMap.getBalance(toAddress);
       oldToBalance = toBalance;
       fromBalance = new BigNumber('0x' + fromBalance);
       toBalance = new BigNumber('0x' + toBalance);
@@ -196,8 +196,8 @@ let _applyLightTx = async (lightTx) => {
         fromBalance = fromBalance.toString(16).padStart(64, '0');
         toBalance = toBalance.toString(16).padStart(64, '0');
 
-        await balanceSet.setBalance(fromAddress, fromBalance);
-        await balanceSet.setBalance(toAddress, toBalance);
+        await balanceMap.setBalance(fromAddress, fromBalance);
+        await balanceMap.setBalance(toAddress, toBalance);
       } else {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
@@ -234,7 +234,7 @@ let _applyLightTx = async (lightTx) => {
     offchainReceipts.push(receipt.toJson());
 
     await chain.batch()
-      .put('balances', balanceSet.balances())
+      .put('balances', balanceMap.balances())
       .put('GSN', gsn)
       .put('offchain_receipts', offchainReceipts)
       .put('receipt::' + receipt.lightTxHash, receipt.toJson())
@@ -247,13 +247,13 @@ let _applyLightTx = async (lightTx) => {
     offchainReceipts.pop();
     // rollback balances in memory
     if (type === LightTxTypes.deposit) {
-      await balanceSet.setBalance(toAddress, oldToBalance);
+      await balanceMap.setBalance(toAddress, oldToBalance);
     } else if ((type === LightTxTypes.withdrawal) ||
               (type === LightTxTypes.instantWithdrawal)) {
-      await balanceSet.setBalance(fromAddress, oldFromBalance);
+      await balanceMap.setBalance(fromAddress, oldFromBalance);
     } else if (type === LightTxTypes.remittance) {
-      await balanceSet.setBalance(fromAddress, oldFromBalance);
-      await balanceSet.setBalance(toAddress, oldToBalance);
+      await balanceMap.setBalance(fromAddress, oldFromBalance);
+      await balanceMap.setBalance(toAddress, oldToBalance);
     }
     return { ok: false, code: code, message: e.message };
   }
