@@ -8,12 +8,13 @@ class TreeManager {
     this.lock = false;
   }
 
-  set (stageHeight, tree) {
-    assert(tree instanceof IndexedMerkleTree, 'Parameter \'tree\' should be instance of \'IndexedMerkleTree\'.');
-    this.tempTrees[stageHeight.toString()] = tree;
+  setTrees (stageHeight, receiptTree, accountTree) {
+    assert(receiptTree instanceof IndexedMerkleTree, 'Parameter \'receiptTree\' should be instance of \'IndexedMerkleTree\'.');
+    assert(accountTree instanceof IndexedMerkleTree, 'Parameter \'accountTree\' should be instance of \'IndexedMerkleTree\'.');
+    this.tempTrees[stageHeight.toString()] =  { receiptTree: receiptTree, accountTree: accountTree };
   }
 
-  get (stageHeight) {
+  getTrees (stageHeight) {
     return this.tempTrees[stageHeight.toString()];
   }
 }
