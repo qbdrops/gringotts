@@ -1,5 +1,6 @@
 let env = require('./env');
 let express = require('express');
+let timeout = require('connect-timeout');
 let bodyParser = require('body-parser');
 let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
@@ -43,6 +44,13 @@ let app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cors());
+
+app.use(timeout(120000));
+app.use(haltOnTimedout);
+
+function haltOnTimedout(req, res, next){
+  if (!req.timedout) next();
+}
 
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
