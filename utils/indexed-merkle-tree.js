@@ -5,18 +5,18 @@ class IndexedMerkleTree {
   constructor (stageHeight, leafElements) {
     this.stageHeight = stageHeight;
     this.leafElements = leafElements;
+    this.treeHeight = this._computeTreeHeight(this.leafElements.length);
     this.emptyNodeHash = this._sha3('none');
-    this.rootHash = '';
-    this.treeHeight = null;
-    this.treeNodes = [];
-    this._build();
+
+    let buildResult = this._build();
+    this.treeNodes = buildResult.treeNodes;
+    this.rootHash = buildResult.rootHash;
   }
 
   _build () {
     try {
-      this.treeHeight = this._computeTreeHeight(this.leafElements.length);
-      let treeHeight = this.treeHeight;
-
+      let treeNodes = [];
+      let rootHash = '';
       // 1. Compute treeNodeIndex for each element and group them by treeNodeIndex
       let leafElementsWithIndex = this.leafElements.map(element => {
         let index = this.computeLeafIndex(element);
@@ -44,7 +44,7 @@ class IndexedMerkleTree {
       });
 
       // 3. Make an array of treeNodes
-      let nodeQueue = this._getLeafIndexRange(treeHeight).map(index => {
+      let nodeQueue = this._getLeafIndexRange().map(index => {
         var treeNodeHash = '';
         if (computedLeafElements[index] == undefined) {
           treeNodeHash = this.emptyNodeHash;
@@ -62,7 +62,7 @@ class IndexedMerkleTree {
       // 4. Compute rootHash
       while (nodeQueue.length > 1) {
         let node = nodeQueue.shift();
-        this.treeNodes.push(node);
+        treeNodes.push(node);
 
         if (node.treeNodeIndex % 2 == 0) {
           nodeQueue.push(node);
@@ -74,8 +74,10 @@ class IndexedMerkleTree {
         }
       }
 
-      this.treeNodes.push(nodeQueue[0]);
-      this.rootHash = this._sha3(nodeQueue[0].treeNodeHash + this.stageHeight.toString(16).padStart(64, '0'));
+      treeNodes.push(nodeQueue[0]);
+      rootHash = this._sha3(nodeQueue[0].treeNodeHash + this.stageHeight.toString(16).padStart(64, '0'));
+
+      return { treeNodes: treeNodes, rootHash: rootHash };
     } catch (e) {
       console.log(e);
     }
@@ -132,9 +134,9 @@ class IndexedMerkleTree {
     return this.treeNodes.filter(treeNode => indexes.includes(treeNode.treeNodeIndex));
   }
 
-  _getLeafIndexRange(treeHeight) {
-    let l = 2 ** (treeHeight - 1);
-    let u = 2 ** (treeHeight) - 1;
+  _getLeafIndexRange() {
+    let l = 2 ** (this.treeHeight - 1);
+    let u = 2 ** (this.treeHeight) - 1;
     var s = [];
     for (let i = l; i <= u; i++) {
       s.push(i);

@@ -12,7 +12,7 @@ let DB = function () {
       receipts = await chain.get('offchain_receipts');
       if (stageHeight) {
         receipts = receipts.filter((receipt) => {
-          return parseInt(receipt.receiptData.stageHeight) == stageHeight;
+          return parseInt(receipt.receiptData.stageHeight, 16) == stageHeight;
         });
       }
       return receipts;
