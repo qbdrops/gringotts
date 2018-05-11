@@ -6,7 +6,7 @@ let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
 let TreeManager = require('./utils/tree-manager');
 let IndexedMerkleTree = require('./utils/indexed-merkle-tree');
-let Web3 = require('web3');
+let DB = require('./utils/DB');
 let Sidechain = require('./abi/Sidechain.json');
 let ErrorCodes = require('./errors/codes');
 let LightTransaction = require('./models/light-transaction');
@@ -15,36 +15,28 @@ let AccountMap = require('./utils/account-map');
 let GSNGenerator = require('./utils/gsn-generator');
 let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
-let db = require('./db');
-let chain = db.getSidechain();
-let treeManager = new TreeManager(chain);
-let gsnGenerator = new GSNGenerator(chain);
-let accountMap = new AccountMap(chain);
+let Web3 = require('web3');
+let db = new DB();
+let treeManager = new TreeManager(db);
+
+let gsnGenerator = new GSNGenerator(db);
+gsnGenerator.initialize();
+
+let accountMap = new AccountMap(db);
+accountMap.initialze();
+
+let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
+let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
+let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
+let initStageHeight = parseInt(sidechain.stageHeight()) + 1;
 let offchainReceipts = [];
 let lightTxLock = false;
 let expectedStageHeight;
-
-chain.get('offchain_receipts', (err, existedOffchainReceipts) => {
-  let receipts;
-  if (err) {
-    if (err.type == 'NotFoundError') {
-      receipts = [];
-      expectedStageHeight = parseInt(sidechain.stageHeight()) + 1;
-    } else {
-      throw err;
-    }
-  } else {
-    receipts = existedOffchainReceipts;
-    expectedStageHeight = parseInt(receipts[receipts.length - 1].receiptData.stageHeight) + 1;
-  }
-  offchainReceipts = receipts;
-});
 
 let app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cors());
-
 app.use(timeout(120000));
 app.use(haltOnTimedout);
 
@@ -55,7 +47,6 @@ function haltOnTimedout(req, res, next){
 var server = require('http').createServer(app);
 var io = require('socket.io')(server);
 
-const web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 const account = env.serverAddress;
 const sidechainAddress = env.sidechainAddress;
 const serverAddress = env.serverAddress;
@@ -68,8 +59,15 @@ io.on('connection', async function (socket) {
   });
 });
 
-let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
-let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
+// Load pendingReceipts from DB
+db.pendingReceipts().then(pendingReceipts => {
+  offchainReceipts = pendingReceipts;
+  if (pendingReceipts.length > 0) {
+    expectedStageHeight = parseInt(offchainReceipts[offchainReceipts.length - 1].receiptData.stageHeight, 16) + 1;
+  } else {
+    expectedStageHeight = initStageHeight;
+  }
+});
 
 // Watch latest block
 sidechain.AttachStage({ toBlock: 'latest' }).watch(async (err, result) => {
@@ -120,7 +118,7 @@ app.get('/slice', async function (req, res) {
 
     let trees = treeManager.getTrees(stageHeight);
     let receiptTree = trees.receiptTree;
-    let receipt = await chain.get('receipt::' + lightTxHash);
+    let receipt = await db.getReceiptByLightTxHash(lightTxHash);
     let slice = receiptTree.getSlice(receipt.receiptHash);
     let treeNodeIndex = receiptTree.computeLeafIndex(receipt.receiptHash);
     let receiptHashArray = receiptTree.getAllLeafElements(receipt.receiptHash);
@@ -149,7 +147,7 @@ function isValidSig (lightTx) {
 app.get('/receipt/:lightTxHash', async function (req, res) {
   try {
     let lightTxHash = req.params.lightTxHash;
-    let receipt = await chain.get('receipt::' + lightTxHash);
+    let receipt = await db.getReceiptByLightTxHash(lightTxHash);
     res.send(receipt);
   } catch (e) {
     console.error(e);
@@ -230,7 +228,7 @@ let _applyLightTx = async (lightTx) => {
     let receipt = new Receipt(receiptJson);
 
     try {
-      await chain.get('receipt::' + receipt.lightTxHash);
+      await db.getReceiptByLightTxHash(receipt.lightTxHash);
     } catch (e) {
       if (e.type == 'NotFoundError') {
         // No known receipt, do nothing
@@ -242,12 +240,7 @@ let _applyLightTx = async (lightTx) => {
 
     offchainReceipts.push(receipt.toJson());
 
-    await chain.batch()
-      .put('accounts', accountMap.getAccounts())
-      .put('GSN', gsn)
-      .put('offchain_receipts', offchainReceipts)
-      .put('receipt::' + receipt.lightTxHash, receipt.toJson())
-      .write();
+    await db.batch(accountMap.getAccounts(), gsn, offchainReceipts, receipt);
 
     return { ok: true, receipt: receipt };
   } catch (e) {
@@ -295,12 +288,10 @@ app.post('/send/light_tx', async function (req, res) {
     let lightTxJson = req.body.lightTxJson;
     let lightTx = new LightTransaction(lightTxJson);
     let isExisted = true;
-    try {
-      await chain.get('receipt::' + lightTx.lightTxHash);
-    } catch (e) {
-      if (e.type == 'NotFoundError') {
-        isExisted = false;
-      }
+    
+    let oldReceipt = await db.getReceiptByLightTxHash(lightTx.lightTxHash);
+    if (!oldReceipt) {
+      isExisted = false;
     }
 
     let success = false;
