@@ -1,29 +1,22 @@
 class GSNGenerator {
-  constructor (chain) {
-    this.chain = chain;
+  constructor (db) {
+    this.db = db;
     this.lock = false;
-    this.chain.get('GSN', (err, exsitedGSN) => {
-      if (err) {
-        if (err.type == 'NotFoundError') {
-          this.chain.put('GSN', 0);
-          this.gsn = 0;
-        } else {
-          throw new Error('Can not fetch GSN from db.');
-        }
-      } else {
-        this.gsn = parseInt(exsitedGSN);
-      }
-    });
+    this.GSN = null;
+  }
+
+  async initialize () {
+    this.GSN = await this.db.loadGSN();
   }
 
   _getGSN () {
     if (!this.lock) {
       this.lock = true;
-      let gsn = this.gsn + 1;
-      gsn = gsn.toString(16).padStart(64, '0');
-      this.gsn++;
+      let GSN = this.GSN + 1;
+      GSN = GSN.toString(16).padStart(64, '0');
+      this.GSN++;
       this.lock = false;
-      return gsn;
+      return GSN;
     } else {
       return false;
     }
@@ -31,14 +24,14 @@ class GSNGenerator {
 
   getGSN () {
     return new Promise ((resolve) => {
-      let gsn = this._getGSN();
-      if (gsn) {
-        resolve(gsn);
+      let GSN = this._getGSN();
+      if (GSN) {
+        resolve(GSN);
       } else {
         let timerId = setInterval(() => {
-          gsn = this._getGSN();
-          if (gsn !== false) {
-            resolve(gsn);
+          GSN = this._getGSN();
+          if (GSN !== false) {
+            resolve(GSN);
             clearInterval(timerId);
           }
         }, 50);

@@ -2,8 +2,8 @@ let assert = require('assert');
 let IndexedMerkleTree = require('./indexed-merkle-tree');
 
 class TreeManager {
-  constructor (chain) {
-    this.chain = chain;
+  constructor (db) {
+    this.db = db;
     this.tempTrees = {};
     this.lock = false;
   }

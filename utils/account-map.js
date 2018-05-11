@@ -2,24 +2,15 @@ let EthUtils = require('ethereumjs-util');
 let assert = require('assert');
 
 class AccountMap {
-  constructor (chain) {
-    this.chain = chain;
+  constructor (db) {
+    this.db = db;
     this.accounts = {};
     this.lock = false;
+    this.acconuts = null;
+  }
 
-    this.chain.get('accounts', (err, accountsJson) => {
-      let accounts = {};
-      if (err) {
-        if (err.type == 'NotFoundError') {
-          this.chain.put('accounts', accounts);
-        } else {
-          throw new Error('Can not fetch accounts from db.');
-        }
-      } else {
-        accounts = accountsJson;
-      }
-      this.accounts = accounts;
-    });
+  async initialze() {
+    this.accounts = await this.db.loadAccounts();
   }
 
   getAccounts () {
