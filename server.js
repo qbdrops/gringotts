@@ -16,15 +16,8 @@ let GSNGenerator = require('./utils/gsn-generator');
 let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
 let Web3 = require('web3');
+
 let db = new DB();
-let treeManager = new TreeManager(db);
-
-let gsnGenerator = new GSNGenerator(db);
-gsnGenerator.initialize();
-
-let accountMap = new AccountMap(db);
-accountMap.initialze();
-
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
 let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
@@ -32,6 +25,25 @@ let initStageHeight = parseInt(sidechain.stageHeight()) + 1;
 let offchainReceipts = [];
 let lightTxLock = false;
 let expectedStageHeight;
+
+// Load pendingReceipts from DB
+db.pendingReceipts().then(pendingReceipts => {
+  offchainReceipts = pendingReceipts;
+  if (pendingReceipts.length > 0) {
+    expectedStageHeight = parseInt(offchainReceipts[offchainReceipts.length - 1].receiptData.stageHeight, 16) + 1;
+  } else {
+    expectedStageHeight = initStageHeight;
+  }
+});
+
+let treeManager = new TreeManager(db);
+treeManager.initialze();
+
+let gsnGenerator = new GSNGenerator(db);
+gsnGenerator.initialize();
+
+let accountMap = new AccountMap(db);
+accountMap.initialze();
 
 let app = express();
 app.use(bodyParser.json());
@@ -57,16 +69,6 @@ io.on('connection', async function (socket) {
   socket.on('disconnect', function () {
     console.log('disconnected');
   });
-});
-
-// Load pendingReceipts from DB
-db.pendingReceipts().then(pendingReceipts => {
-  offchainReceipts = pendingReceipts;
-  if (pendingReceipts.length > 0) {
-    expectedStageHeight = parseInt(offchainReceipts[offchainReceipts.length - 1].receiptData.stageHeight, 16) + 1;
-  } else {
-    expectedStageHeight = initStageHeight;
-  }
 });
 
 // Watch latest block
