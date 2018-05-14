@@ -6,6 +6,22 @@ class DB {
     this.chain = chain;
   }
 
+  async loadStageHeight () {
+    let stageHeight;
+    try {
+      stageHeight = await chain.get('stageHeight');
+      return parseInt(stageHeight);
+    } catch (e) {
+      if (e.type == 'NotFoundError') {
+        stageHeight = 0;
+        await chain.put('stageHeight', stageHeight);
+        return stageHeight;
+      } else {
+        throw e;
+      }
+    }
+  }
+
   async dumpStageHeight (stageHeight) {
     await chain.put('stageHeight', stageHeight.toString());
   }

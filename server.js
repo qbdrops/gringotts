@@ -22,29 +22,39 @@ let db = new DB();
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
 let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
+
+abiDecoder.addABI(Sidechain.abi);
+
 let initStageHeight = parseInt(sidechain.stageHeight()) + 1;
 let offchainReceipts = [];
 let lightTxLock = false;
 let expectedStageHeight;
+let treeManager;
+let gsnGenerator;
+let accountMap;
 
 // Load pendingReceipts from DB
-db.pendingReceipts().then(pendingReceipts => {
+db.pendingReceipts().then(async pendingReceipts => {
   offchainReceipts = pendingReceipts;
-  if (pendingReceipts.length > 0) {
-    expectedStageHeight = parseInt(offchainReceipts[offchainReceipts.length - 1].receiptData.stageHeight, 16) + 1;
-  } else {
+  let stageHeightFromDB = await db.loadStageHeight();
+
+  if (stageHeightFromDB == 0) {
     expectedStageHeight = initStageHeight;
+  } else {
+    expectedStageHeight = stageHeightFromDB;
   }
+
+  console.log('Expected StageHeight: ' + expectedStageHeight);
+
+  treeManager = new TreeManager(db);
+  treeManager.initialize(expectedStageHeight);
+
+  gsnGenerator = new GSNGenerator(db);
+  gsnGenerator.initialize();
+
+  accountMap = new AccountMap(db);
+  accountMap.initialize();
 });
-
-let treeManager = new TreeManager(db);
-treeManager.initialze();
-
-let gsnGenerator = new GSNGenerator(db);
-gsnGenerator.initialize();
-
-let accountMap = new AccountMap(db);
-accountMap.initialze();
 
 let app = express();
 app.use(bodyParser.json());
@@ -342,6 +352,10 @@ app.get('/roothash', async function (req, res) {
 
       expectedStageHeight += 1;
 
+      // Dump data from memory to disk
+      treeManager.dump();
+      gsnGenerator.dump();
+
       res.send({
         ok: true,
         stageHeight: stageHeight,
@@ -390,7 +404,10 @@ app.post('/attach', async function (req, res) {
             accountTree.rootHash === accountRootHash) {
           let txHash = web3.eth.sendRawTransaction(serializedTx);
           console.log('Committed txHash: ' + txHash);
-          // Add txHash to attachTxs pool
+
+          // Dump stageHeight
+          db.dumpStageHeight(expectedStageHeight);
+
           res.send({ ok: true, txHash: txHash });
         } else {
           throw new Error('Invalid signed root hashes.');
