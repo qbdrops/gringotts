@@ -6,11 +6,14 @@ class AccountMap {
     this.db = db;
     this.db.setAccountMap(this);
     this.accounts = {};
-    this.acconuts = null;
   }
 
   async initialize() {
     this.accounts = await this.db.loadAccounts();
+  }
+
+  getAddresses () {
+    return Object.keys(this.accounts);
   }
 
   getAccounts () {

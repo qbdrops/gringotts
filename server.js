@@ -162,7 +162,7 @@ app.get('/receipt/:lightTxHash', async function (req, res) {
   }
 });
 
-let _applyLightTx = async (lightTx) => {
+let applyLightTx = async (lightTx) => {
   let code = ErrorCodes.SOMETHING_WENT_WRONG;
   let type = lightTx.type();
   let fromAddress = lightTx.lightTxData.from;
@@ -247,16 +247,16 @@ let _applyLightTx = async (lightTx) => {
 
     let receipt = new Receipt(receiptJson);
 
-    try {
-      await db.getReceiptByLightTxHash(receipt.lightTxHash);
-    } catch (e) {
-      if (e.type == 'NotFoundError') {
-        // No known receipt, do nothing
-      } else {
-        code = ErrorCodes.SOMETHING_WENT_WRONG;
-        throw e;
-      }
-    }
+    // try {
+    //   await db.getReceiptByLightTxHash(receipt.lightTxHash);
+    // } catch (e) {
+    //   if (e.type == 'NotFoundError') {
+    //     // No known receipt, do nothing
+    //   } else {
+    //     code = ErrorCodes.SOMETHING_WENT_WRONG;
+    //     throw e;
+    //   }
+    // }
 
     offchainReceipts.push(receipt.toJson());
     let newAddresses = [];
@@ -269,7 +269,7 @@ let _applyLightTx = async (lightTx) => {
       newAddresses.push(toAddress);
     }
 
-    await db.batch(newAddresses, gsn, offchainReceipts, receipt);
+    db.batch(newAddresses, gsn, offchainReceipts, receipt);
 
     return { ok: true, receipt: receipt };
   } catch (e) {
@@ -278,13 +278,13 @@ let _applyLightTx = async (lightTx) => {
     offchainReceipts.pop();
     // rollback balances in memory
     if (type === LightTxTypes.deposit) {
-      await accountMap.setBalance(toAddress, oldToBalance);
+      accountMap.setBalance(toAddress, oldToBalance);
     } else if ((type === LightTxTypes.withdrawal) ||
               (type === LightTxTypes.instantWithdrawal)) {
-      await accountMap.setBalance(fromAddress, oldFromBalance);
+      accountMap.setBalance(fromAddress, oldFromBalance);
     } else if (type === LightTxTypes.remittance) {
-      await accountMap.setBalance(fromAddress, oldFromBalance);
-      await accountMap.setBalance(toAddress, oldToBalance);
+      accountMap.setBalance(fromAddress, oldFromBalance);
+      accountMap.setBalance(toAddress, oldToBalance);
     }
     return { ok: false, code: code, message: e.message };
   } finally {
@@ -293,36 +293,36 @@ let _applyLightTx = async (lightTx) => {
   }
 };
 
-let applyLightTx = (lightTx) => {
-  // gringotts can only process one lightTx at the same time
-  return new Promise(async (resolve) => {
-    let fromAddress = lightTx.lightTxData.from;
-    let toAddress = lightTx.lightTxData.to;
+// let applyLightTx = (lightTx) => {
+//   // gringotts can only process one lightTx at the same time
+//   return new Promise(async (resolve) => {
+//     let fromAddress = lightTx.lightTxData.from;
+//     let toAddress = lightTx.lightTxData.to;
 
-    let canProcessParallelly = (
-      (processingAddresses.indexOf(fromAddress) < 0) &&
-      (processingAddresses.indexOf(toAddress) < 0 )
-    );
+//     let canProcessParallelly = (
+//       (processingAddresses.indexOf(fromAddress) < 0) &&
+//       (processingAddresses.indexOf(toAddress) < 0 )
+//     );
 
-    if (canProcessParallelly) {
-      let updateResult = await _applyLightTx(lightTx);
-      resolve(updateResult);
-    } else {
-      let timerId = setInterval(async () => {
-        let canProcessParallelly = (
-          (processingAddresses.indexOf(fromAddress) < 0) &&
-          (processingAddresses.indexOf(toAddress) < 0 )
-        );
+//     if (canProcessParallelly) {
+//       let updateResult = await _applyLightTx(lightTx);
+//       resolve(updateResult);
+//     } else {
+//       let timerId = setInterval(async () => {
+//         let canProcessParallelly = (
+//           (processingAddresses.indexOf(fromAddress) < 0) &&
+//           (processingAddresses.indexOf(toAddress) < 0 )
+//         );
 
-        if (canProcessParallelly) {
-          let updateResult = await _applyLightTx(lightTx);
-          clearInterval(timerId);
-          resolve(updateResult);
-        }
-      }, 0);
-    }
-  });
-};
+//         if (canProcessParallelly) {
+//           let updateResult = await _applyLightTx(lightTx);
+//           clearInterval(timerId);
+//           resolve(updateResult);
+//         }
+//       }, 0);
+//     }
+//   });
+// };
 
 app.post('/send/light_tx', async function (req, res) {
   try {

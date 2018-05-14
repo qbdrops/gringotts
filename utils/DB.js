@@ -1,5 +1,19 @@
 let level = require('level');
 let chain = level('./sidechaindata', { valueEncoding: 'json' });
+let txs = [];
+
+setInterval(async () => {
+  if (txs.length > 0) {
+    while (txs.length > 0) {
+      let tx = txs.shift();
+      try {
+        await tx.write();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+}, 1000);
 
 class DB {
   constructor () {
@@ -143,24 +157,57 @@ class DB {
     }
   }
 
-  async batch (newAddresses, GSN, offchainReceipts, receipt) {
+  batch (newAddresses, GSN, offchainReceipts, receipt) {
+    let fromAddress = receipt.lightTxData.from;
+    let toAddress = receipt.lightTxData.to;
     let tx = chain.batch().
       put('GSN', GSN).
       put('offchain_receipts', offchainReceipts).
       put('receipt::' + receipt.lightTxHash, receipt.toJson());
 
     if (newAddresses.length > 0) {
-      let addresses = await chain.get('addresses');
-      addresses = addresses.concat(newAddresses);
+      let addresses = this.accountMap.getAddresses();
       tx = tx.put('addresses', addresses);
-      newAddresses.forEach(newAddress => {
-        let newAccount = this.accountMap.getAccount(newAddress);
-        tx = tx.put('account::' + newAddress, newAccount);
-      });
     }
 
-    await tx.write();
+    if (fromAddress && (fromAddress !== '0000000000000000000000000000000000000000000000000000000000000000')) {
+      let fromAccount = this.accountMap.getAccount(fromAddress);
+      tx = tx.put('account::' + fromAddress, fromAccount);
+    }
+
+    if (toAddress && (toAddress !== '0000000000000000000000000000000000000000000000000000000000000000')) {
+      let toAccount = this.accountMap.getAccount(toAddress);
+      tx = tx.put('account::' + toAddress, toAccount);
+    }
+
+    txs.push(tx);
   }
 }
+
+if (process.platform === 'win32') {
+  let rl = require('readline').createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+
+  rl.on('SIGINT', function () {
+    process.emit('SIGINT');
+  });
+}
+
+process.on('SIGINT', async () => {
+  if (txs.length > 0) {
+    while (txs.length > 0) {
+      let tx = txs.shift();
+      try {
+        await tx.write();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  process.exit();
+});
 
 module.exports = DB;
