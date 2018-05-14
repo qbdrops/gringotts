@@ -4,6 +4,7 @@ let IndexedMerkleTree = require('./indexed-merkle-tree');
 class TreeManager {
   constructor (db) {
     this.db = db;
+    this.db.setTreeManager(this);
     this.trees = {};
   }
 

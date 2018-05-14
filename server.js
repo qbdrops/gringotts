@@ -27,11 +27,11 @@ abiDecoder.addABI(Sidechain.abi);
 
 let initStageHeight = parseInt(sidechain.stageHeight()) + 1;
 let offchainReceipts = [];
-let lightTxLock = false;
 let expectedStageHeight;
 let treeManager;
 let gsnGenerator;
 let accountMap;
+let processingAddresses = [];
 
 // Load pendingReceipts from DB
 db.pendingReceipts().then(async pendingReceipts => {
@@ -43,17 +43,19 @@ db.pendingReceipts().then(async pendingReceipts => {
   } else {
     expectedStageHeight = stageHeightFromDB;
   }
+  console.log('expectedStageHeight: ' + expectedStageHeight);
+  try {
+    treeManager = new TreeManager(db);
+    await treeManager.initialize(expectedStageHeight);
 
-  console.log('Expected StageHeight: ' + expectedStageHeight);
+    gsnGenerator = new GSNGenerator(db);
+    await gsnGenerator.initialize();
 
-  treeManager = new TreeManager(db);
-  treeManager.initialize(expectedStageHeight);
-
-  gsnGenerator = new GSNGenerator(db);
-  gsnGenerator.initialize();
-
-  accountMap = new AccountMap(db);
-  accountMap.initialize();
+    accountMap = new AccountMap(db);
+    await accountMap.initialize();
+  } catch (e) {
+    console.error(e);
+  }
 });
 
 let app = express();
@@ -165,6 +167,10 @@ let _applyLightTx = async (lightTx) => {
   let type = lightTx.type();
   let fromAddress = lightTx.lightTxData.from;
   let toAddress = lightTx.lightTxData.to;
+
+  let isNewFromAddress = accountMap.isNewAddress(fromAddress);
+  let isNewToAddress = accountMap.isNewAddress(toAddress);
+
   let fromBalance = initBalance;
   let toBalance = initBalance;
   let oldFromBalance;
@@ -172,22 +178,28 @@ let _applyLightTx = async (lightTx) => {
   try {
     if (type === LightTxTypes.deposit) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
-      toBalance = await accountMap.getBalance(toAddress);
+      toBalance = accountMap.getBalance(toAddress);
+
+      processingAddresses.push(toAddress);
+
       oldToBalance = toBalance;
       toBalance = new BigNumber('0x' + toBalance);
       toBalance = toBalance.plus(value);
       toBalance = toBalance.toString(16).padStart(64, '0');
-      await accountMap.setBalance(toAddress, toBalance);
+      accountMap.setBalance(toAddress, toBalance);
     } else if ((type === LightTxTypes.withdrawal) ||
               (type === LightTxTypes.instantWithdrawal)) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
-      fromBalance = await accountMap.getBalance(fromAddress);
+      fromBalance = accountMap.getBalance(fromAddress);
+
+      processingAddresses.push(fromAddress);
+
       oldFromBalance = fromBalance;
       fromBalance = new BigNumber('0x' + fromBalance);
       if (fromBalance.isGreaterThanOrEqualTo(value)) {
         fromBalance = fromBalance.minus(value);
         fromBalance = fromBalance.toString(16).padStart(64, '0');
-        await accountMap.setBalance(fromAddress, fromBalance);
+        accountMap.setBalance(fromAddress, fromBalance);
       } else {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
@@ -195,10 +207,13 @@ let _applyLightTx = async (lightTx) => {
     } else if (type === LightTxTypes.remittance) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
 
-      fromBalance = await accountMap.getBalance(fromAddress);
+      fromBalance = accountMap.getBalance(fromAddress);
       oldFromBalance = fromBalance;
-      toBalance = await accountMap.getBalance(toAddress);
+      toBalance = accountMap.getBalance(toAddress);
       oldToBalance = toBalance;
+
+      processingAddresses.push(fromAddress);
+      processingAddresses.push(toAddress);
       fromBalance = new BigNumber('0x' + fromBalance);
       toBalance = new BigNumber('0x' + toBalance);
       if (fromBalance.isGreaterThanOrEqualTo(value)) {
@@ -208,8 +223,8 @@ let _applyLightTx = async (lightTx) => {
         fromBalance = fromBalance.toString(16).padStart(64, '0');
         toBalance = toBalance.toString(16).padStart(64, '0');
 
-        await accountMap.setBalance(fromAddress, fromBalance);
-        await accountMap.setBalance(toAddress, toBalance);
+        accountMap.setBalance(fromAddress, fromBalance);
+        accountMap.setBalance(toAddress, toBalance);
       } else {
         code = ErrorCodes.INSUFFICIENT_BALANCE;
         throw new Error('Insufficient balance.');
@@ -220,7 +235,7 @@ let _applyLightTx = async (lightTx) => {
     }
 
     // GSN
-    let gsn = await gsnGenerator.getGSN();
+    let gsn = gsnGenerator.getGSN();
     let receiptJson = lightTx.toJson();
     receiptJson.receiptData = {
       stageHeight: expectedStageHeight,
@@ -244,8 +259,17 @@ let _applyLightTx = async (lightTx) => {
     }
 
     offchainReceipts.push(receipt.toJson());
+    let newAddresses = [];
 
-    await db.batch(accountMap.getAccounts(), gsn, offchainReceipts, receipt);
+    if (isNewFromAddress) {
+      newAddresses.push(fromAddress);
+    }
+
+    if (isNewToAddress) {
+      newAddresses.push(toAddress);
+    }
+
+    await db.batch(newAddresses, gsn, offchainReceipts, receipt);
 
     return { ok: true, receipt: receipt };
   } catch (e) {
@@ -263,27 +287,39 @@ let _applyLightTx = async (lightTx) => {
       await accountMap.setBalance(toAddress, oldToBalance);
     }
     return { ok: false, code: code, message: e.message };
+  } finally {
+    processingAddresses.splice(processingAddresses.indexOf(fromAddress), 1);
+    processingAddresses.splice(processingAddresses.indexOf(toAddress), 1);
   }
 };
 
 let applyLightTx = (lightTx) => {
   // gringotts can only process one lightTx at the same time
   return new Promise(async (resolve) => {
-    if (!lightTxLock) {
-      lightTxLock = true;
+    let fromAddress = lightTx.lightTxData.from;
+    let toAddress = lightTx.lightTxData.to;
+
+    let canProcessParallelly = (
+      (processingAddresses.indexOf(fromAddress) < 0) &&
+      (processingAddresses.indexOf(toAddress) < 0 )
+    );
+
+    if (canProcessParallelly) {
       let updateResult = await _applyLightTx(lightTx);
-      lightTxLock = false;
       resolve(updateResult);
     } else {
       let timerId = setInterval(async () => {
-        if (!lightTxLock) {
-          lightTxLock = true;
+        let canProcessParallelly = (
+          (processingAddresses.indexOf(fromAddress) < 0) &&
+          (processingAddresses.indexOf(toAddress) < 0 )
+        );
+
+        if (canProcessParallelly) {
           let updateResult = await _applyLightTx(lightTx);
-          lightTxLock = false;
           clearInterval(timerId);
           resolve(updateResult);
         }
-      }, Math.floor(Math.random() * 500));
+      }, 0);
     }
   });
 };

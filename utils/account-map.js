@@ -4,8 +4,8 @@ let assert = require('assert');
 class AccountMap {
   constructor (db) {
     this.db = db;
+    this.db.setAccountMap(this);
     this.accounts = {};
-    this.lock = false;
     this.acconuts = null;
   }
 
@@ -13,50 +13,37 @@ class AccountMap {
     this.accounts = await this.db.loadAccounts();
   }
 
-  async dump() {
-    await this.db.dumpAccounts(this.accounts);
-  }
-
   getAccounts () {
     return this.accounts;
   }
 
-  _getBalance (address) {
-    if (!this.lock) {
-      return this.accounts[address].balance;
-    } else {
-      return false;
-    }
+  getAccount (address) {
+    return this.accounts[address];
   }
 
   getBalance (address) {
-    return new Promise ((resolve) => {
-      if (this.accounts.hasOwnProperty(address)) {
-        if (!this.lock) {
-          resolve(this._getBalance(address));
-        } else {
-          let timerId = setInterval(() => {
-            let balance = this._getBalance(address);
-            if (balance !== false) {
-              resolve(balance);
-              clearInterval(timerId);
-            }
-          }, 50);
-        }
-      } else {
-        resolve('0000000000000000000000000000000000000000000000000000000000000000');
-      }
-    });
+    if (this.accounts[address]) {
+      return this.accounts[address].balance;
+    } else {
+      return '0000000000000000000000000000000000000000000000000000000000000000';
+    }
   }
 
   hashes () {
     return Object.values(this.accounts).map(account => account.accountHash);
   }
 
-  async setBalance (address, balance) {
+  isNewAddress (address) {
+    if (address && address !== '0000000000000000000000000000000000000000000000000000000000000000') {
+      return !(this.accounts[address]);
+    } else {
+      return false;
+    }
+  }
+
+  setBalance (address, balance) {
     assert((typeof address === 'string') && (address.toString().length === 64), 'Invalid address.');
     assert((typeof balance === 'string') && (balance.toString().length === 64), 'Invalid balance.');
-    this.lock = true;
 
     let accountData = {
       address: address,
@@ -71,8 +58,6 @@ class AccountMap {
     } catch(e) {
       console.error(e);
       throw new Error('Fail to update account.');
-    } finally {
-      this.lock = false;
     }
   }
 

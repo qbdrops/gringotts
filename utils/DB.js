@@ -4,6 +4,21 @@ let chain = level('./sidechaindata', { valueEncoding: 'json' });
 class DB {
   constructor () {
     this.chain = chain;
+    this.treeManager = null;
+    this.accountMap = null;
+    this.gsnGenerator = null;
+  }
+
+  setTreeManager (treeManager) {
+    this.treeManager = treeManager;
+  }
+
+  setGSNGenerator (gsnGenerator) {
+    this.gsnGenerator = gsnGenerator;
+  }
+
+  setAccountMap (accountMap) {
+    this.accountMap = accountMap;
   }
 
   async loadStageHeight () {
@@ -109,12 +124,18 @@ class DB {
   async loadAccounts () {
     let accounts;
     try {
-      accounts = await chain.get('accounts');
+      let addresses = await chain.get('addresses');
+      accounts = {};
+      for (let i = 0 ; i < addresses.length; i++) {
+        let address = addresses[i];
+        let account = await chain.get('account::' + address);
+        accounts[address] = account;
+      }
       return accounts;
     } catch (e) {
       if (e.type == 'NotFoundError') {
         accounts = {};
-        await chain.put('accounts', accounts);
+        await chain.put('addresses', []);
         return accounts;
       } else {
         throw e;
@@ -122,17 +143,23 @@ class DB {
     }
   }
 
-  async dumpAccounts (accounts) {
-    await chain.put('accounts', accounts);
-  }
-
-  async batch (accounts, GSN, offchainReceipts, receipt) {
-    await chain.batch().
-      put('accounts', accounts).
+  async batch (newAddresses, GSN, offchainReceipts, receipt) {
+    let tx = chain.batch().
       put('GSN', GSN).
       put('offchain_receipts', offchainReceipts).
-      put('receipt::' + receipt.lightTxHash, receipt.toJson()).
-      write();
+      put('receipt::' + receipt.lightTxHash, receipt.toJson());
+
+    if (newAddresses.length > 0) {
+      let addresses = await chain.get('addresses');
+      addresses = addresses.concat(newAddresses);
+      tx = tx.put('addresses', addresses);
+      newAddresses.forEach(newAddress => {
+        let newAccount = this.accountMap.getAccount(newAddress);
+        tx = tx.put('account::' + newAddress, newAccount);
+      });
+    }
+
+    await tx.write();
   }
 }
 
