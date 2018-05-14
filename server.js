@@ -45,6 +45,7 @@ db.pendingReceipts().then(async pendingReceipts => {
   }
   console.log('expectedStageHeight: ' + expectedStageHeight);
   try {
+    db.setOffchainReceipts(offchainReceipts);
     treeManager = new TreeManager(db);
     await treeManager.initialize(expectedStageHeight);
 

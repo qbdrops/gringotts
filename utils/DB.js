@@ -2,25 +2,51 @@ let level = require('level');
 let chain = level('./sidechaindata', { valueEncoding: 'json' });
 let txs = [];
 
-setInterval(async () => {
-  if (txs.length > 0) {
-    while (txs.length > 0) {
-      let tx = txs.shift();
-      try {
-        await tx.write();
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }
-}, 1000);
-
 class DB {
   constructor () {
     this.chain = chain;
     this.treeManager = null;
     this.accountMap = null;
     this.gsnGenerator = null;
+    this.offchainReceipts = [];
+
+    setInterval(async () => {
+      if (txs.length > 0) {
+        while (txs.length > 0) {
+          let tx = txs.shift();
+          try {
+            await tx.write();
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        if (this.offchainReceipts.length > 0) {
+          await chain.put('offchain_receipts', this.offchainReceipts);
+        }
+      }
+    }, 1000);
+
+    process.on('SIGINT', async () => {
+      if (txs.length > 0) {
+        while (txs.length > 0) {
+          let tx = txs.shift();
+          try {
+            await tx.write();
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+    
+      if (this.offchainReceipts.length > 0) {
+        await chain.put('offchain_receipts', this.offchainReceipts);
+      }
+      process.exit();
+    });
+  }
+
+  setOffchainReceipts (offchainReceipts) {
+    this.offchainReceipts = offchainReceipts;
   }
 
   setTreeManager (treeManager) {
@@ -162,7 +188,6 @@ class DB {
     let toAddress = receipt.lightTxData.to;
     let tx = chain.batch().
       put('GSN', GSN).
-      put('offchain_receipts', offchainReceipts).
       put('receipt::' + receipt.lightTxHash, receipt.toJson());
 
     if (newAddresses.length > 0) {
@@ -194,20 +219,5 @@ if (process.platform === 'win32') {
     process.emit('SIGINT');
   });
 }
-
-process.on('SIGINT', async () => {
-  if (txs.length > 0) {
-    while (txs.length > 0) {
-      let tx = txs.shift();
-      try {
-        await tx.write();
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }
-
-  process.exit();
-});
 
 module.exports = DB;
