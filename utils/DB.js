@@ -6,6 +6,10 @@ class DB {
     this.chain = chain;
   }
 
+  async dumpStageHeight (stageHeight) {
+    await chain.put('stageHeight', stageHeight.toString());
+  }
+
   async pendingReceipts (stageHeight = null) {
     let receipts;
     try {
@@ -27,6 +31,10 @@ class DB {
     }
   }
 
+  async updateOffchainRecepts (offchainReceipts) {
+    await chain.put('offchain_receipts', offchainReceipts);
+  }
+
   async getReceiptByLightTxHash (lightTxHash) {
     let receipt;
     try {
@@ -42,8 +50,24 @@ class DB {
     }
   }
 
-  async updateOffchainRecepts (offchainReceipts) {
-    await chain.put('offchain_receipts', offchainReceipts);
+  async loadTrees (stageHeight) {
+    let trees;
+    try {
+      trees = await chain.get('trees::' + stageHeight.toString());
+      return trees;
+    } catch (e) {
+      if (e.type == 'NotFoundError') {
+        trees = {};
+        await chain.put('trees::' + stageHeight.toString(), trees);
+        return trees;
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  async dumpTrees (trees, stageHeight) {
+    await chain.put('trees::' + stageHeight.toString(), trees);
   }
 
   async loadGSN () {
@@ -62,6 +86,10 @@ class DB {
     }
   }
 
+  async dumpGSN (GSN) {
+    await chain.put('GSN', GSN);
+  }
+
   async loadAccounts () {
     let accounts;
     try {
@@ -76,6 +104,10 @@ class DB {
         throw e;
       }
     }
+  }
+
+  async dumpAccounts (accounts) {
+    await chain.put('accounts', accounts);
   }
 
   async batch (accounts, GSN, offchainReceipts, receipt) {

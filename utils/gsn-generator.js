@@ -9,6 +9,10 @@ class GSNGenerator {
     this.GSN = await this.db.loadGSN();
   }
 
+  async dump() {
+    await this.db.dumpGSN(this.GSN);
+  }
+
   _getGSN () {
     if (!this.lock) {
       this.lock = true;

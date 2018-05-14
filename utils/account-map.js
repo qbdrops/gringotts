@@ -9,8 +9,12 @@ class AccountMap {
     this.acconuts = null;
   }
 
-  async initialze() {
+  async initialize() {
     this.accounts = await this.db.loadAccounts();
+  }
+
+  async dump() {
+    await this.db.dumpAccounts(this.accounts);
   }
 
   getAccounts () {
