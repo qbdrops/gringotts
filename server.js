@@ -1,12 +1,13 @@
 let env = require('./env');
 let express = require('express');
-let timeout = require('connect-timeout');
 let bodyParser = require('body-parser');
 let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
 let TreeManager = require('./utils/tree-manager');
 let IndexedMerkleTree = require('./utils/indexed-merkle-tree');
 let DB = require('./utils/DB');
+let txDecoder = require('ethereum-tx-decoder');
+let abiDecoder = require('abi-decoder');
 let Sidechain = require('./abi/Sidechain.json');
 let ErrorCodes = require('./errors/codes');
 let LightTransaction = require('./models/light-transaction');
@@ -49,27 +50,19 @@ let app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cors());
-app.use(timeout(120000));
 app.use(haltOnTimedout);
 
-function haltOnTimedout(req, res, next){
+function haltOnTimedout(req, res, next) {
   if (!req.timedout) next();
 }
 
 var server = require('http').createServer(app);
-var io = require('socket.io')(server);
 
 const account = env.serverAddress;
 const sidechainAddress = env.sidechainAddress;
 const serverAddress = env.serverAddress;
 let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
-io.on('connection', async function (socket) {
-  console.log('connected');
-  socket.on('disconnect', function () {
-    console.log('disconnected');
-  });
-});
 
 // Watch latest block
 sidechain.AttachStage({ toBlock: 'latest' }).watch(async (err, result) => {
@@ -384,10 +377,24 @@ app.post('/attach', async function (req, res) {
 
     if (stageHeight) {
       try {
-        let txHash = web3.eth.sendRawTransaction(serializedTx);
-        console.log('Committed txHash: ' + txHash);
-        // Add txHash to attachTxs pool
-        res.send({ ok: true, txHash: txHash });
+        let decodedTx = txDecoder.decodeTx(serializedTx);
+        let functionParams = abiDecoder.decodeMethod(decodedTx.data);
+
+        let receiptRootHash = functionParams.params[1].value[0].slice(2);
+        let accountRootHash = functionParams.params[1].value[1].slice(2);
+        let trees = treeManager.getTrees(stageHeight);
+        let receiptTree = trees.receiptTree;
+        let accountTree = trees.accountTree;
+
+        if ((receiptTree.rootHash === receiptRootHash) &&
+            accountTree.rootHash === accountRootHash) {
+          let txHash = web3.eth.sendRawTransaction(serializedTx);
+          console.log('Committed txHash: ' + txHash);
+          // Add txHash to attachTxs pool
+          res.send({ ok: true, txHash: txHash });
+        } else {
+          throw new Error('Invalid signed root hashes.');
+        }
       } catch (e) {
         console.log(e);
         res.status(500).send({ ok: false, errors: e.message });
@@ -434,4 +441,8 @@ server.listen(3000, async function () {
   } catch (e) {
     console.error(e.message);
   }
+});
+
+server.on('error', function (err) {
+  console.error(err);
 });
