@@ -350,13 +350,17 @@ app.post('/send/light_tx', async function (req, res) {
 app.get('/roothash', async function (req, res) {
   try {
     let stageHeight = parseInt(sidechain.stageHeight()) + 1;
-    let pendingReceipts = await db.pendingReceipts(stageHeight);
+    let hasPendingReceipts = await db.hasPendingReceipts(stageHeight);
 
-    if (pendingReceipts.length > 0) {
-      expectedStageHeight += 1;
-      pendingReceipts = await db.pendingReceipts(stageHeight);
-      let receiptHashes = pendingReceipts.map(receipt => receipt.receiptHash);
+    if (hasPendingReceipts) {
+      /*
+        Should Fix account hashes before increasing expectedStageHeight in order to
+        prevnet the upcoming light transaction keep changing the accout hashes
+       */
       let accountHashes = accountMap.hashes();
+      expectedStageHeight += 1;
+      let pendingReceipts = await db.pendingReceipts(stageHeight);
+      let receiptHashes = pendingReceipts.map(receipt => receipt.receiptHash);
       console.log('Building Stage Height: ' + stageHeight);
       let receiptTree = new IndexedMerkleTree(stageHeight, receiptHashes);
       let accountTree = new IndexedMerkleTree(stageHeight, accountHashes);
@@ -456,7 +460,7 @@ app.get('/server/address', async function (req, res) {
 app.get('/pending/receipts', async function (req, res) {
   try {
     let pendingLightTxHashesOfReceipts = db.pendingLightTxHashesOfReceipts();
-    res.send(pendingLightTxHashesOfReceipts);
+    res.send({ lightTxHashes: pendingLightTxHashesOfReceipts });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });

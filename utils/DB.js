@@ -130,6 +130,11 @@ class DB {
     return this.offchainReceipts;
   }
 
+  async hasPendingReceipts (stageHeight) {
+    let receipts = await this.pendingReceipts(stageHeight);
+    return (receipts.length > 0);
+  }
+
   async pendingReceipts (stageHeight = null) {
     let receipts = [];
     for (let i = 0; i < this.offchainReceipts.length; i++) {
