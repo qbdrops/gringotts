@@ -26,16 +26,13 @@ let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
 abiDecoder.addABI(Sidechain.abi);
 
 let initStageHeight = parseInt(sidechain.stageHeight()) + 1;
-let offchainReceipts = [];
 let expectedStageHeight;
 let treeManager;
 let gsnGenerator;
 let accountMap;
-let processingAddresses = [];
 
 // Load pendingReceipts from DB
-db.pendingReceipts().then(async pendingReceipts => {
-  offchainReceipts = pendingReceipts;
+db.initPendingReceipts().then(async () => {
   let stageHeightFromDB = await db.loadStageHeight();
 
   if (stageHeightFromDB == 0) {
@@ -45,7 +42,6 @@ db.pendingReceipts().then(async pendingReceipts => {
   }
   console.log('expectedStageHeight: ' + expectedStageHeight);
   try {
-    db.setOffchainReceipts(offchainReceipts);
     treeManager = new TreeManager(db);
     await treeManager.initialize(expectedStageHeight);
 
@@ -80,26 +76,13 @@ let initBalance = '0000000000000000000000000000000000000000000000000000000000000
 // Watch latest block
 sidechain.AttachStage({ toBlock: 'latest' }).watch(async (err, result) => {
   console.log('attach');
-  let stageHeight = result.args._stageHright;
+  let stageHeight = result.args._stageHeight;
 
   // Clear pending pool
-  let targetReceipts = offchainReceipts.filter((receipt) => {
-    return receipt.receiptData.stageHeight == stageHeight;
-  });
+  let targetLightTxHashes = await db.getOffchainReceipts(stageHeight);
 
   // Remove offchain receipt json
-  for (let i = 0; i < offchainReceipts.length; i++) {
-    let offchainReceipt = offchainReceipts[i];
-    for (let j = 0; j < targetReceipts.length; j++) {
-      let targetReceipt = targetReceipts[j];
-      if (offchainReceipt.receiptHash == targetReceipt.receiptHash) {
-        offchainReceipts.splice(i, 1);
-      }
-    }
-  }
-
-  // remove from level db
-  await db.updateOffchainRecepts(offchainReceipts);
+  await db.removeOffchainReceipts(targetLightTxHashes);
 });
 
 app.get('/balance/:address', async function (req, res) {
@@ -181,8 +164,6 @@ let applyLightTx = async (lightTx) => {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
       toBalance = accountMap.getBalance(toAddress);
 
-      processingAddresses.push(toAddress);
-
       oldToBalance = toBalance;
       toBalance = new BigNumber('0x' + toBalance);
       toBalance = toBalance.plus(value);
@@ -192,8 +173,6 @@ let applyLightTx = async (lightTx) => {
               (type === LightTxTypes.instantWithdrawal)) {
       let value = new BigNumber('0x' + lightTx.lightTxData.value);
       fromBalance = accountMap.getBalance(fromAddress);
-
-      processingAddresses.push(fromAddress);
 
       oldFromBalance = fromBalance;
       fromBalance = new BigNumber('0x' + fromBalance);
@@ -213,8 +192,6 @@ let applyLightTx = async (lightTx) => {
       toBalance = accountMap.getBalance(toAddress);
       oldToBalance = toBalance;
 
-      processingAddresses.push(fromAddress);
-      processingAddresses.push(toAddress);
       fromBalance = new BigNumber('0x' + fromBalance);
       toBalance = new BigNumber('0x' + toBalance);
       if (fromBalance.isGreaterThanOrEqualTo(value)) {
@@ -259,7 +236,7 @@ let applyLightTx = async (lightTx) => {
     //   }
     // }
 
-    offchainReceipts.push(receipt.toJson());
+    db.addOffchainReceipt(receipt.lightTxHash);
     let newAddresses = [];
 
     if (isNewFromAddress) {
@@ -270,13 +247,13 @@ let applyLightTx = async (lightTx) => {
       newAddresses.push(toAddress);
     }
 
-    db.batch(newAddresses, gsn, offchainReceipts, receipt);
+    db.batch(newAddresses, gsn, receipt);
 
     return { ok: true, receipt: receipt };
   } catch (e) {
     console.error(e);
     // rollback all modifications in the leveldb transaction
-    offchainReceipts.pop();
+    db.removeOffchainReceipt(lightTx.lightTxHash);
     // rollback balances in memory
     if (type === LightTxTypes.deposit) {
       accountMap.setBalance(toAddress, oldToBalance);
@@ -288,9 +265,6 @@ let applyLightTx = async (lightTx) => {
       accountMap.setBalance(toAddress, oldToBalance);
     }
     return { ok: false, code: code, message: e.message };
-  } finally {
-    processingAddresses.splice(processingAddresses.indexOf(fromAddress), 1);
-    processingAddresses.splice(processingAddresses.indexOf(toAddress), 1);
   }
 };
 
@@ -376,18 +350,18 @@ app.post('/send/light_tx', async function (req, res) {
 app.get('/roothash', async function (req, res) {
   try {
     let stageHeight = parseInt(sidechain.stageHeight()) + 1;
-    let receipts = await db.pendingReceipts(stageHeight);
-    let receiptHashes = receipts.map(receipt => receipt.receiptHash);
-    let accountHashes = accountMap.hashes();
+    let pendingReceipts = await db.pendingReceipts(stageHeight);
 
-    if (receiptHashes.length > 0) {
+    if (pendingReceipts.length > 0) {
+      expectedStageHeight += 1;
+      pendingReceipts = await db.pendingReceipts(stageHeight);
+      let receiptHashes = pendingReceipts.map(receipt => receipt.receiptHash);
+      let accountHashes = accountMap.hashes();
       console.log('Building Stage Height: ' + stageHeight);
       let receiptTree = new IndexedMerkleTree(stageHeight, receiptHashes);
       let accountTree = new IndexedMerkleTree(stageHeight, accountHashes);
 
       treeManager.setTrees(stageHeight, receiptTree, accountTree);
-
-      expectedStageHeight += 1;
 
       // Dump data from memory to disk
       treeManager.dump();
@@ -404,7 +378,6 @@ app.get('/roothash', async function (req, res) {
     }
   } catch (e) {
     expectedStageHeight -= 1;
-
     console.log(e);
     res.status(500).send({ ok: false, errors: e.message });
   }
@@ -443,7 +416,7 @@ app.post('/attach', async function (req, res) {
           console.log('Committed txHash: ' + txHash);
 
           // Dump stageHeight
-          db.dumpStageHeight(expectedStageHeight);
+          await db.dumpStageHeight(expectedStageHeight);
 
           res.send({ ok: true, txHash: txHash });
         } else {
@@ -482,7 +455,8 @@ app.get('/server/address', async function (req, res) {
 
 app.get('/pending/receipts', async function (req, res) {
   try {
-    res.send(offchainReceipts);
+    let pendingLightTxHashesOfReceipts = db.pendingLightTxHashesOfReceipts();
+    res.send(pendingLightTxHashesOfReceipts);
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
