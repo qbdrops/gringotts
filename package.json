@@ -20,6 +20,7 @@
     "express": "^4.16.3",
     "js-sha3": "^0.6.1",
     "level": "^3.0.1",
+    "level-rocksdb": "^2.0.0",
     "minimist": "^1.2.0",
     "mongodb": "^2.2.35",
     "node-rsa": "^0.4.2",

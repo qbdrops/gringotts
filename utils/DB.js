@@ -1,4 +1,13 @@
-let level = require('level');
+let env = require('../env');
+let database = null;
+if (env.database == 'level') {
+  database = 'level';
+} else if (env.database == 'rocksdb') {
+  database = 'level-rocksdb';
+} else {
+  throw new Error('Not supported database.');
+}
+let level = require(database);
 let chain = level('./sidechaindata', { valueEncoding: 'json' });
 let txs = [];
 
