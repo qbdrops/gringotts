@@ -122,17 +122,42 @@ app.get('/slice', async function (req, res) {
 });
 
 function isValidSig (lightTx) {
-  if (!lightTx.hasServerLightTxSig()) {
+  let type = lightTx.type();
+  let from = lightTx.lightTxData.from;
+  let to = lightTx.lightTxData.to;
+  let isValid = true;
+  if (!lightTx.hasServerLightTxSig() || !lightTx.hasClientLightTxSig()) {
     return false;
   } else {
+    if (type == LightTxTypes.deposit) {
+      let msgHash = Buffer.from(lightTx.lightTxHash, 'hex');
+      let prefix = new Buffer('\x19Ethereum Signed Message:\n32');
+      let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, msgHash]));
+      let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.clientLightTx.v, lightTx.sig.clientLightTx.r, lightTx.sig.clientLightTx.s);
+      let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
+      isValid = (to == address);
+    } else if ((type == LightTxTypes.withdrawal) ||
+              (type == LightTxTypes.instantWithdrawal) ||
+              (type == LightTxTypes.remittance)) {
+      let msgHash = Buffer.from(lightTx.lightTxHash, 'hex');
+      let prefix = new Buffer('\x19Ethereum Signed Message:\n32');
+      let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, msgHash]));
+      let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.clientLightTx.v, lightTx.sig.clientLightTx.r, lightTx.sig.clientLightTx.s);
+      let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
+      isValid = (from == address);
+    } else {
+      new Error('Not supported light transaction type.');
+    }
     // validate signatures of lightTxs
     let msgHash = Buffer.from(lightTx.lightTxHash, 'hex');
     let prefix = new Buffer('\x19Ethereum Signed Message:\n32');
     let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, msgHash]));
     let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.serverLightTx.v, lightTx.sig.serverLightTx.r, lightTx.sig.serverLightTx.s);
     let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
-    return account == address;
+    isValid = (account == address);
   }
+
+  return isValid;
 }
 
 app.get('/receipt/:lightTxHash', async function (req, res) {
