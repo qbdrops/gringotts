@@ -54,6 +54,24 @@ class DB {
     });
   }
 
+  async getContractAddress () {
+    try {
+      let contractAddress = await chain.get('contract_address');
+      return contractAddress;
+    } catch (e) {
+      if (e.type == 'NotFoundError') {
+        await chain.put('contract_address', null);
+        return null;
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  async saveContractAddress (contractAddress) {
+    await chain.put('contract_address', contractAddress);
+  }
+
   addOffchainReceipt(offchainLightTxHash) {
     this.offchainReceipts.push(offchainLightTxHash);
   }
@@ -99,14 +117,13 @@ class DB {
     this.accountMap = accountMap;
   }
 
-  async loadStageHeight () {
-    let stageHeight;
+  async loadExpectedStageHeight () {
+    let stageHeight = null;
     try {
       stageHeight = await chain.get('stageHeight');
       return parseInt(stageHeight);
     } catch (e) {
       if (e.type == 'NotFoundError') {
-        stageHeight = 0;
         await chain.put('stageHeight', stageHeight);
         return stageHeight;
       } else {

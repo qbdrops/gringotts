@@ -25,7 +25,7 @@ let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
 
 abiDecoder.addABI(Sidechain.abi);
 
-let initStageHeight = parseInt(sidechain.stageHeight()) + 1;
+let nextContractStageHeight = parseInt(sidechain.stageHeight()) + 1;
 let expectedStageHeight;
 let treeManager;
 let gsnGenerator;
@@ -33,14 +33,27 @@ let accountMap;
 
 // Load pendingReceipts from DB
 db.initPendingReceipts().then(async () => {
-  let stageHeightFromDB = await db.loadStageHeight();
+  // Init contract address
+  let contractAddress = await db.getContractAddress();
 
-  if (stageHeightFromDB == 0) {
-    expectedStageHeight = initStageHeight;
-  } else {
-    expectedStageHeight = stageHeightFromDB;
+  if (!contractAddress) {
+    await db.saveContractAddress(env.sidechainAddress);
+  } else if (env.sidechainAddress != contractAddress) {
+    throw new Error('Sidechain address is not consistent.');
   }
+
+  // Init stage height
+  let expectedStageHeightFromDB = await db.loadExpectedStageHeight();
+
+  if (!expectedStageHeightFromDB) {
+    expectedStageHeight = nextContractStageHeight;
+  } else {
+    expectedStageHeight = expectedStageHeightFromDB;
+  }
+
   console.log('expectedStageHeight: ' + expectedStageHeight);
+
+  // Init utilities
   try {
     treeManager = new TreeManager(db);
     await treeManager.initialize(expectedStageHeight);
@@ -53,6 +66,9 @@ db.initPendingReceipts().then(async () => {
   } catch (e) {
     console.error(e);
   }
+}).catch((e) => {
+  console.error(e);
+  process.exit();
 });
 
 let app = express();
