@@ -344,19 +344,15 @@ app.post('/send/light_tx', async function (req, res) {
   try {
     let lightTxJson = req.body.lightTxJson;
     let lightTx = new LightTransaction(lightTxJson);
-    let isExisted = true;
     
     let oldReceipt = await db.getReceiptByLightTxHash(lightTx.lightTxHash);
-    if (!oldReceipt) {
-      isExisted = false;
-    }
 
     let success = false;
     let message = 'Something went wrong.';
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
     let receipt = null;
 
-    if (isExisted) {
+    if (oldReceipt) {
       message = 'Contains known light transaction.';
       code = ErrorCodes.CONTAINS_KNOWN_LIGHT_TX;
     } else {
