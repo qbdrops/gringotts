@@ -18,40 +18,6 @@ class DB {
     this.accountMap = null;
     this.gsnGenerator = null;
     this.offchainReceipts = null;
-
-    setInterval(async () => {
-      if (txs.length > 0) {
-        while (txs.length > 0) {
-          let tx = txs.shift();
-          try {
-            await tx.write();
-          } catch (e) {
-            console.error(e);
-          }
-        }
-        if (this.offchainReceipts.length > 0) {
-          await chain.put('offchain_receipts', this.offchainReceipts);
-        }
-      }
-    }, 1000);
-
-    process.on('SIGINT', async () => {
-      if (txs.length > 0) {
-        while (txs.length > 0) {
-          let tx = txs.shift();
-          try {
-            await tx.write();
-          } catch (e) {
-            console.error(e);
-          }
-        }
-      }
-    
-      if (this.offchainReceipts.length > 0) {
-        await chain.put('offchain_receipts', this.offchainReceipts);
-      }
-      process.exit();
-    });
   }
 
   async getContractAddress () {
@@ -257,12 +223,16 @@ class DB {
     }
   }
 
-  batch (newAddresses, GSN, receipt) {
+  async batch (newAddresses, GSN, receipt) {
     let fromAddress = receipt.lightTxData.from;
     let toAddress = receipt.lightTxData.to;
     let tx = chain.batch().
       put('GSN', GSN).
       put('receipt::' + receipt.lightTxHash, receipt.toJson());
+
+    if (Array.isArray(this.offchainReceipts) && this.offchainReceipts.length > 0) {
+      tx = tx.put('offchain_receipts', this.offchainReceipts);
+    }
 
     if (newAddresses.length > 0) {
       let addresses = this.accountMap.getAddresses();
@@ -279,7 +249,7 @@ class DB {
       tx = tx.put('account::' + toAddress, toAccount);
     }
 
-    txs.push(tx);
+    await tx.write();
   }
 }
 

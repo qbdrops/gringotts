@@ -288,7 +288,7 @@ let applyLightTx = async (lightTx) => {
       newAddresses.push(toAddress);
     }
 
-    db.batch(newAddresses, gsn, receipt);
+    await db.batch(newAddresses, gsn, receipt);
 
     return { ok: true, receipt: receipt };
   } catch (e) {
@@ -344,7 +344,7 @@ app.post('/send/light_tx', async function (req, res) {
   try {
     let lightTxJson = req.body.lightTxJson;
     let lightTx = new LightTransaction(lightTxJson);
-    
+
     let oldReceipt = await db.getReceiptByLightTxHash(lightTx.lightTxHash);
 
     let success = false;
