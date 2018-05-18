@@ -277,7 +277,7 @@ let applyLightTx = async (lightTx) => {
       }
     }
 
-    db.addOffchainReceipt(receipt.lightTxHash);
+    db.addOffchainReceipt(receipt);
     let newAddresses = [];
 
     if (isNewFromAddress) {

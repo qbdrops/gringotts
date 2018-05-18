@@ -16,7 +16,8 @@ class DB {
     this.treeManager = null;
     this.accountMap = null;
     this.gsnGenerator = null;
-    this.offchainReceipts = null;
+    this.offchainReceiptHashes = null;
+    this.offchainReceipts = {};
   }
 
   async getContractAddress () {
@@ -37,15 +38,17 @@ class DB {
     await chain.put('contract_address', contractAddress);
   }
 
-  addOffchainReceipt(offchainLightTxHash) {
-    this.offchainReceipts.push(offchainLightTxHash);
+  addOffchainReceipt(receipt) {
+    let offchainLightTxHash = receipt.lightTxHash;
+    this.offchainReceipts[offchainLightTxHash] = receipt;
+    this.offchainReceiptHashes.push(offchainLightTxHash);
   }
 
   async getOffchainReceipts (targetStageHeight) {
     targetStageHeight = parseInt(targetStageHeight, 16);
     let receipts = [];
-    for (let i = 0; i < this.offchainReceipts.length; i++) {
-      let lightTxHash = this.offchainReceipts[i];
+    for (let i = 0; i < this.offchainReceiptHashes.length; i++) {
+      let lightTxHash = this.offchainReceiptHashes[i];
       let receipt = await chain.get('receipt::' + lightTxHash);
       receipts.push(receipt);
     }
@@ -59,12 +62,14 @@ class DB {
   }
 
   removeOffchainReceipt (lightTxHash) {
-    this.offchainReceipts.splice(this.offchainReceipts.indexOf(lightTxHash), 1);
+    this.offchainReceiptHashes.splice(this.offchainReceiptHashes.indexOf(lightTxHash), 1);
   }
 
   async removeOffchainReceipts (targetLightTxHashes) {
     for (let i = 0; i < targetLightTxHashes.length; i++) {
-      this.offchainReceipts.splice(this.offchainReceipts.indexOf(targetLightTxHashes[i]), 1);
+      let targetLightTxHash = targetLightTxHashes[i];
+      delete this.offchainReceipts[targetLightTxHash];
+      this.offchainReceiptHashes.splice(this.offchainReceiptHashes.indexOf(targetLightTxHash), 1);
     }
 
     await this.updateOffchainReceptHashes();
@@ -105,6 +110,10 @@ class DB {
     let offchainLightTxHashes = [];
     try {
       offchainLightTxHashes = await chain.get('offchain_receipts');
+      offchainLightTxHashes.forEach(async (offchainLightTxHash) => {
+        let receipt = await chain.get('receipt::' + offchainLightTxHash);
+        this.offchainReceipts[offchainLightTxHash] = receipt;
+      });
     } catch (e) {
       if (e.type == 'NotFoundError') {
         await chain.put('offchain_receipts', offchainLightTxHashes);
@@ -113,12 +122,12 @@ class DB {
       }
     }
 
-    this.offchainReceipts = offchainLightTxHashes;
+    this.offchainReceiptHashes = offchainLightTxHashes;
     return offchainLightTxHashes;
   }
 
   pendingLightTxHashesOfReceipts () {
-    return this.offchainReceipts;
+    return this.offchainReceiptHashes;
   }
 
   async hasPendingReceipts (stageHeight) {
@@ -128,9 +137,9 @@ class DB {
 
   async pendingReceipts (stageHeight = null) {
     let receipts = [];
-    for (let i = 0; i < this.offchainReceipts.length; i++) {
-      let offchainLightTxHash = this.offchainReceipts[i];
-      let receipt = await chain.get('receipt::' + offchainLightTxHash);
+    for (let i = 0; i < this.offchainReceiptHashes.length; i++) {
+      let offchainLightTxHash = this.offchainReceiptHashes[i];
+      let receipt = this.offchainReceipts[offchainLightTxHash];
       receipts.push(receipt);
     }
     if (stageHeight) {
@@ -142,7 +151,7 @@ class DB {
   }
 
   async updateOffchainReceptHashes () {
-    await chain.put('offchain_receipts', this.offchainReceipts);
+    await chain.put('offchain_receipts', this.offchainReceiptHashes);
   }
 
   async getReceiptByLightTxHash (lightTxHash) {
@@ -229,8 +238,8 @@ class DB {
       put('GSN', GSN).
       put('receipt::' + receipt.lightTxHash, receipt.toJson());
 
-    if (Array.isArray(this.offchainReceipts) && this.offchainReceipts.length > 0) {
-      tx = tx.put('offchain_receipts', this.offchainReceipts);
+    if (Array.isArray(this.offchainReceiptHashes) && this.offchainReceiptHashes.length > 0) {
+      tx = tx.put('offchain_receipts', this.offchainReceiptHashes);
     }
 
     if (newAddresses.length > 0) {
