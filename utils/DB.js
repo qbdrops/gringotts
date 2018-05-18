@@ -9,7 +9,6 @@ if (env.database == 'level') {
 }
 let level = require(database);
 let chain = level('./sidechaindata', { valueEncoding: 'json' });
-let txs = [];
 
 class DB {
   constructor () {

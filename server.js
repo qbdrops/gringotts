@@ -266,16 +266,16 @@ let applyLightTx = async (lightTx) => {
 
     let receipt = new Receipt(receiptJson);
 
-    // try {
-    //   await db.getReceiptByLightTxHash(receipt.lightTxHash);
-    // } catch (e) {
-    //   if (e.type == 'NotFoundError') {
-    //     // No known receipt, do nothing
-    //   } else {
-    //     code = ErrorCodes.SOMETHING_WENT_WRONG;
-    //     throw e;
-    //   }
-    // }
+    try {
+      await db.getReceiptByLightTxHash(receipt.lightTxHash);
+    } catch (e) {
+      if (e.type == 'NotFoundError') {
+        // No known receipt, do nothing
+      } else {
+        code = ErrorCodes.SOMETHING_WENT_WRONG;
+        throw e;
+      }
+    }
 
     db.addOffchainReceipt(receipt.lightTxHash);
     let newAddresses = [];
@@ -308,37 +308,6 @@ let applyLightTx = async (lightTx) => {
     return { ok: false, code: code, message: e.message };
   }
 };
-
-// let applyLightTx = (lightTx) => {
-//   // gringotts can only process one lightTx at the same time
-//   return new Promise(async (resolve) => {
-//     let fromAddress = lightTx.lightTxData.from;
-//     let toAddress = lightTx.lightTxData.to;
-
-//     let canProcessParallelly = (
-//       (processingAddresses.indexOf(fromAddress) < 0) &&
-//       (processingAddresses.indexOf(toAddress) < 0 )
-//     );
-
-//     if (canProcessParallelly) {
-//       let updateResult = await _applyLightTx(lightTx);
-//       resolve(updateResult);
-//     } else {
-//       let timerId = setInterval(async () => {
-//         let canProcessParallelly = (
-//           (processingAddresses.indexOf(fromAddress) < 0) &&
-//           (processingAddresses.indexOf(toAddress) < 0 )
-//         );
-
-//         if (canProcessParallelly) {
-//           let updateResult = await _applyLightTx(lightTx);
-//           clearInterval(timerId);
-//           resolve(updateResult);
-//         }
-//       }, 0);
-//     }
-//   });
-// };
 
 app.post('/send/light_tx', async function (req, res) {
   try {
@@ -405,8 +374,8 @@ app.get('/roothash', async function (req, res) {
       treeManager.setTrees(stageHeight, receiptTree, accountTree);
 
       // Dump data from memory to disk
-      treeManager.dump();
-      gsnGenerator.dump();
+      await treeManager.dump();
+      await gsnGenerator.dump();
 
       res.send({
         ok: true,
