@@ -90,7 +90,7 @@ let burnAddress = '0000000000000000000000000000000000000000000000000000000000000
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 
 // Watch latest block
-sidechain.AttachStage({ toBlock: 'latest' }).watch(async (err, result) => {
+sidechain.Attach({ toBlock: 'latest' }).watch(async (err, result) => {
   console.log('attach');
   let stageHeight = result.args._stageHeight;
 
