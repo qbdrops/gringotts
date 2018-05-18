@@ -47,6 +47,7 @@ class LightTransaction {
     this.lightTxData = this._normalize(orderedLightTxData);
     this.lightTxHash = this._sha3(Object.values(this.lightTxData).reduce((acc, curr) => acc + curr, ''));
     this.sig = sig;
+    this.metadata = (lightTxJson.metadata || {});
   }
 
   _normalize (lightTxData) {
@@ -106,7 +107,8 @@ class LightTransaction {
     let json = {
       lightTxHash: this.lightTxHash,
       lightTxData: this.lightTxData,
-      sig: this.sig
+      sig: this.sig,
+      metadata: this.metadata
     };
     return json;
   }

@@ -3,7 +3,7 @@ let assert = require('assert');
 let LightTransaction = require('./light-transaction');
 let types = require('./types');
 
-const allowedReceiptJsonKeys = ['lightTxHash', 'lightTxData', 'sig', 'receiptData'];
+const allowedReceiptJsonKeys = ['lightTxHash', 'lightTxData', 'sig', 'receiptData', 'metadata'];
 const allowedReceiptDataKeys = ['stageHeight', 'GSN', 'lightTxHash', 'fromBalance', 'toBalance'];
 const instantWithdrawalLimit = 10;
 
@@ -22,8 +22,8 @@ class Receipt {
       }
     });
 
-    // Check Json format
-    allowedReceiptJsonKeys.forEach(key => {
+    // Check Json format (except for 'metadata')
+    allowedReceiptJsonKeys.filter(key => key != 'metadata').forEach(key => {
       assert(Object.keys(receiptJson).includes(key), 'Parameter \'receiptJson\' does not include key \'' + key + '\'.');
     });
 
@@ -49,6 +49,7 @@ class Receipt {
     this.receiptData = this._normalize(orderedReceiptData);
     this.receiptHash = this._sha3(Object.values(this.receiptData).reduce((acc, curr) => acc + curr, ''));
     this.sig = receiptJson.sig;
+    this.metadata = (receiptJson.metadata || {});
   }
 
   _normalize (receiptData) {
@@ -96,7 +97,8 @@ class Receipt {
       lightTxData: this.lightTxData,
       receiptHash: this.receiptHash,
       receiptData: this.receiptData,
-      sig: this.sig
+      sig: this.sig,
+      metadata: this.metadata
     };
     return json;
   }
