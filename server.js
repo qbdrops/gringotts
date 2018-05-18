@@ -91,14 +91,18 @@ let initBalance = '0000000000000000000000000000000000000000000000000000000000000
 
 // Watch latest block
 sidechain.Attach({ toBlock: 'latest' }).watch(async (err, result) => {
-  console.log('attach');
-  let stageHeight = result.args._stageHeight;
+  try {
+    console.log('attach');
+    let stageHeight = result.args._stageHeight;
 
-  // Clear pending pool
-  let targetLightTxHashes = await db.getOffchainReceipts(stageHeight);
+    // Clear pending pool
+    let targetLightTxHashes = await db.getOffchainReceipts(stageHeight);
 
-  // Remove offchain receipt json
-  await db.removeOffchainReceipts(targetLightTxHashes);
+    // Remove offchain receipt json
+    await db.removeOffchainReceipts(targetLightTxHashes);
+  } catch(e) {
+    console.error(e);
+  }
 });
 
 app.get('/balance/:address', async function (req, res) {
@@ -394,13 +398,17 @@ app.get('/roothash', async function (req, res) {
 });
 
 app.get('/roothash/:stageHeight', async function (req, res) {
-  let stageHeight = req.params.stageHeight;
-  let trees = treeManager.getTrees(stageHeight);
+  try {
+    let stageHeight = req.params.stageHeight;
+    let trees = treeManager.getTrees(stageHeight);
 
-  if (trees) {
-    res.send({ ok: true, receiptRootHash: trees.receiptTree.rootHash, accountRootHash: trees.accountTree.rootHash });
-  } else {
-    res.send({ ok: false, message: 'StageHeight does not exist.' });
+    if (Object.keys(trees).length > 0) {
+      res.send({ ok: true, receiptRootHash: trees.receiptTree.rootHash, accountRootHash: trees.accountTree.rootHash });
+    } else {
+      res.send({ ok: false, message: 'StageHeight does not exist.' });
+    }
+  } catch (e) {
+    res.send({ ok: false, message: e.message });
   }
 });
 
