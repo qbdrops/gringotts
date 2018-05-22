@@ -145,39 +145,34 @@ function isValidSig (lightTx) {
   let type = lightTx.type();
   let from = lightTx.lightTxData.from;
   let to = lightTx.lightTxData.to;
-  let isValid = true;
+  let isClientSigValid = false;
+  let isServerSigValid = false;
   if (!lightTx.hasServerLightTxSig() || !lightTx.hasClientLightTxSig()) {
     return false;
   } else {
+    let msgHash = Buffer.from(lightTx.lightTxHash, 'hex');
+    let prefix = new Buffer('\x19Ethereum Signed Message:\n32');
+    let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, msgHash]));
     if (type == LightTxTypes.deposit) {
-      let msgHash = Buffer.from(lightTx.lightTxHash, 'hex');
-      let prefix = new Buffer('\x19Ethereum Signed Message:\n32');
-      let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, msgHash]));
       let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.clientLightTx.v, lightTx.sig.clientLightTx.r, lightTx.sig.clientLightTx.s);
-      let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
-      isValid = (to == address);
+      let address = EthUtils.pubToAddress(publicKey).toString('hex').padStart(64, '0');
+      isClientSigValid = (to == address);
     } else if ((type == LightTxTypes.withdrawal) ||
               (type == LightTxTypes.instantWithdrawal) ||
               (type == LightTxTypes.remittance)) {
-      let msgHash = Buffer.from(lightTx.lightTxHash, 'hex');
-      let prefix = new Buffer('\x19Ethereum Signed Message:\n32');
-      let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, msgHash]));
       let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.clientLightTx.v, lightTx.sig.clientLightTx.r, lightTx.sig.clientLightTx.s);
-      let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
-      isValid = (from == address);
+      let address = EthUtils.pubToAddress(publicKey).toString('hex').padStart(64, '0');
+      isClientSigValid = (from == address);
     } else {
       new Error('Not supported light transaction type.');
     }
     // validate signatures of lightTxs
-    let msgHash = Buffer.from(lightTx.lightTxHash, 'hex');
-    let prefix = new Buffer('\x19Ethereum Signed Message:\n32');
-    let ethMsgHash = EthUtils.sha3(Buffer.concat([prefix, msgHash]));
     let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.serverLightTx.v, lightTx.sig.serverLightTx.r, lightTx.sig.serverLightTx.s);
     let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
-    isValid = (account == address);
+    isServerSigValid = (account == address);
   }
 
-  return isValid;
+  return (isClientSigValid && isServerSigValid);
 }
 
 app.get('/receipt/:lightTxHash', async function (req, res) {
