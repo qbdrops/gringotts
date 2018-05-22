@@ -6,7 +6,8 @@
   "scripts": {
     "test": "truffle test",
     "lint": "./node_modules/.bin/eslint .",
-    "start": "node server.js"
+    "start": "node server.js",
+    "pgmigrate": "cd ./db/postgres && ../../node_modules/.bin/sequelize db:migrate"
   },
   "author": "ifc-dev <dev@infinitechain.io>",
   "license": "ISC",
@@ -24,6 +25,9 @@
     "minimist": "^1.2.0",
     "mongodb": "^2.2.35",
     "node-rsa": "^0.4.2",
+    "pg": "^7.4.3",
+    "sequelize": "^4.37.8",
+    "sequelize-cli": "^4.0.0",
     "socket.io": "^2.1.0",
     "web3": "^0.20.6"
   },
