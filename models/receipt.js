@@ -50,8 +50,6 @@ class Receipt {
     this.receiptHash = this._sha3(Object.values(this.receiptData).reduce((acc, curr) => acc + curr, ''));
     this.sig = receiptJson.sig;
     this.metadata = (receiptJson.metadata || {});
-    // Compute WSN
-    this.metadata.WSN = this._sha3(this.receiptData.stageHeight + this.receiptData.GSN);
   }
 
   _normalize (receiptData) {

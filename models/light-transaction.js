@@ -2,7 +2,7 @@ let EthUtils = require('ethereumjs-util');
 let assert = require('assert');
 let types = require('./types.js');
 
-const allowedLightTxDataKeys = ['from', 'to', 'value', 'fee', 'LSN'];
+const allowedLightTxDataKeys = ['from', 'to', 'assetID', 'value', 'fee', 'nonce', 'logID', 'metadataHash'];
 const allowedSigKeys = ['clientLightTx', 'serverLightTx'];
 const instantWithdrawalLimit = 10;
 
@@ -32,8 +32,10 @@ class LightTransaction {
     let keys = Object.keys(lightTxData);
     let orderedLightTxData = {};
     allowedLightTxDataKeys.forEach(key => {
-      assert(keys.includes(key), 'Parameter \'lightTxData\' does not include key \'' + key + '\'.');
-      orderedLightTxData[key] = lightTxData[key];
+      if (key != 'metadataHash') {
+        assert(keys.includes(key), 'Parameter \'lightTxData\' does not include key \'' + key + '\'.');
+      }
+      orderedLightTxData[key] = (lightTxData[key] || '');
     });
 
     // Check if sig has correct format
@@ -44,18 +46,21 @@ class LightTransaction {
       assert(isSigFormatCorrect || isSigDefault, '\'sig\' does not have correct format.');
     });
 
-    this.lightTxData = this._normalize(orderedLightTxData);
-    this.lightTxHash = this._sha3(Object.values(this.lightTxData).reduce((acc, curr) => acc + curr, ''));
-    this.sig = sig;
     this.metadata = (lightTxJson.metadata || {});
+    this.lightTxData = this._normalize(orderedLightTxData);
+    this.lightTxData.metadataHash = this._sha3(JSON.stringify(this.metadata));
+    this.sig = sig;
+    this.lightTxHash = this._sha3(Object.values(this.lightTxData).reduce((acc, curr) => acc + curr, ''));
   }
 
   _normalize (lightTxData) {
-    lightTxData.from        = lightTxData.from.padStart(64, '0').slice(-64);
-    lightTxData.to          = lightTxData.to.padStart(64, '0').slice(-64);
-    lightTxData.LSN         = this._to32BytesHex(lightTxData.LSN, false);
-    lightTxData.value       = this._to32BytesHex(lightTxData.value, true);
-    lightTxData.fee         = this._to32BytesHex(lightTxData.fee, true);
+    lightTxData.from    = lightTxData.from.slice(-40).padStart(64, '0').slice(-64);
+    lightTxData.to      = lightTxData.to.slice(-40).padStart(64, '0').slice(-64);
+    lightTxData.logID   = lightTxData.logID.toString(16).padStart(64, '0').slice(-64);
+    lightTxData.nonce   = lightTxData.nonce.toString(16).padStart(64, '0').slice(-64);
+    lightTxData.assetID = this._to32BytesHex(lightTxData.assetID, false);
+    lightTxData.value   = this._to32BytesHex(lightTxData.value, true);
+    lightTxData.fee     = this._to32BytesHex(lightTxData.fee, true);
     return lightTxData;
   }
 
@@ -115,30 +120,6 @@ class LightTransaction {
 
   toString () {
     return JSON.stringify(this.toJson());
-  }
-
-  static parseProposal (type, eventData) {
-    assert(Object.values(types).includes(type), 'Invalid type.');
-
-    let lightTxJson = {
-      lightTxData: {
-        from: (type == types.withdrawal) ? eventData._client : '0',
-        to: (type == types.deposit) ? eventData._client : '0',
-        value: eventData._value,
-        LSN: eventData._lsn,
-        fee: eventData._fee
-      },
-      sig: {
-        clientLightTx: {
-          v: eventData._v,
-          r: eventData._r,
-          s: eventData._s
-        }
-      }
-    };
-
-    let lightTx = new LightTransaction(lightTxJson);
-    return lightTx;
   }
 
   _sha3 (content) {
