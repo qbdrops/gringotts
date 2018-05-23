@@ -1,34 +1,34 @@
 'use strict';
 module.exports = {
   up: (queryInterface, Sequelize) => {
-    return queryInterface.createTable('receipts', {
+    return queryInterface.createTable('receipt_trees', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      light_tx_hash: {
-        allowNull: false,
-        type: Sequelize.CHAR(64)
-      },
-      receipt_hash: {
-        allowNull: false,
-        type: Sequelize.CHAR(64)
-      },
       stage_height: {
         allowNull: false,
         type: Sequelize.CHAR(64)
       },
-      data: {
+      node_index: {
         allowNull: false,
+        type: Sequelize.NUMERIC
+      },
+      node_hash: {
+        allowNull: false,
+        type: Sequelize.CHAR(64)
+      },
+      collisions: {
+        allowNull: true,
         type: Sequelize.JSON
       }
     }).then(() => {
-      queryInterface.addIndex('receipts', ['light_tx_hash', 'receipt_hash', 'stage_height']);
+      queryInterface.addIndex('receipt_trees', ['stage_height', 'node_index']);
     });
   },
   down: (queryInterface, Sequelize) => {
-    return queryInterface.dropTable('receipts');
+    return queryInterface.dropTable('receipt_trees');
   }
 };

@@ -194,7 +194,10 @@ app.get('/roothash', async function (req, res) {
       res.send({ ok: false, message: 'Receipts are empty.', code: ErrorCodes.RECEIPTS_ARE_EMPTY });
     }
   } catch (e) {
+    // leveldb, rocksdb
     await storageManager.decreaseExpectedStageHeight();
+
+    // RDBMS
     await storageManager.rollback();
     console.log(e);
     res.status(500).send({ ok: false, errors: e.message });
@@ -237,7 +240,7 @@ app.post('/attach', async function (req, res) {
           let txHash = web3.eth.sendRawTransaction(serializedTx);
           console.log('Committed txHash: ' + txHash);
 
-          // Dump stageHeight
+          // Dump stageHeight for level, rocksdb
           await storageManager.dumpExpectedStageHeight();
 
           res.send({ ok: true, txHash: txHash });
