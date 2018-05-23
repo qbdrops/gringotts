@@ -10,7 +10,7 @@ let Receipt = require('../../models/receipt');
 let ErrorCodes = require('../../errors/codes');
 let LightTxTypes = require('../../models/types');
 
-let chain = rocksdb('../rocksdb', { valueEncoding: 'json' });
+let chain = rocksdb('./chaindata/rocksdb', { valueEncoding: 'json' });
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
 let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
