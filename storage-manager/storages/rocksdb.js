@@ -9,6 +9,9 @@ let AccountMap = require('../utils/account-map');
 let Receipt = require('../../models/receipt');
 let ErrorCodes = require('../../errors/codes');
 let LightTxTypes = require('../../models/types');
+let IndexedMerkleTree = require('../utils/indexed-merkle-tree');
+let txDecoder = require('ethereum-tx-decoder');
+let abiDecoder = require('abi-decoder');
 
 let chain = rocksdb('./chaindata/rocksdb', { valueEncoding: 'json' });
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
@@ -16,6 +19,8 @@ let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
 let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
 let nextContractStageHeight = parseInt(sidechain.stageHeight()) + 1;
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
+
+abiDecoder.addABI(Sidechain.abi);
 
 class Level {
   constructor () {
@@ -27,6 +32,62 @@ class Level {
     this.offchainReceiptHashes = null;
     this.offchainReceipts = {};
     this.expectedStageHeight = null;
+  }
+
+  async attach (stageHeight, serializedTx) {
+    try {
+      console.log(stageHeight);
+      console.log(serializedTx);
+      let decodedTx = txDecoder.decodeTx(serializedTx);
+      let functionParams = abiDecoder.decodeMethod(decodedTx.data);
+
+      let receiptRootHash = functionParams.params[1].value[0].slice(2);
+      let accountRootHash = functionParams.params[1].value[1].slice(2);
+      let trees = await this.getTrees(stageHeight);
+      let receiptTree = trees.receiptTree;
+      let accountTree = trees.accountTree;
+
+      if ((receiptTree.rootHash === receiptRootHash) &&
+          accountTree.rootHash === accountRootHash) {
+        let txHash = web3.eth.sendRawTransaction(serializedTx);
+        console.log('Committed txHash: ' + txHash);
+
+        // Dump stageHeight for level, rocksdb
+        await this.dumpExpectedStageHeight();
+
+        return txHash;
+      } else {
+        throw new Error('Invalid signed root hashes.');
+      }
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  async commitTrees (stageHeight) {
+    try {
+      let accountHashes = this.accountHashes();
+      this.increaseExpectedStageHeight();
+      let pendingReceipts = this.pendingReceipts(stageHeight);
+      let receiptHashes = pendingReceipts.map(receipt => receipt.receiptHash);
+      console.log('Building Stage Height: ' + stageHeight);
+      let receiptTree = new IndexedMerkleTree(stageHeight, receiptHashes);
+      let accountTree = new IndexedMerkleTree(stageHeight, accountHashes);
+
+      this.setTrees(stageHeight, receiptTree, accountTree);
+      await this.dumpAll();
+
+      console.log(receiptTree.rootHash);
+      console.log(accountTree.rootHash);
+
+      return {
+        receiptRootHash: receiptTree.rootHash,
+        accountRootHash: accountTree.rootHash
+      };
+    } catch (e) {
+      this.decreaseExpectedStageHeight();
+      throw e;
+    }
   }
 
   setAccountMap (accountMap) {
@@ -46,11 +107,11 @@ class Level {
     await this.gsnGenerator.dump();
   }
 
-  async setTrees(stageHeight, receiptTree, accountTree) {
+  setTrees(stageHeight, receiptTree, accountTree) {
     this.treeManager.setTrees(stageHeight, receiptTree, accountTree);
   }
 
-  async decreaseExpectedStageHeight () {
+  decreaseExpectedStageHeight () {
     this.expectedStageHeight -= 1;
   }
 
@@ -148,7 +209,7 @@ class Level {
     await chain.put('stageHeight', stageHeight.toString());
   }
 
-  async initPendingReceipts () {
+  async init () {
     let offchainLightTxHashes = [];
     try {
       offchainLightTxHashes = await chain.get('offchain_receipts');
@@ -212,7 +273,7 @@ class Level {
     return (receipts.length > 0);
   }
 
-  async pendingReceipts (stageHeight = null) {
+  pendingReceipts (stageHeight = null) {
     let receipts = [];
     for (let i = 0; i < this.offchainReceiptHashes.length; i++) {
       let offchainLightTxHash = this.offchainReceiptHashes[i];
@@ -306,12 +367,6 @@ class Level {
         throw e;
       }
     }
-  }
-
-  async begin () {
-  }
-
-  async rollback () {
   }
 
   async commit (newAddresses, GSN, receipt) {

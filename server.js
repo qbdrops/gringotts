@@ -3,10 +3,7 @@ let express = require('express');
 let bodyParser = require('body-parser');
 let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
-let IndexedMerkleTree = require('./storage-manager/utils/indexed-merkle-tree');
 let storageManager = require('./storage-manager');
-let txDecoder = require('ethereum-tx-decoder');
-let abiDecoder = require('abi-decoder');
 let Sidechain = require('./abi/Sidechain.json');
 let ErrorCodes = require('./errors/codes');
 let LightTransaction = require('./models/light-transaction');
@@ -171,34 +168,16 @@ app.get('/roothash', async function (req, res) {
         Should Fix account hashes before increasing expectedStageHeight in order to
         prevnet the upcoming light transaction keep changing the accout hashes
        */
-      await storageManager.begin();
-      let accountHashes = await storageManager.accountHashes();
-      await storageManager.increaseExpectedStageHeight();
-      let pendingReceipts = await storageManager.pendingReceipts(stageHeight);
-      let receiptHashes = pendingReceipts.map(receipt => receipt.receiptHash);
-      console.log('Building Stage Height: ' + stageHeight);
-      let receiptTree = new IndexedMerkleTree(stageHeight, receiptHashes);
-      let accountTree = new IndexedMerkleTree(stageHeight, accountHashes);
-
-      await storageManager.setTrees(stageHeight, receiptTree, accountTree);
-      await storageManager.dumpAll();
-
-      await storageManager.commit();
+      let trees = await storageManager.commitTrees(stageHeight);
       res.send({
         ok: true,
         stageHeight: stageHeight,
-        receiptRootHash: receiptTree.rootHash,
-        accountRootHash: accountTree.rootHash
+        trees: trees
       });
     } else {
       res.send({ ok: false, message: 'Receipts are empty.', code: ErrorCodes.RECEIPTS_ARE_EMPTY });
     }
   } catch (e) {
-    // leveldb, rocksdb
-    await storageManager.decreaseExpectedStageHeight();
-
-    // RDBMS
-    await storageManager.rollback();
     console.log(e);
     res.status(500).send({ ok: false, errors: e.message });
   }
@@ -223,34 +202,9 @@ app.post('/attach', async function (req, res) {
   try {
     let stageHeight = req.body.stageHeight;
     let serializedTx = req.body.serializedTx;
-
     if (stageHeight) {
-      try {
-        let decodedTx = txDecoder.decodeTx(serializedTx);
-        let functionParams = abiDecoder.decodeMethod(decodedTx.data);
-
-        let receiptRootHash = functionParams.params[1].value[0].slice(2);
-        let accountRootHash = functionParams.params[1].value[1].slice(2);
-        let trees = await storageManager.getTrees(stageHeight);
-        let receiptTree = trees.receiptTree;
-        let accountTree = trees.accountTree;
-
-        if ((receiptTree.rootHash === receiptRootHash) &&
-            accountTree.rootHash === accountRootHash) {
-          let txHash = web3.eth.sendRawTransaction(serializedTx);
-          console.log('Committed txHash: ' + txHash);
-
-          // Dump stageHeight for level, rocksdb
-          await storageManager.dumpExpectedStageHeight();
-
-          res.send({ ok: true, txHash: txHash });
-        } else {
-          throw new Error('Invalid signed root hashes.');
-        }
-      } catch (e) {
-        console.log(e);
-        res.status(500).send({ ok: false, errors: e.message });
-      }
+      let txHash = await storageManager.attach(stageHeight, serializedTx);
+      res.send({ ok: true, txHash: txHash });
     } else {
       res.send({ ok: false, errors: 'Does not provide rootHash.' });
     }

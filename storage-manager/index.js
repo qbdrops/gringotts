@@ -23,37 +23,21 @@ class StorageManager {
   constructor (storage) {
     this.storage = storage;
     // Load pendingReceipts from DB
-    this.initPendingReceipts();
+    this.init();
   }
 
-  async dumpExpectedStageHeight () {
-    await this.storage.dumpExpectedStageHeight();
+  async attach (stageHeight, serializedTx) {
+    let txHash = await this.storage.attach(stageHeight, serializedTx);
+    return txHash;
   }
 
-  async expectedStageHeight () {
-    let expectedStageHeight = await this.storage.expectedStageHeight();
-    return expectedStageHeight;
-  }
-
-  async dumpAll () {
-    await this.storage.dumpAll();
+  async commitTrees (stageHeight) {
+    let trees = await this.storage.commitTrees(stageHeight);
+    return trees;
   }
 
   async setTrees (stageHeight, receiptTree, accountTree) {
     await this.storage.setTrees(stageHeight, receiptTree, accountTree);
-  }
-
-  async decreaseExpectedStageHeight () {
-    await this.storage.decreaseExpectedStageHeight();
-  }
-
-  async increaseExpectedStageHeight () {
-    await this.storage.increaseExpectedStageHeight();
-  }
-
-  async accountHashes () {
-    let accountHashes = await this.storage.accountHashes();
-    return accountHashes;
   }
 
   async getBalance (address) {
@@ -92,18 +76,9 @@ class StorageManager {
     await this.storage.removeOffchainReceipts(stageHeight);
   }
 
-  async loadExpectedStageHeight () {
-    let expectedStageHeight = await this.storage.loadExpectedStageHeight();
-    return expectedStageHeight;
-  }
-
-  async dumpStageHeight (stageHeight) {
-    await this.storage.dumpStageHeight(stageHeight);
-  }
-
-  async initPendingReceipts () {
+  async init () {
     try {
-      await this.storage.initPendingReceipts();
+      await this.storage.init();
     } catch (e) {
       console.error(e);
     }
@@ -124,48 +99,9 @@ class StorageManager {
     return receipts;
   }
 
-  async updateOffchainReceptHashes (stageHeight) {
-    await this.storage.updateOffchainReceptHashes(stageHeight);
-  }
-
   async getReceiptByLightTxHash (lightTxHash) {
     let receipt = await this.storage.getReceiptByLightTxHash(lightTxHash);
     return receipt;
-  }
-
-  async loadTrees (stageHeight) {
-    let trees = await this.storage.loadTrees(stageHeight);
-    return trees;
-  }
-
-  async dumpTrees (trees, stageHeight) {
-    await this.storage.dumpTrees(trees, stageHeight);
-  }
-
-  async loadGSN () {
-    let GSN = await this.storage.loadGSN();
-    return GSN;
-  }
-
-  async dumpGSN (GSN) {
-    await this.storage.dumpGSN(GSN);
-  }
-
-  async loadAccounts () {
-    let accounts = await this.storage.loadAccounts();
-    return accounts;
-  }
-
-  async begin () {
-    await this.storage.begin();
-  }
-
-  async rollback () {
-    await this.storage.rollback();
-  }
-
-  async commit (newAddresses, GSN, receipt) {
-    await this.storage.commit(newAddresses, GSN, receipt);
   }
 
   async applyLightTx (lightTx) {

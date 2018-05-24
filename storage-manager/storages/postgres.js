@@ -1,3 +1,4 @@
+let assert = require('assert');
 let env = require('../../env');
 let Web3 = require('web3');
 let Sidechain = require('../../abi/Sidechain.json');
@@ -5,6 +6,12 @@ let BigNumber = require('bignumber.js');
 let Receipt = require('../../models/receipt');
 let ErrorCodes = require('../../errors/codes');
 let LightTxTypes = require('../../models/types');
+let IndexedMerkleTree = require('../utils/indexed-merkle-tree');
+let txDecoder = require('ethereum-tx-decoder');
+let abiDecoder = require('abi-decoder');
+let Model = require('../postgres/models');
+const Sequelize = Model.Sequelize;
+const sequelize = Model.sequelize;
 
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
@@ -12,18 +19,80 @@ let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
 let nextContractStageHeight = parseInt(sidechain.stageHeight()) + 1;
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 
+let ReceiptModel = Model.receipts;
+let AssetModel = Model.assets;
+let ContractAddressModel = Model.contract_address;
+let ExpectedStageHeightModel = Model.expected_stage_height;
+let GSNNumberModel = Model.gsn_number;
+let ReceiptTreeModel = Model.receipt_trees;
+let AccountTreeModel = Model.account_trees;
+
+abiDecoder.addABI(Sidechain.abi);
+
 class Postgres {
-  async dumpExpectedStageHeight () {
-    // in-process database only
+  async attach (stageHeight, serializedTx) {
+    try {
+      let decodedTx = txDecoder.decodeTx(serializedTx);
+      let functionParams = abiDecoder.decodeMethod(decodedTx.data);
+
+      let receiptRootHash = functionParams.params[1].value[0].slice(2);
+      let accountRootHash = functionParams.params[1].value[1].slice(2);
+      let trees = await this.getTrees(stageHeight);
+      let receiptTree = trees.receiptTree;
+      let accountTree = trees.accountTree;
+
+      if ((receiptTree.rootHash === receiptRootHash) &&
+          accountTree.rootHash === accountRootHash) {
+        let txHash = web3.eth.sendRawTransaction(serializedTx);
+        console.log('Committed txHash: ' + txHash);
+        return txHash;
+      } else {
+        throw new Error('Invalid signed root hashes.');
+      }
+    } catch (e) {
+      throw e;
+    }
   }
 
-  expectedStageHeight () {
+  async commitTrees (stageHeight) {
+    try {
+      let accountHashes = this.accountHashes();
+      this.increaseExpectedStageHeight();
+      let pendingReceipts = this.pendingReceipts(stageHeight);
+      let receiptHashes = pendingReceipts.map(receipt => receipt.receiptHash);
+      console.log('Building Stage Height: ' + stageHeight);
+      let receiptTree = new IndexedMerkleTree(stageHeight, receiptHashes);
+      let accountTree = new IndexedMerkleTree(stageHeight, accountHashes);
+
+      this.setTrees(stageHeight, receiptTree, accountTree);
+      await this.dumpAll();
+
+      return {
+        receiptRootHash: receiptTree.rootHash,
+        accountRootHash: accountTree.rootHash
+      };
+    } catch (e) {
+      this.decreaseExpectedStageHeight();
+      throw e;
+    }
+  }
+
+  async expectedStageHeightModel (tx = null) {
     // SQL SELECT
-    return this.expectedStageHeight;
+    let expectedStageHeight = await ExpectedStageHeightModel.findById(1, {
+      transaction: tx
+    });
+
+    return expectedStageHeight;
   }
 
-  async dumpAll () {
-    // in-process database only
+  async gsnNumberModel (tx = null) {
+    // SQL SELECT
+    let gsnNumberModel = await GSNNumberModel.findById(1, {
+      transaction: tx
+    });
+
+    return gsnNumberModel;
   }
 
   async setTrees(stageHeight, receiptTree, accountTree) {
@@ -31,26 +100,10 @@ class Postgres {
     this.treeManager.setTrees(stageHeight, receiptTree, accountTree);
   }
 
-  async decreaseExpectedStageHeight () {
-    // SQL UPDATE
-    this.expectedStageHeight -= 1;
-  }
-
-  increaseExpectedStageHeight () {
-    // SQL UPDATE
-    this.expectedStageHeight += 1;
-  }
-
   accountHashes () {
     // SQL SELECT
     let accountHashes = this.accountMap.hashes();
     return accountHashes;
-  }
-
-  async getBalance (address) {
-    // SQL SELECT
-    let balance = await this.accountMap.getBalance(address);
-    return balance;
   }
 
   async getTrees (stageHeight) {
@@ -117,20 +170,46 @@ class Postgres {
       delete this.offchainReceipts[targetLightTxHash];
       this.offchainReceiptHashes.splice(this.offchainReceiptHashes.indexOf(targetLightTxHash), 1);
     }
-
-    await this.updateOffchainReceptHashes();
   }
 
-  async loadExpectedStageHeight () {
-    // leveldb, rocksdb only
-  }
+  async init () {
+    assert(env.sidechainAddress, 'Sidechain address is empty.');
+    // SQL INSERT, init expected stage height, contract address
+    let contractAddress = await ContractAddressModel.findById(1);
+    if (!contractAddress && env.sidechainAddress) {
+      let contractAddress = ContractAddressModel.build({
+        address: env.sidechainAddress
+      });
+      await contractAddress.save();
+    } else if (contractAddress && (contractAddress.address != env.sidechainAddress)) {
+      throw new Error('Sidechain address is not consistent.');
+    }
 
-  async dumpStageHeight (stageHeight) {
-    // leveldb, rocksdb only
-  }
+    let expectedStageHeightModel = await ExpectedStageHeightModel.findById(1);
+    let expectedStageHeight;
+    if (!expectedStageHeightModel) {
+      expectedStageHeight = nextContractStageHeight;
+      await ExpectedStageHeightModel.create({
+        height: expectedStageHeight
+      });
+    } else {
+      expectedStageHeight = parseInt(expectedStageHeightModel.height, 16);
+    }
 
-  async initPendingReceipts () {
-    // leveldb, rocksdb only
+    console.log('expectedStageHeight: ' + expectedStageHeight);
+
+    let gsnNumberModel = await GSNNumberModel.findById(1);
+    let gsn;
+    if (!gsnNumberModel) {
+      gsn = 0;
+      await GSNNumberModel.create({
+        gsn: gsn
+      });
+    } else {
+      gsn = parseInt(gsnNumberModel.gsn, 10);
+    }
+
+    console.log('gsn: ' + gsn);
   }
 
   pendingLightTxHashesOfReceipts () {
@@ -160,129 +239,54 @@ class Postgres {
     return receipts;
   }
 
-  async updateOffchainReceptHashes () {
-    // leveldb, rocksdb only
-  }
-
-  async getReceiptByLightTxHash (lightTxHash) {
+  async getReceiptByLightTxHash (lightTxHash, tx = null) {
     // SQL SELECT
-    let receipt;
-    try {
-      receipt = await chain.get('receipt::' + lightTxHash);
-      return receipt;
-    } catch (e) {
-      if (e.type == 'NotFoundError') {
-        receipt = null;
-        return receipt;
-      } else {
-        throw e;
+    let receipt = await ReceiptModel.findOne({ where: { light_tx_hash: lightTxHash } }, {
+      transaction: tx
+    });
+    return receipt;
+  }
+
+  async getBalance (address, assetID, tx = null) {
+    let asset = await this.getAsset(address, assetID, tx);
+
+    if (asset) {
+      return asset.balance;
+    } else {
+      return initBalance.toString(16).padStart(64, '0');
+    }
+  }
+
+  async getAsset (address, assetID, tx = null) {
+    let asset = await AssetModel.findOne({ where:
+      {
+        address: address,
+        asset_id: assetID
       }
-    }
+    }, {
+      transaction: tx
+    });
+
+    return asset;
   }
 
-  async loadTrees (stageHeight) {
-    // leveldb, rocksdb only
-    let trees;
-    try {
-      trees = await chain.get('trees::' + stageHeight.toString());
-      return trees;
-    } catch (e) {
-      if (e.type == 'NotFoundError') {
-        trees = {};
-        await chain.put('trees::' + stageHeight.toString(), trees);
-        return trees;
-      } else {
-        throw e;
-      }
+  async setBalance (address, assetID, balance, tx = null) {
+    let asset = await this.getAsset(address, assetID, tx);
+
+    if (asset) {
+      await asset.update({
+        address: address,
+        asset_id: assetID,
+        balance: balance
+      });
+    } else {
+      asset = AssetModel.build({
+        address: address,
+        asset_id: assetID,
+        balance: balance
+      });
+      await asset.save();
     }
-  }
-
-  async dumpTrees (trees, stageHeight) {
-    // leveldb, rocksdb only
-    await chain.put('trees::' + stageHeight.toString(), trees);
-  }
-
-  async loadGSN () {
-    // leveldb, rocksdb only
-    let GSN;
-    try {
-      GSN = await chain.get('GSN');
-      return parseInt(GSN);
-    } catch (e) {
-      if (e.type == 'NotFoundError') {
-        GSN = 0;
-        await chain.put('GSN', GSN);
-        return GSN;
-      } else {
-        throw e;
-      }
-    }
-  }
-
-  async dumpGSN (GSN) {
-    // leveldb, rocksdb only
-    await chain.put('GSN', GSN);
-  }
-
-  async loadAccounts () {
-    // leveldb, rocksdb only
-    let accounts;
-    try {
-      let addresses = await chain.get('addresses');
-      accounts = {};
-      for (let i = 0 ; i < addresses.length; i++) {
-        let address = addresses[i];
-        let account = await chain.get('account::' + address);
-        accounts[address] = account;
-      }
-      return accounts;
-    } catch (e) {
-      if (e.type == 'NotFoundError') {
-        accounts = {};
-        await chain.put('addresses', []);
-        return accounts;
-      } else {
-        throw e;
-      }
-    }
-  }
-
-  async begin () {
-    // SQL transaction begin
-  }
-
-  async rollback () {
-    // SQL transaction rollback
-  }
-
-  async commit (newAddresses, GSN, receipt) {
-    // SQL transaction commit
-    let fromAddress = receipt.lightTxData.from;
-    let toAddress = receipt.lightTxData.to;
-    let tx = chain.batch().
-      put('GSN', GSN).
-      put('receipt::' + receipt.lightTxHash, receipt.toJson());
-
-    if (Array.isArray(this.offchainReceiptHashes) && this.offchainReceiptHashes.length > 0) {
-      tx = tx.put('offchain_receipts', this.offchainReceiptHashes);
-    }
-
-    if (newAddresses.length > 0) {
-      let addresses = this.accountMap.getAddresses();
-      tx = tx.put('addresses', addresses);
-    }
-
-    if (fromAddress && (fromAddress !== '0000000000000000000000000000000000000000000000000000000000000000')) {
-      let fromAccount = this.accountMap.getAccount(fromAddress);
-      tx = tx.put('account::' + fromAddress, fromAccount);
-    }
-
-    if (toAddress && (toAddress !== '0000000000000000000000000000000000000000000000000000000000000000')) {
-      let toAccount = this.accountMap.getAccount(toAddress);
-      tx = tx.put('account::' + toAddress, toAccount);
-    }
-
-    await tx.write();
   }
 
   async applyLightTx (lightTx) {
@@ -291,46 +295,44 @@ class Postgres {
     let type = lightTx.type();
     let fromAddress = lightTx.lightTxData.from;
     let toAddress = lightTx.lightTxData.to;
-
-    let isNewFromAddress = this.accountMap.isNewAddress(fromAddress);
-    let isNewToAddress = this.accountMap.isNewAddress(toAddress);
+    let assetID = lightTx.lightTxData.assetID;
 
     let fromBalance = initBalance;
     let toBalance = initBalance;
-    let oldFromBalance;
-    let oldToBalance;
+    let tx;
     try {
+      tx = await sequelize.transaction({
+        isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
+      });
       if (type === LightTxTypes.deposit) {
         let value = new BigNumber('0x' + lightTx.lightTxData.value);
-        toBalance = this.accountMap.getBalance(toAddress);
+        toBalance = await this.getBalance(toAddress, assetID, tx);
 
-        oldToBalance = toBalance;
         toBalance = new BigNumber('0x' + toBalance);
         toBalance = toBalance.plus(value);
         toBalance = toBalance.toString(16).padStart(64, '0');
-        this.accountMap.setBalance(toAddress, toBalance);
+
+        await this.setBalance(toAddress, assetID, toBalance, tx);
       } else if ((type === LightTxTypes.withdrawal) ||
                 (type === LightTxTypes.instantWithdrawal)) {
         let value = new BigNumber('0x' + lightTx.lightTxData.value);
-        fromBalance = this.accountMap.getBalance(fromAddress);
+        fromBalance = await this.getBalance(fromAddress, assetID, tx);
 
-        oldFromBalance = fromBalance;
         fromBalance = new BigNumber('0x' + fromBalance);
         if (fromBalance.isGreaterThanOrEqualTo(value)) {
           fromBalance = fromBalance.minus(value);
           fromBalance = fromBalance.toString(16).padStart(64, '0');
-          this.accountMap.setBalance(fromAddress, fromBalance);
+
+          await this.setBalance(fromAddress, assetID, fromBalance, tx);
         } else {
           code = ErrorCodes.INSUFFICIENT_BALANCE;
           throw new Error('Insufficient balance.');
         }
       } else if (type === LightTxTypes.remittance) {
         let value = new BigNumber('0x' + lightTx.lightTxData.value);
-  
-        fromBalance = this.accountMap.getBalance(fromAddress);
-        oldFromBalance = fromBalance;
-        toBalance = this.accountMap.getBalance(toAddress);
-        oldToBalance = toBalance;
+
+        fromBalance = await this.getBalance(fromAddress, assetID, tx);
+        toBalance = await this.getBalance(toAddress, assetID, tx);
 
         fromBalance = new BigNumber('0x' + fromBalance);
         toBalance = new BigNumber('0x' + toBalance);
@@ -341,8 +343,8 @@ class Postgres {
           fromBalance = fromBalance.toString(16).padStart(64, '0');
           toBalance = toBalance.toString(16).padStart(64, '0');
 
-          this.accountMap.setBalance(fromAddress, fromBalance);
-          this.accountMap.setBalance(toAddress, toBalance);
+          await this.setBalance(toAddress, assetID, toBalance, tx);
+          await this.setBalance(fromAddress, assetID, fromBalance, tx);
         } else {
           code = ErrorCodes.INSUFFICIENT_BALANCE;
           throw new Error('Insufficient balance.');
@@ -352,58 +354,44 @@ class Postgres {
         throw new Error('Invalid light transaction type.');
       }
 
-      // GSN
-      let gsn = this.gsnGenerator.getGSN();
+      let expectedStageHeightModel = await this.expectedStageHeightModel(tx);
+      let expectedStageHeight = expectedStageHeightModel.height;
+
+      let gsnNumberModel = await this.gsnNumberModel(tx);
+      await gsnNumberModel.increment('gsn', {
+        transaction: tx
+      });
+
+      let gsn = gsnNumberModel.gsn;
+
       let receiptJson = lightTx.toJson();
       receiptJson.receiptData = {
-        stageHeight: this.expectedStageHeight,
-        GSN: gsn,
+        stageHeight: parseInt(expectedStageHeight, 10),
+        GSN: parseInt(gsn, 10),
         lightTxHash: lightTx.lightTxHash,
         fromBalance: fromBalance,
         toBalance: toBalance,
       };
-  
+
       let receipt = new Receipt(receiptJson);
 
-      try {
-        await this.getReceiptByLightTxHash(receipt.lightTxHash);
-      } catch (e) {
-        if (e.type == 'NotFoundError') {
-          // No known receipt, do nothing
-        } else {
-          code = ErrorCodes.SOMETHING_WENT_WRONG;
-          throw e;
-        }
-      }
+      await ReceiptModel.create({
+        gsn: receipt.receiptData.GSN,
+        stage_height: receipt.receiptData.stageHeight,
+        light_tx_hash: receipt.lightTxHash,
+        receipt_hash: receipt.receiptHash,
+        data: receipt.toJson()
+      }, {
+        transaction: tx
+      });
 
-      this.addOffchainReceipt(receipt);
-      let newAddresses = [];
-  
-      if (isNewFromAddress) {
-        newAddresses.push(fromAddress);
-      }
-  
-      if (isNewToAddress) {
-        newAddresses.push(toAddress);
-      }
+      await tx.commit();
 
-      await this.commit(newAddresses, gsn, receipt);
-  
       return { ok: true, receipt: receipt };
     } catch (e) {
       console.error(e);
       // rollback all modifications in the leveldb transaction
-      this.removeOffchainReceipt(lightTx.lightTxHash);
-      // rollback balances in memory
-      if (type === LightTxTypes.deposit) {
-        this.accountMap.setBalance(toAddress, oldToBalance);
-      } else if ((type === LightTxTypes.withdrawal) ||
-                (type === LightTxTypes.instantWithdrawal)) {
-        this.accountMap.setBalance(fromAddress, oldFromBalance);
-      } else if (type === LightTxTypes.remittance) {
-        this.accountMap.setBalance(fromAddress, oldFromBalance);
-        this.accountMap.setBalance(toAddress, oldToBalance);
-      }
+      await tx.rollback();
       return { ok: false, code: code, message: e.message };
     }
   }

@@ -3,29 +3,41 @@ module.exports = {
   up: (queryInterface, Sequelize) => {
     return queryInterface.createTable('receipts', {
       id: {
-        allowNull: false,
-        autoIncrement: true,
+        unique: true,
+        type: Sequelize.BIGINT,
         primaryKey: true,
-        type: Sequelize.INTEGER
+        autoIncrement: true
+      },
+      gsn: {
+        unique: true,
+        type: Sequelize.CHAR(64),
+        allowNull: false,
       },
       light_tx_hash: {
         allowNull: false,
+        unique: true,
         type: Sequelize.CHAR(64)
       },
       receipt_hash: {
-        allowNull: false,
+        allowNull: true,
+        unique: true,
         type: Sequelize.CHAR(64)
       },
       stage_height: {
-        allowNull: false,
+        allowNull: true,
         type: Sequelize.CHAR(64)
       },
-      data: {
+      onchain: {
         allowNull: false,
+        type: Sequelize.BOOLEAN,
+        defaultValue: false
+      },
+      data: {
+        allowNull: true,
         type: Sequelize.JSON
       }
     }).then(() => {
-      queryInterface.addIndex('receipts', ['light_tx_hash', 'receipt_hash', 'stage_height']);
+      queryInterface.addIndex('receipts', ['gsn', 'light_tx_hash', 'receipt_hash', 'stage_height']);
     });
   },
   down: (queryInterface, Sequelize) => {

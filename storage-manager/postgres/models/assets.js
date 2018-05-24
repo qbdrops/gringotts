@@ -2,7 +2,8 @@
 module.exports = (sequelize, DataTypes) => {
   var assets = sequelize.define('assets', {
     balance: DataTypes.CHAR(64),
-    account_id: DataTypes.INTEGER
+    asset_id: DataTypes.CHAR(64),
+    address: DataTypes.TEXT
   }, {
     timestamps: false
   });

@@ -1,22 +1,19 @@
 'use strict';
 module.exports = {
   up: (queryInterface, Sequelize) => {
-    return queryInterface.createTable('accounts', {
+    return queryInterface.createTable('gsn_number', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      address: {
-        allowNull: false,
-        type: Sequelize.TEXT
+      gsn: {
+        type: Sequelize.NUMERIC
       }
-    }).then(() => {
-      queryInterface.addIndex('accounts', ['address']);
     });
   },
   down: (queryInterface, Sequelize) => {
-    return queryInterface.dropTable('accounts');
+    return queryInterface.dropTable('gsn_number');
   }
 };

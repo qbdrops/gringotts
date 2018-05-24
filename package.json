@@ -7,6 +7,7 @@
     "test": "truffle test",
     "lint": "./node_modules/.bin/eslint .",
     "start": "node server.js",
+    "reset": "rm -rf ./chaindata/level ./chaindata/rocksdb",
     "pgmigrate": "cd ./storage-manager/postgres && ../../node_modules/.bin/sequelize db:migrate"
   },
   "author": "ifc-dev <dev@infinitechain.io>",

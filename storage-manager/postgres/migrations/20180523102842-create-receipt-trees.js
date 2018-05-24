@@ -3,7 +3,6 @@ module.exports = {
   up: (queryInterface, Sequelize) => {
     return queryInterface.createTable('receipt_trees', {
       id: {
-        allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
