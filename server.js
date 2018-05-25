@@ -30,6 +30,11 @@ let expectedStageHeight;
 let treeManager;
 let gsnGenerator;
 let accountMap;
+let nodePort = parseInt(env.nodePort);
+
+if (isNaN(nodePort) || nodePort <= 0) {
+  nodePort = 3001;
+}
 
 // Load pendingReceipts from DB
 db.initPendingReceipts().then(async () => {
@@ -476,9 +481,9 @@ app.get('/pending/receipts', async function (req, res) {
   }
 });
 
-server.listen(3000, async function () {
+server.listen(nodePort, async function () {
   try {
-    console.log('App listening on port 3000!');
+    console.log(`App listening on port ${nodePort}!`);
   } catch (e) {
     console.error(e.message);
   }
