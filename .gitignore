@@ -4,4 +4,3 @@ build/*
 node_modules/
 env.js
 .node-xmlhttprequest-sync-*
-sidechaindata/
