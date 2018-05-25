@@ -1,24 +1,24 @@
 {
   "development": {
-    "username": "benlu",
+    "username": "juinc",
     "password": null,
-    "database": "mydb",
+    "database": "BOLT_dev",
     "host": "127.0.0.1",
     "dialect": "postgres",
     "logging": false
   },
   "test": {
-    "username": "root",
+    "username": "BOLT",
     "password": null,
-    "database": "database_test",
+    "database": "BOLT_test",
     "host": "127.0.0.1",
-    "dialect": "mysql"
+    "dialect": "postgres"
   },
   "production": {
-    "username": "root",
+    "username": "BOLT",
     "password": null,
-    "database": "database_production",
+    "database": "BOLT_production",
     "host": "127.0.0.1",
-    "dialect": "mysql"
+    "dialect": "postgres"
   }
 }
