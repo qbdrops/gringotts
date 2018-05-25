@@ -1,16 +1,15 @@
 class GSNGenerator {
-  constructor (db) {
-    this.db = db;
-    this.db.setGSNGenerator(this);
+  constructor (storage) {
+    this.storage = storage;
     this.GSN = null;
   }
 
   async initialize () {
-    this.GSN = await this.db.loadGSN();
+    this.GSN = await this.storage.loadGSN();
   }
 
   async dump() {
-    await this.db.dumpGSN(this.GSN);
+    await this.storage.dumpGSN(this.GSN);
   }
 
   getGSN () {

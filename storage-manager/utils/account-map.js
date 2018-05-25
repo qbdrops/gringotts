@@ -2,14 +2,14 @@ let EthUtils = require('ethereumjs-util');
 let assert = require('assert');
 
 class AccountMap {
-  constructor (db) {
-    this.db = db;
-    this.db.setAccountMap(this);
+  constructor (storage) {
+    this.storage = storage;
+    this.storage.setAccountMap(this);
     this.accounts = {};
   }
 
   async initialize() {
-    this.accounts = await this.db.loadAccounts();
+    this.accounts = await this.storage.loadAccounts();
   }
 
   getAddresses () {
