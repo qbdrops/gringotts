@@ -10,6 +10,8 @@ let IndexedMerkleTree = require('../utils/indexed-merkle-tree');
 let txDecoder = require('ethereum-tx-decoder');
 let abiDecoder = require('abi-decoder');
 let Model = require('../postgres/models');
+let EthUtils = require('ethereumjs-util');
+
 const Sequelize = Model.Sequelize;
 const sequelize = Model.sequelize;
 
@@ -30,7 +32,7 @@ let AccountTreeModel = Model.account_trees;
 abiDecoder.addABI(Sidechain.abi);
 
 class Postgres {
-  async attach (stageHeight, serializedTx) {
+  async attach(stageHeight, serializedTx) {
     try {
       let decodedTx = txDecoder.decodeTx(serializedTx);
       let functionParams = abiDecoder.decodeMethod(decodedTx.data);
@@ -42,7 +44,7 @@ class Postgres {
       let accountTree = trees.accountTree;
 
       if ((receiptTree.rootHash === receiptRootHash) &&
-          accountTree.rootHash === accountRootHash) {
+        accountTree.rootHash === accountRootHash) {
         let txHash = web3.eth.sendRawTransaction(serializedTx);
         console.log('Committed txHash: ' + txHash);
         return txHash;
@@ -54,30 +56,47 @@ class Postgres {
     }
   }
 
-  async commitTrees (stageHeight) {
+  async commitTrees(stageHeight) {
+    let tx;
     try {
-      let accountHashes = this.accountHashes();
-      this.increaseExpectedStageHeight();
-      let pendingReceipts = this.pendingReceipts(stageHeight);
-      let receiptHashes = pendingReceipts.map(receipt => receipt.receiptHash);
+      tx = await sequelize.transaction({
+        isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
+      });
+      let accountHashes = await this.accountHashes(tx);
+      await this.increaseExpectedStageHeight(tx);
+      let receiptHashes = await this.pendingReceipts(stageHeight, tx);
+
       console.log('Building Stage Height: ' + stageHeight);
       let receiptTree = new IndexedMerkleTree(stageHeight, receiptHashes);
       let accountTree = new IndexedMerkleTree(stageHeight, accountHashes);
 
-      this.setTrees(stageHeight, receiptTree, accountTree);
-      await this.dumpAll();
-
+      // this.setTrees(stageHeight, receiptTree, accountTree);
+      // ipfs 
+      await tx.commit();
       return {
         receiptRootHash: receiptTree.rootHash,
         accountRootHash: accountTree.rootHash
+        // ipfs adress
       };
     } catch (e) {
-      this.decreaseExpectedStageHeight();
-      throw e;
+      console.error(e);
+      // rollback all modifications in the leveldb transaction
+      await tx.rollback();
+      return { ok: false, code: code, message: e.message };
     }
   }
 
-  async expectedStageHeightModel (tx = null) {
+  async increaseExpectedStageHeight(tx = null) {
+    let stageModel = await ExpectedStageHeightModel.findById(1, {
+      transaction: tx
+    });
+    let result = await stageModel.increment("height", {
+      transaction: tx
+    });
+    return result;
+  }
+
+  async expectedStageHeightModel(tx = null) {
     // SQL SELECT
     let expectedStageHeight = await ExpectedStageHeightModel.findById(1, {
       transaction: tx
@@ -86,7 +105,7 @@ class Postgres {
     return expectedStageHeight;
   }
 
-  async gsnNumberModel (tx = null) {
+  async gsnNumberModel(tx = null) {
     // SQL SELECT
     let gsnNumberModel = await GSNNumberModel.findById(1, {
       transaction: tx
@@ -100,19 +119,57 @@ class Postgres {
     this.treeManager.setTrees(stageHeight, receiptTree, accountTree);
   }
 
-  accountHashes () {
+  async accountHashes(tx = null) {
     // SQL SELECT
-    let accountHashes = this.accountMap.hashes();
+    let assets = await AssetModel.findAll({
+      "order": [
+        ["address", "ASC"],
+        ["asset_id", "ASC"]
+      ]
+    },
+      {
+        transaction: tx
+      }
+    );
+    let accountHashes = [];
+    let address;
+    let asset_id = [];
+    let balance = [];
+    let accountData = [];
+    assets.forEach(element => {
+      element = element.dataValues;
+      if (address != element.address) {
+        if (asset_id.length > 0 && balance.length > 0) {
+          let data = { address: address };
+          for (let i = 0; i < balance.length; i++) {
+            data[asset_id[i]] = balance[i];
+          }
+          accountData.push(data);
+        }
+        address = element.address;
+        asset_id = [];
+        balance = [];
+        asset_id.push(element.asset_id);
+        balance.push(element.balance);
+      } else {
+        asset_id.push(element.asset_id);
+        balance.push(element.balance);
+      }
+    });
+    accountData.forEach(element => {
+      accountHashes.push(this._sha3(Object.values(element).reduce((acc, curr) => acc + curr, '')));
+    });
+
     return accountHashes;
   }
 
-  async getTrees (stageHeight) {
+  async getTrees(stageHeight) {
     // SQL SELECT
     let trees = await this.treeManager.getTrees(stageHeight);
     return trees;
   }
 
-  async getContractAddress () {
+  async getContractAddress() {
     // SQL SELECT
     try {
       let contractAddress = await chain.get('contract_address');
@@ -127,7 +184,7 @@ class Postgres {
     }
   }
 
-  async saveContractAddress (contractAddress) {
+  async saveContractAddress(contractAddress) {
     // SQL INSERT
     await chain.put('contract_address', contractAddress);
   }
@@ -139,7 +196,7 @@ class Postgres {
     this.offchainReceiptHashes.push(offchainLightTxHash);
   }
 
-  async getOffchainReceipts (targetStageHeight) {
+  async getOffchainReceipts(targetStageHeight) {
     // SQL SELECT
     targetStageHeight = parseInt(targetStageHeight, 16);
     let receipts = [];
@@ -157,22 +214,27 @@ class Postgres {
     });
   }
 
-  removeOffchainReceipt (lightTxHash) {
+  removeOffchainReceipt(lightTxHash) {
     // SQL DELETE
     this.offchainReceiptHashes.splice(this.offchainReceiptHashes.indexOf(lightTxHash), 1);
   }
 
-  async removeOffchainReceipts (stageHeight) {
+  async removeOffchainReceipts(stageHeight) {
     // SQL DELETE
-    let targetLightTxHashes = await this.getOffchainReceipts(stageHeight);
-    for (let i = 0; i < targetLightTxHashes.length; i++) {
-      let targetLightTxHash = targetLightTxHashes[i];
-      delete this.offchainReceipts[targetLightTxHash];
-      this.offchainReceiptHashes.splice(this.offchainReceiptHashes.indexOf(targetLightTxHash), 1);
+    if (stageHeight) {
+      stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
     }
+    let result = ReceiptModel.update({ onchain: true }, { where: { stage_height: stageHeight } });
+    return result;
+    // let targetLightTxHashes = await this.getOffchainReceipts(stageHeight);
+    // for (let i = 0; i < targetLightTxHashes.length; i++) {
+    //   let targetLightTxHash = targetLightTxHashes[i];
+    //   delete this.offchainReceipts[targetLightTxHash];
+    //   this.offchainReceiptHashes.splice(this.offchainReceiptHashes.indexOf(targetLightTxHash), 1);
+    // }
   }
 
-  async init () {
+  async init() {
     assert(env.sidechainAddress, 'Sidechain address is empty.');
     // SQL INSERT, init expected stage height, contract address
     let contractAddress = await ContractAddressModel.findById(1);
@@ -212,34 +274,37 @@ class Postgres {
     console.log('gsn: ' + gsn);
   }
 
-  pendingLightTxHashesOfReceipts () {
+  pendingLightTxHashesOfReceipts() {
     // SQL SELECT receipts
     return this.offchainReceiptHashes;
   }
 
-  async hasPendingReceipts (stageHeight) {
+  async hasPendingReceipts(stageHeight) {
     // SQL SELECT
-    let receipts = await this.pendingReceipts(stageHeight);
-    return (receipts.length > 0);
+    if (stageHeight) {
+      stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
+    }
+    let receipts = await ReceiptModel.findOne({
+      where: {
+        stage_height: stageHeight,
+        onchain: false
+      }
+    });
+    return !!(receipts);
   }
 
-  async pendingReceipts (stageHeight = null) {
+  async pendingReceipts(stageHeight, tx = null) {
     // SQL SELECT
-    let receipts = [];
-    for (let i = 0; i < this.offchainReceiptHashes.length; i++) {
-      let offchainLightTxHash = this.offchainReceiptHashes[i];
-      let receipt = this.offchainReceipts[offchainLightTxHash];
-      receipts.push(receipt);
-    }
     if (stageHeight) {
-      receipts = receipts.filter((receipt) => {
-        return parseInt(receipt.receiptData.stageHeight, 16) == stageHeight;
-      });
+      stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
     }
+    let receipts = await ReceiptModel.findAll({ attributes: ["receipt_hash"], where: { stage_height: stageHeight } }, {
+      transaction: tx
+    });
     return receipts;
   }
 
-  async getReceiptByLightTxHash (lightTxHash, tx = null) {
+  async getReceiptByLightTxHash(lightTxHash, tx = null) {
     // SQL SELECT
     let receipt = await ReceiptModel.findOne({ where: { light_tx_hash: lightTxHash } }, {
       transaction: tx
@@ -247,7 +312,7 @@ class Postgres {
     return receipt;
   }
 
-  async getBalance (address, assetID, tx = null) {
+  async getBalance(address, assetID, tx = null) {
     let asset = await this.getAsset(address, assetID, tx);
 
     if (asset) {
@@ -257,20 +322,21 @@ class Postgres {
     }
   }
 
-  async getAsset (address, assetID, tx = null) {
-    let asset = await AssetModel.findOne({ where:
-      {
-        address: address,
-        asset_id: assetID
-      }
+  async getAsset(address, assetID, tx = null) {
+    let asset = await AssetModel.findOne({
+      where:
+        {
+          address: address,
+          asset_id: assetID
+        }
     }, {
-      transaction: tx
-    });
+        transaction: tx
+      });
 
     return asset;
   }
 
-  async setBalance (address, assetID, balance, tx = null) {
+  async setBalance(address, assetID, balance, tx = null) {
     let asset = await this.getAsset(address, assetID, tx);
 
     if (asset) {
@@ -289,7 +355,7 @@ class Postgres {
     }
   }
 
-  async applyLightTx (lightTx) {
+  async applyLightTx(lightTx) {
     // SQL transaction begin, commit, rollback
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
     let type = lightTx.type();
@@ -314,7 +380,7 @@ class Postgres {
 
         await this.setBalance(toAddress, assetID, toBalance, tx);
       } else if ((type === LightTxTypes.withdrawal) ||
-                (type === LightTxTypes.instantWithdrawal)) {
+        (type === LightTxTypes.instantWithdrawal)) {
         let value = new BigNumber('0x' + lightTx.lightTxData.value);
         fromBalance = await this.getBalance(fromAddress, assetID, tx);
 
@@ -382,8 +448,8 @@ class Postgres {
         receipt_hash: receipt.receiptHash,
         data: receipt.toJson()
       }, {
-        transaction: tx
-      });
+          transaction: tx
+        });
 
       await tx.commit();
 
@@ -394,6 +460,10 @@ class Postgres {
       await tx.rollback();
       return { ok: false, code: code, message: e.message };
     }
+  }
+
+  _sha3(content) {
+    return EthUtils.sha3(content).toString('hex');
   }
 }
 
