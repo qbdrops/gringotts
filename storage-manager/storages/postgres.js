@@ -28,6 +28,7 @@ let ExpectedStageHeightModel = Model.expected_stage_height;
 let GSNNumberModel = Model.gsn_number;
 let ReceiptTreeModel = Model.receipt_trees;
 let AccountTreeModel = Model.account_trees;
+let TreeModel = Model.trees;
 
 abiDecoder.addABI(Sidechain.abi);
 
@@ -70,7 +71,7 @@ class Postgres {
       let receiptTree = new IndexedMerkleTree(stageHeight, receiptHashes);
       let accountTree = new IndexedMerkleTree(stageHeight, accountHashes);
 
-      // this.setTrees(stageHeight, receiptTree, accountTree);
+      await this.setTrees(stageHeight, receiptTree, accountTree, tx);
       // ipfs 
       await tx.commit();
       return {
@@ -87,10 +88,8 @@ class Postgres {
   }
 
   async increaseExpectedStageHeight(tx = null) {
-    let stageModel = await ExpectedStageHeightModel.findById(1, {
-      transaction: tx
-    });
-    let result = await stageModel.increment("height", {
+    let expectedStageHeightModel = await this.expectedStageHeightModel(tx);
+    let result = await expectedStageHeightModel.increment("height", {
       transaction: tx
     });
     return result;
@@ -106,7 +105,6 @@ class Postgres {
   }
 
   async gsnNumberModel(tx = null) {
-    // SQL SELECT
     let gsnNumberModel = await GSNNumberModel.findById(1, {
       transaction: tx
     });
@@ -114,13 +112,61 @@ class Postgres {
     return gsnNumberModel;
   }
 
-  async setTrees(stageHeight, receiptTree, accountTree) {
-    // SQL transactions INSERT receipt_trees, account_trees
-    this.treeManager.setTrees(stageHeight, receiptTree, accountTree);
+  async setTrees(stageHeight, receiptTree, accountTree, tx = null) {
+    if (stageHeight) {
+      stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
+    }
+
+    let result = await TreeModel.findOne({ where: { stage_height: stageHeight } }, { transaction: tx });
+    if (!result) {
+      await TreeModel.create({
+        stage_height: stageHeight,
+        receiptTree: receiptTree,
+        accountTree: accountTree
+      }, {
+          transaction: tx
+        });
+    } else {
+      throw new Error('this stage is already save in DB!');
+    }
+
+    // let resultReceipt = await ReceiptTreeModel.findOne({ where: { stage_height: stageHeight } });
+    // let resultAccount = await ReceiptTreeModel.findOne({ where: { stage_height: stageHeight } });
+
+    // if (!(resultReceipt || resultAccount)) {
+
+    //   for (let i = 0; i < receiptTree.treeNodes.length; i++) {
+    //     let treeNode = receiptTree.treeNodes[i];
+    //     await ReceiptTreeModel.create({
+    //       stage_height: stageHeight,
+    //       node_index: treeNode.treeNodeIndex,
+    //       node_hash: treeNode.treeNodeHash,
+    //       collisions: { treeNodeElements: treeNode.treeNodeElements || [] }
+    //     },
+    //       {
+    //         transaction: tx
+    //       });
+    //   }
+
+    //   for (let i = 0; i < accountTree.treeNodes.length; i++) {
+    //     let treeNode = accountTree.treeNodes[i];
+    //     await AccountTreeModel.create({
+    //       stage_height: stageHeight,
+    //       node_index: treeNode.treeNodeIndex,
+    //       node_hash: treeNode.treeNodeHash,
+    //       collisions: { treeNodeElements: treeNode.treeNodeElements || [] }
+    //     },
+    //       {
+    //         transaction: tx
+    //       });
+    //   }
+
+    // } else {
+    //   throw new Error('this stage is already save in DB!');
+    // }
   }
 
   async accountHashes(tx = null) {
-    // SQL SELECT
     let assets = await AssetModel.findAll({
       "order": [
         ["address", "ASC"],
@@ -131,41 +177,32 @@ class Postgres {
         transaction: tx
       }
     );
-    let accountHashes = [];
     let address;
-    let asset_id = [];
-    let balance = [];
-    let accountData = [];
-    assets.forEach(element => {
-      element = element.dataValues;
-      if (address != element.address) {
-        if (asset_id.length > 0 && balance.length > 0) {
-          let data = { address: address };
-          for (let i = 0; i < balance.length; i++) {
-            data[asset_id[i]] = balance[i];
-          }
-          accountData.push(data);
+    let data = {};
+    let accountDatas = [];
+    assets.map((asset) => {
+      if (address != asset.address) {
+        if (Object.keys(data).length > 1) {
+          accountDatas.push(data);
         }
-        address = element.address;
-        asset_id = [];
-        balance = [];
-        asset_id.push(element.asset_id);
-        balance.push(element.balance);
+        data = { address: address };
+        address = asset.address;
+        data[asset.asset_id] = asset.balance;
       } else {
-        asset_id.push(element.asset_id);
-        balance.push(element.balance);
+        data[asset.asset_id] = asset.balance;
       }
     });
-    accountData.forEach(element => {
-      accountHashes.push(this._sha3(Object.values(element).reduce((acc, curr) => acc + curr, '')));
+    let accountHashes = accountDatas.map((accountData) => {
+      return this._sha3(Object.values(accountData).reduce((acc, curr) => acc + curr, ''));
     });
-
     return accountHashes;
   }
 
-  async getTrees(stageHeight) {
-    // SQL SELECT
-    let trees = await this.treeManager.getTrees(stageHeight);
+  async getTrees(stageHeight, tx = null) {
+    if (stageHeight) {
+      stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
+    }
+    let trees = await TreeModel.findOne({ where: { stage_height: stageHeight } }, { transaction: tx });
     return trees;
   }
 
@@ -274,9 +311,12 @@ class Postgres {
     console.log('gsn: ' + gsn);
   }
 
-  pendingLightTxHashesOfReceipts() {
+  async pendingLightTxHashesOfReceipts() {
     // SQL SELECT receipts
-    return this.offchainReceiptHashes;
+    let receipts = await ReceiptModel.findAll({ attributes: ["receipt_hash"], where: { onchain: false } }).map((e) => {
+      return e.receipt_hash;
+    });
+    return receipts;
   }
 
   async hasPendingReceipts(stageHeight) {
@@ -300,6 +340,8 @@ class Postgres {
     }
     let receipts = await ReceiptModel.findAll({ attributes: ["receipt_hash"], where: { stage_height: stageHeight } }, {
       transaction: tx
+    }).map((e) => {
+      return e.receipt_hash;
     });
     return receipts;
   }
