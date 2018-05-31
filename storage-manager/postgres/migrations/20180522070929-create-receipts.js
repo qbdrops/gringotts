@@ -27,6 +27,21 @@ module.exports = {
         allowNull: true,
         type: Sequelize.CHAR(64)
       },
+      from: {
+        allowNull: true,
+        unique: true,
+        type: Sequelize.CHAR(64)
+      },
+      to: {
+        allowNull: true,
+        unique: true,
+        type: Sequelize.CHAR(64)
+      },
+      value: {
+        allowNull: true,
+        unique: true,
+        type: Sequelize.CHAR(64)
+      },
       onchain: {
         allowNull: false,
         type: Sequelize.BOOLEAN,
