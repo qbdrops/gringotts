@@ -13,31 +13,16 @@ module.exports = {
         type: Sequelize.CHAR(64),
         allowNull: false,
       },
+      stage_height: {
+        allowNull: true,
+        type: Sequelize.CHAR(64)
+      },
       light_tx_hash: {
         allowNull: false,
         unique: true,
         type: Sequelize.CHAR(64)
       },
       receipt_hash: {
-        allowNull: true,
-        unique: true,
-        type: Sequelize.CHAR(64)
-      },
-      stage_height: {
-        allowNull: true,
-        type: Sequelize.CHAR(64)
-      },
-      from: {
-        allowNull: true,
-        unique: true,
-        type: Sequelize.CHAR(64)
-      },
-      to: {
-        allowNull: true,
-        unique: true,
-        type: Sequelize.CHAR(64)
-      },
-      value: {
         allowNull: true,
         unique: true,
         type: Sequelize.CHAR(64)

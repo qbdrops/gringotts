@@ -26,8 +26,6 @@ let AssetModel = Model.assets;
 let ContractAddressModel = Model.contract_address;
 let ExpectedStageHeightModel = Model.expected_stage_height;
 let GSNNumberModel = Model.gsn_number;
-let ReceiptTreeModel = Model.receipt_trees;
-let AccountTreeModel = Model.account_trees;
 let TreeModel = Model.trees;
 
 abiDecoder.addABI(Sidechain.abi);
@@ -90,7 +88,7 @@ class Postgres {
 
   async increaseExpectedStageHeight (tx = null) {
     let expectedStageHeightModel = await this.expectedStageHeightModel(tx);
-    let result = await expectedStageHeightModel.increment("height", {
+    let result = await expectedStageHeightModel.increment('height', {
       transaction: tx
     });
     return result;
@@ -118,66 +116,26 @@ class Postgres {
       stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
     }
 
-    let result = await TreeModel.findOne({ where: { stage_height: stageHeight } }, { transaction: tx });
+    let result = await TreeModel.findOne({ where: { stage_height: stageHeight } }, {
+      transaction: tx
+    });
     if (!result) {
       await TreeModel.create({
         stage_height: stageHeight,
         receiptTree: receiptTree,
         accountTree: accountTree
       }, {
-          transaction: tx
-        });
+        transaction: tx
+      });
     } else {
       throw new Error('this stage is already save in DB!');
     }
-
-    // let resultReceipt = await ReceiptTreeModel.findOne({ where: { stage_height: stageHeight } });
-    // let resultAccount = await ReceiptTreeModel.findOne({ where: { stage_height: stageHeight } });
-
-    // if (!(resultReceipt || resultAccount)) {
-
-    //   for (let i = 0; i < receiptTree.treeNodes.length; i++) {
-    //     let treeNode = receiptTree.treeNodes[i];
-    //     await ReceiptTreeModel.create({
-    //       stage_height: stageHeight,
-    //       node_index: treeNode.treeNodeIndex,
-    //       node_hash: treeNode.treeNodeHash,
-    //       collisions: { treeNodeElements: treeNode.treeNodeElements || [] }
-    //     },
-    //       {
-    //         transaction: tx
-    //       });
-    //   }
-
-    //   for (let i = 0; i < accountTree.treeNodes.length; i++) {
-    //     let treeNode = accountTree.treeNodes[i];
-    //     await AccountTreeModel.create({
-    //       stage_height: stageHeight,
-    //       node_index: treeNode.treeNodeIndex,
-    //       node_hash: treeNode.treeNodeHash,
-    //       collisions: { treeNodeElements: treeNode.treeNodeElements || [] }
-    //     },
-    //       {
-    //         transaction: tx
-    //       });
-    //   }
-
-    // } else {
-    //   throw new Error('this stage is already save in DB!');
-    // }
   }
 
   async accountHashes (tx = null) {
-    let assets = await AssetModel.findAll({
-      "order": [
-        ["address", "ASC"],
-        ["asset_id", "ASC"]
-      ]
-    },
-      {
-        transaction: tx
-      }
-    );
+    let assets = await AssetModel.findAll({ 'order': [['address', 'ASC'], ['asset_id', 'ASC']] }, {
+      transaction: tx
+    });
     let address;
     let data = {};
     let accountDatas = [];
@@ -206,7 +164,9 @@ class Postgres {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
     }
-    let trees = await TreeModel.findOne({ where: { stage_height: stageHeight } }, { transaction: tx });
+    let trees = await TreeModel.findOne({ where: { stage_height: stageHeight } }, {
+      transaction: tx
+    });
     return trees;
   }
 
@@ -261,23 +221,15 @@ class Postgres {
   }
 
   async removeOffchainReceipts (stageHeight) {
-    // SQL DELETE
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
     }
     let result = ReceiptModel.update({ onchain: true }, { where: { stage_height: stageHeight } });
     return result;
-    // let targetLightTxHashes = await this.getOffchainReceipts(stageHeight);
-    // for (let i = 0; i < targetLightTxHashes.length; i++) {
-    //   let targetLightTxHash = targetLightTxHashes[i];
-    //   delete this.offchainReceipts[targetLightTxHash];
-    //   this.offchainReceiptHashes.splice(this.offchainReceiptHashes.indexOf(targetLightTxHash), 1);
-    // }
   }
 
   async init () {
     assert(env.sidechainAddress, 'Sidechain address is empty.');
-    // SQL INSERT, init expected stage height, contract address
     let contractAddress = await ContractAddressModel.findById(1);
     if (!contractAddress && env.sidechainAddress) {
       let contractAddress = ContractAddressModel.build({
@@ -316,15 +268,13 @@ class Postgres {
   }
 
   async pendingLightTxHashesOfReceipts () {
-    // SQL SELECT receipts
-    let receipts = await ReceiptModel.findAll({ attributes: ["receipt_hash"], where: { onchain: false } }).map((e) => {
+    let receipts = await ReceiptModel.findAll({ attributes: ['receipt_hash'], where: { onchain: false } }).map((e) => {
       return e.receipt_hash;
     });
     return receipts;
   }
 
   async hasPendingReceipts (stageHeight) {
-    // SQL SELECT
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
     }
@@ -338,11 +288,10 @@ class Postgres {
   }
 
   async pendingReceipts (stageHeight, tx = null) {
-    // SQL SELECT
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
     }
-    let receipts = await ReceiptModel.findAll({ attributes: ["receipt_hash"], where: { stage_height: stageHeight } }, {
+    let receipts = await ReceiptModel.findAll({ attributes: ['receipt_hash'], where: { stage_height: stageHeight } }, {
       transaction: tx
     }).map((e) => {
       return e.receipt_hash;
@@ -351,7 +300,6 @@ class Postgres {
   }
 
   async getReceiptByLightTxHash (lightTxHash, tx = null) {
-    // SQL SELECT
     let receipt = await ReceiptModel.findOne({ where: { light_tx_hash: lightTxHash } }, {
       transaction: tx
     });
@@ -359,7 +307,9 @@ class Postgres {
   }
 
   async getBalance (address, assetID, tx = null) {
-    let asset = await this.getAsset(address, assetID, tx);
+    let asset = await AssetModel.findOne({ where: { address: address } }, {
+      transaction: tx
+    });
 
     if (asset) {
       return asset.balance;
@@ -369,16 +319,7 @@ class Postgres {
   }
 
   async getAsset (address, assetID, tx = null) {
-    let asset = await AssetModel.findOne({
-      where:
-        {
-          address: address,
-          asset_id: assetID
-        }
-    }, {
-        transaction: tx
-      });
-
+    let asset = await AssetModel.findOne({ where: { address: address, asset_id: assetID } }, { transaction: tx });
     return asset;
   }
 
@@ -402,7 +343,6 @@ class Postgres {
   }
 
   async applyLightTx (lightTx) {
-    // SQL transaction begin, commit, rollback
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
     let type = lightTx.type();
     let fromAddress = lightTx.lightTxData.from;
@@ -486,19 +426,15 @@ class Postgres {
       };
 
       let receipt = new Receipt(receiptJson);
-
       await ReceiptModel.create({
         gsn: receipt.receiptData.GSN,
         stage_height: receipt.receiptData.stageHeight,
         light_tx_hash: receipt.lightTxHash,
         receipt_hash: receipt.receiptHash,
-        from: receipt.from,
-        to: receipt.to,
-        value: receipt.value,
         data: receipt.toJson()
       }, {
-          transaction: tx
-        });
+        transaction: tx
+      });
 
       await tx.commit();
 
