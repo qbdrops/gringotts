@@ -30,6 +30,7 @@ class Receipt {
     // Check lightTxData format
     let lightTx = new LightTransaction({
       lightTxData: receiptJson.lightTxData,
+      metadata: receiptJson.metadata,
       sig: receiptJson.sig
     });
     assert(lightTx.hasClientLightTxSig(), '\'clientLightTx\' signature is empty.');
