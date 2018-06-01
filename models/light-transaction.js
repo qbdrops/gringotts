@@ -35,7 +35,7 @@ class LightTransaction {
       if (key != 'metadataHash') {
         assert(keys.includes(key), 'Parameter \'lightTxData\' does not include key \'' + key + '\'.');
       }
-      orderedLightTxData[key] = (lightTxData[key] || '');
+      orderedLightTxData[key] = (lightTxData[key] || lightTxData[key] == 0) ? lightTxData[key] : '';
     });
 
     // Check if sig has correct format
