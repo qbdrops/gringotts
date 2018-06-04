@@ -16,7 +16,7 @@ let abiDecoder = require('abi-decoder');
 let chain = rocksdb('./chaindata/rocksdb', { valueEncoding: 'json' });
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
-let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
+let sidechain = web3.eth.contract(Sidechain.abi).at(env.contractAddress);
 let nextContractStageHeight = parseInt(sidechain.stageHeight()) + 1;
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 
@@ -231,8 +231,8 @@ class Level {
     let contractAddress = await this.getContractAddress();
 
     if (!contractAddress) {
-      await this.saveContractAddress(env.sidechainAddress);
-    } else if (env.sidechainAddress != contractAddress) {
+      await this.saveContractAddress(env.contractAddress);
+    } else if (env.contractAddress != contractAddress) {
       throw new Error('Sidechain address is not consistent.');
     }
 

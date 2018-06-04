@@ -9,7 +9,7 @@ let LightTxTypes = require('../../models/types');
 let IndexedMerkleTree = require('../utils/indexed-merkle-tree');
 let txDecoder = require('ethereum-tx-decoder');
 let abiDecoder = require('abi-decoder');
-let Model = require('../postgres/models');
+let Model = require('../models');
 let EthUtils = require('ethereumjs-util');
 
 const Sequelize = Model.Sequelize;
@@ -17,7 +17,7 @@ const sequelize = Model.sequelize;
 
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
-let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
+let sidechain = web3.eth.contract(Sidechain.abi).at(env.contractAddress);
 let nextContractStageHeight = parseInt(sidechain.stageHeight()) + 1;
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 
@@ -39,8 +39,8 @@ class Postgres {
       let receiptRootHash = functionParams.params[1].value[0].slice(2);
       let accountRootHash = functionParams.params[1].value[1].slice(2);
       let trees = await this.getTrees(stageHeight);
-      let receiptTree = trees.receiptTree;
-      let accountTree = trees.accountTree;
+      let receiptTree = trees.receipt_tree;
+      let accountTree = trees.account_tree;
 
       if ((receiptTree.rootHash === receiptRootHash) &&
         accountTree.rootHash === accountRootHash) {
@@ -57,6 +57,7 @@ class Postgres {
 
   async commitTrees (stageHeight) {
     let tx;
+    let code = ErrorCodes.SOMETHING_WENT_WRONG;
     try {
       tx = await sequelize.transaction({
         isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
@@ -122,8 +123,8 @@ class Postgres {
     if (!result) {
       await TreeModel.create({
         stage_height: stageHeight,
-        receiptTree: receiptTree,
-        accountTree: accountTree
+        receipt_tree: receiptTree,
+        account_tree: accountTree
       }, {
         transaction: tx
       });
@@ -229,14 +230,13 @@ class Postgres {
   }
 
   async init () {
-    assert(env.sidechainAddress, 'Sidechain address is empty.');
+    assert(env.contractAddress, 'Sidechain address is empty.');
     let contractAddress = await ContractAddressModel.findById(1);
-    if (!contractAddress && env.sidechainAddress) {
-      let contractAddress = ContractAddressModel.build({
-        address: env.sidechainAddress
+    if (!contractAddress && env.contractAddress) {
+      await ContractAddressModel.create({
+        address: env.contractAddress
       });
-      await contractAddress.save();
-    } else if (contractAddress && (contractAddress.address != env.sidechainAddress)) {
+    } else if (contractAddress && (contractAddress.address != env.contractAddress)) {
       throw new Error('Sidechain address is not consistent.');
     }
 

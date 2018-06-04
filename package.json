@@ -8,7 +8,7 @@
     "lint": "./node_modules/.bin/eslint .",
     "start": "node server.js",
     "reset": "rm -rf ./chaindata/level ./chaindata/rocksdb",
-    "pgmigrate": "cd ./storage-manager/postgres && ../../node_modules/.bin/sequelize db:migrate"
+    "pgmigrate": "NODE_ENV=production ./node_modules/.bin/sequelize db:migrate --config env.js --migrations-path ./storage-manager/migrations --models-path ./storage-manager/models"
   },
   "author": "ifc-dev <dev@infinitechain.io>",
   "license": "ISC",

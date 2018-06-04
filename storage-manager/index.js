@@ -4,7 +4,7 @@ let Sidechain = require('../abi/Sidechain.json');
 
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
-let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
+let sidechain = web3.eth.contract(Sidechain.abi).at(env.contractAddress);
 
 let storageType = null;
 if (env.database == 'level') {
