@@ -11,11 +11,11 @@ module.exports = {
         allowNull: false,
         type: Sequelize.CHAR(64)
       },
-      receiptTree: {
+      receipt_tree: {
         allowNull: true,
         type: Sequelize.JSON
       },
-      accountTree: {
+      account_tree: {
         allowNull: true,
         type: Sequelize.JSON
       }

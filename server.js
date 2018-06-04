@@ -13,12 +13,12 @@ let Web3 = require('web3');
 
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
-let sidechain = web3.eth.contract(Sidechain.abi).at(env.sidechainAddress);
+let sidechain = web3.eth.contract(Sidechain.abi).at(env.contractAddress);
 
-let nodePort = parseInt(env.nodePort);
+let boosterPort = parseInt(env.boosterPort);
 
-if (isNaN(nodePort) || nodePort <= 0) {
-  nodePort = 3001;
+if (isNaN(boosterPort) || boosterPort <= 0) {
+  boosterPort = 3001;
 }
 
 let app = express();
@@ -29,7 +29,7 @@ app.use(cors());
 var server = require('http').createServer(app);
 
 const account = env.serverAddress;
-const sidechainAddress = env.sidechainAddress;
+const contractAddress = env.contractAddress;
 const serverAddress = env.serverAddress;
 let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
 
@@ -169,6 +169,7 @@ app.get('/roothash', async function (req, res) {
         prevnet the upcoming light transaction keep changing the accout hashes
        */
       let trees = await storageManager.commitTrees(stageHeight);
+
       res.send({
         ok: true,
         stageHeight: stageHeight,
@@ -216,7 +217,7 @@ app.post('/attach', async function (req, res) {
 
 app.get('/sidechain/address', async function (req, res) {
   try {
-    res.send({ address: sidechainAddress });
+    res.send({ address: contractAddress });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
@@ -242,9 +243,9 @@ app.get('/pending/receipts', async function (req, res) {
   }
 });
 
-server.listen(nodePort, async function () {
+server.listen(boosterPort, async function () {
   try {
-    console.log(`App listening on port ${nodePort}!`);
+    console.log(`App listening on port ${boosterPort}!`);
   } catch (e) {
     console.error(e.message);
   }
