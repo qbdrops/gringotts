@@ -32,7 +32,7 @@ class IndexedMerkleTree {
       return acc;
     }, {});
 
-      // 2. Compute treeNodeHash for each treeNodeIndex
+    // 2. Compute treeNodeHash for each treeNodeIndex
     let computedLeafElements = {};
     Object.keys(leafElementMap).forEach(index => {
       let _concatedElements = leafElementMap[index].sort().reduce((acc, curr) => {
@@ -58,7 +58,7 @@ class IndexedMerkleTree {
       };
     });
 
-      // 4. Compute rootHash
+    // 4. Compute rootHash
     while (nodeQueue.length > 1) {
       let node = nodeQueue.shift();
       treeNodes.push(node);

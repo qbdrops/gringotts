@@ -64,7 +64,7 @@ class Postgres {
       });
       let accountHashes = await this.accountHashes(tx);
       await this.increaseExpectedStageHeight(tx);
-      let receiptHashes = await this.pendingReceipts(stageHeight, tx);
+      let receiptHashes = await this.pendingReceiptHashes(stageHeight, tx);
 
       console.log('Building Stage Height: ' + stageHeight);
 
@@ -287,7 +287,7 @@ class Postgres {
     return !!(receipts);
   }
 
-  async pendingReceipts (stageHeight, tx = null) {
+  async pendingReceiptHashes (stageHeight, tx = null) {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
     }
