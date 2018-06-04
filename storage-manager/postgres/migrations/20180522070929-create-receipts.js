@@ -13,6 +13,10 @@ module.exports = {
         type: Sequelize.CHAR(64),
         allowNull: false,
       },
+      stage_height: {
+        allowNull: true,
+        type: Sequelize.CHAR(64)
+      },
       light_tx_hash: {
         allowNull: false,
         unique: true,
@@ -21,10 +25,6 @@ module.exports = {
       receipt_hash: {
         allowNull: true,
         unique: true,
-        type: Sequelize.CHAR(64)
-      },
-      stage_height: {
-        allowNull: true,
         type: Sequelize.CHAR(64)
       },
       onchain: {

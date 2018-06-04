@@ -26,13 +26,12 @@ let AssetModel = Model.assets;
 let ContractAddressModel = Model.contract_address;
 let ExpectedStageHeightModel = Model.expected_stage_height;
 let GSNNumberModel = Model.gsn_number;
-let ReceiptTreeModel = Model.receipt_trees;
-let AccountTreeModel = Model.account_trees;
+let TreeModel = Model.trees;
 
 abiDecoder.addABI(Sidechain.abi);
 
 class Postgres {
-  async attach(stageHeight, serializedTx) {
+  async attach (stageHeight, serializedTx) {
     try {
       let decodedTx = txDecoder.decodeTx(serializedTx);
       let functionParams = abiDecoder.decodeMethod(decodedTx.data);
@@ -56,7 +55,7 @@ class Postgres {
     }
   }
 
-  async commitTrees(stageHeight) {
+  async commitTrees (stageHeight) {
     let tx;
     try {
       tx = await sequelize.transaction({
@@ -67,10 +66,11 @@ class Postgres {
       let receiptHashes = await this.pendingReceipts(stageHeight, tx);
 
       console.log('Building Stage Height: ' + stageHeight);
+
       let receiptTree = new IndexedMerkleTree(stageHeight, receiptHashes);
       let accountTree = new IndexedMerkleTree(stageHeight, accountHashes);
 
-      // this.setTrees(stageHeight, receiptTree, accountTree);
+      await this.setTrees(stageHeight, receiptTree, accountTree, tx);
       // ipfs 
       await tx.commit();
       return {
@@ -86,17 +86,15 @@ class Postgres {
     }
   }
 
-  async increaseExpectedStageHeight(tx = null) {
-    let stageModel = await ExpectedStageHeightModel.findById(1, {
-      transaction: tx
-    });
-    let result = await stageModel.increment("height", {
+  async increaseExpectedStageHeight (tx = null) {
+    let expectedStageHeightModel = await this.expectedStageHeightModel(tx);
+    let result = await expectedStageHeightModel.increment('height', {
       transaction: tx
     });
     return result;
   }
 
-  async expectedStageHeightModel(tx = null) {
+  async expectedStageHeightModel (tx = null) {
     // SQL SELECT
     let expectedStageHeight = await ExpectedStageHeightModel.findById(1, {
       transaction: tx
@@ -105,8 +103,7 @@ class Postgres {
     return expectedStageHeight;
   }
 
-  async gsnNumberModel(tx = null) {
-    // SQL SELECT
+  async gsnNumberModel (tx = null) {
     let gsnNumberModel = await GSNNumberModel.findById(1, {
       transaction: tx
     });
@@ -114,62 +111,66 @@ class Postgres {
     return gsnNumberModel;
   }
 
-  async setTrees(stageHeight, receiptTree, accountTree) {
-    // SQL transactions INSERT receipt_trees, account_trees
-    this.treeManager.setTrees(stageHeight, receiptTree, accountTree);
+  async setTrees (stageHeight, receiptTree, accountTree, tx = null) {
+    if (stageHeight) {
+      stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
+    }
+
+    let result = await TreeModel.findOne({ where: { stage_height: stageHeight } }, {
+      transaction: tx
+    });
+    if (!result) {
+      await TreeModel.create({
+        stage_height: stageHeight,
+        receiptTree: receiptTree,
+        accountTree: accountTree
+      }, {
+        transaction: tx
+      });
+    } else {
+      throw new Error('this stage is already save in DB!');
+    }
   }
 
-  async accountHashes(tx = null) {
-    // SQL SELECT
-    let assets = await AssetModel.findAll({
-      "order": [
-        ["address", "ASC"],
-        ["asset_id", "ASC"]
-      ]
-    },
-      {
-        transaction: tx
-      }
-    );
-    let accountHashes = [];
+  async accountHashes (tx = null) {
+    let assets = await AssetModel.findAll({ 'order': [['address', 'ASC'], ['asset_id', 'ASC']] }, {
+      transaction: tx
+    });
     let address;
-    let asset_id = [];
-    let balance = [];
-    let accountData = [];
-    assets.forEach(element => {
-      element = element.dataValues;
-      if (address != element.address) {
-        if (asset_id.length > 0 && balance.length > 0) {
-          let data = { address: address };
-          for (let i = 0; i < balance.length; i++) {
-            data[asset_id[i]] = balance[i];
-          }
-          accountData.push(data);
+    let data = {};
+    let accountDatas = [];
+    assets.map((asset) => {
+      if (address != asset.address) {
+        if (Object.keys(data).length > 1) {
+          accountDatas.push(data);
         }
-        address = element.address;
-        asset_id = [];
-        balance = [];
-        asset_id.push(element.asset_id);
-        balance.push(element.balance);
+        data = { address: address };
+        address = asset.address;
+        data[asset.asset_id] = asset.balance;
       } else {
-        asset_id.push(element.asset_id);
-        balance.push(element.balance);
+        data[asset.asset_id] = asset.balance;
       }
     });
-    accountData.forEach(element => {
-      accountHashes.push(this._sha3(Object.values(element).reduce((acc, curr) => acc + curr, '')));
+    if (Object.keys(data).length > 1) {
+      accountDatas.push(data);
+    }
+    let accountHashes = accountDatas.map((accountData) => {
+      return this._sha3(Object.values(accountData).reduce((acc, curr) => acc + curr, ''));
     });
-
     return accountHashes;
   }
 
-  async getTrees(stageHeight) {
-    // SQL SELECT
-    let trees = await this.treeManager.getTrees(stageHeight);
+  async getTrees (stageHeight, tx = null) {
+    if (stageHeight) {
+      stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
+    }
+    let trees = await TreeModel.findOne({ where: { stage_height: stageHeight } }, {
+      transaction: tx
+    });
     return trees;
   }
 
-  async getContractAddress() {
+  async getContractAddress () {
     // SQL SELECT
     try {
       let contractAddress = await chain.get('contract_address');
@@ -184,19 +185,19 @@ class Postgres {
     }
   }
 
-  async saveContractAddress(contractAddress) {
+  async saveContractAddress (contractAddress) {
     // SQL INSERT
     await chain.put('contract_address', contractAddress);
   }
 
-  addOffchainReceipt(receipt) {
+  addOffchainReceipt (receipt) {
     // SQL INSERT
     let offchainLightTxHash = receipt.lightTxHash;
     this.offchainReceipts[offchainLightTxHash] = receipt;
     this.offchainReceiptHashes.push(offchainLightTxHash);
   }
 
-  async getOffchainReceipts(targetStageHeight) {
+  async getOffchainReceipts (targetStageHeight) {
     // SQL SELECT
     targetStageHeight = parseInt(targetStageHeight, 16);
     let receipts = [];
@@ -214,29 +215,21 @@ class Postgres {
     });
   }
 
-  removeOffchainReceipt(lightTxHash) {
+  removeOffchainReceipt (lightTxHash) {
     // SQL DELETE
     this.offchainReceiptHashes.splice(this.offchainReceiptHashes.indexOf(lightTxHash), 1);
   }
 
-  async removeOffchainReceipts(stageHeight) {
-    // SQL DELETE
+  async removeOffchainReceipts (stageHeight) {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
     }
     let result = ReceiptModel.update({ onchain: true }, { where: { stage_height: stageHeight } });
     return result;
-    // let targetLightTxHashes = await this.getOffchainReceipts(stageHeight);
-    // for (let i = 0; i < targetLightTxHashes.length; i++) {
-    //   let targetLightTxHash = targetLightTxHashes[i];
-    //   delete this.offchainReceipts[targetLightTxHash];
-    //   this.offchainReceiptHashes.splice(this.offchainReceiptHashes.indexOf(targetLightTxHash), 1);
-    // }
   }
 
-  async init() {
+  async init () {
     assert(env.sidechainAddress, 'Sidechain address is empty.');
-    // SQL INSERT, init expected stage height, contract address
     let contractAddress = await ContractAddressModel.findById(1);
     if (!contractAddress && env.sidechainAddress) {
       let contractAddress = ContractAddressModel.build({
@@ -274,13 +267,14 @@ class Postgres {
     console.log('gsn: ' + gsn);
   }
 
-  pendingLightTxHashesOfReceipts() {
-    // SQL SELECT receipts
-    return this.offchainReceiptHashes;
+  async pendingLightTxHashesOfReceipts () {
+    let receipts = await ReceiptModel.findAll({ attributes: ['receipt_hash'], where: { onchain: false } }).map((e) => {
+      return e.receipt_hash;
+    });
+    return receipts;
   }
 
-  async hasPendingReceipts(stageHeight) {
-    // SQL SELECT
+  async hasPendingReceipts (stageHeight) {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
     }
@@ -293,27 +287,29 @@ class Postgres {
     return !!(receipts);
   }
 
-  async pendingReceipts(stageHeight, tx = null) {
-    // SQL SELECT
+  async pendingReceipts (stageHeight, tx = null) {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
     }
-    let receipts = await ReceiptModel.findAll({ attributes: ["receipt_hash"], where: { stage_height: stageHeight } }, {
+    let receipts = await ReceiptModel.findAll({ attributes: ['receipt_hash'], where: { stage_height: stageHeight } }, {
       transaction: tx
+    }).map((e) => {
+      return e.receipt_hash;
     });
     return receipts;
   }
 
-  async getReceiptByLightTxHash(lightTxHash, tx = null) {
-    // SQL SELECT
+  async getReceiptByLightTxHash (lightTxHash, tx = null) {
     let receipt = await ReceiptModel.findOne({ where: { light_tx_hash: lightTxHash } }, {
       transaction: tx
     });
     return receipt;
   }
 
-  async getBalance(address, assetID, tx = null) {
-    let asset = await this.getAsset(address, assetID, tx);
+  async getBalance (address, assetID, tx = null) {
+    let asset = await AssetModel.findOne({ where: { address: address } }, {
+      transaction: tx
+    });
 
     if (asset) {
       return asset.balance;
@@ -322,21 +318,12 @@ class Postgres {
     }
   }
 
-  async getAsset(address, assetID, tx = null) {
-    let asset = await AssetModel.findOne({
-      where:
-        {
-          address: address,
-          asset_id: assetID
-        }
-    }, {
-        transaction: tx
-      });
-
+  async getAsset (address, assetID, tx = null) {
+    let asset = await AssetModel.findOne({ where: { address: address, asset_id: assetID } }, { transaction: tx });
     return asset;
   }
 
-  async setBalance(address, assetID, balance, tx = null) {
+  async setBalance (address, assetID, balance, tx = null) {
     let asset = await this.getAsset(address, assetID, tx);
 
     if (asset) {
@@ -355,8 +342,7 @@ class Postgres {
     }
   }
 
-  async applyLightTx(lightTx) {
-    // SQL transaction begin, commit, rollback
+  async applyLightTx (lightTx) {
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
     let type = lightTx.type();
     let fromAddress = lightTx.lightTxData.from;
@@ -440,7 +426,6 @@ class Postgres {
       };
 
       let receipt = new Receipt(receiptJson);
-
       await ReceiptModel.create({
         gsn: receipt.receiptData.GSN,
         stage_height: receipt.receiptData.stageHeight,
@@ -448,8 +433,8 @@ class Postgres {
         receipt_hash: receipt.receiptHash,
         data: receipt.toJson()
       }, {
-          transaction: tx
-        });
+        transaction: tx
+      });
 
       await tx.commit();
 
@@ -462,7 +447,7 @@ class Postgres {
     }
   }
 
-  _sha3(content) {
+  _sha3 (content) {
     return EthUtils.sha3(content).toString('hex');
   }
 }

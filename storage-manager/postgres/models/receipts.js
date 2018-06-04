@@ -12,9 +12,9 @@ module.exports = (sequelize, DataTypes) => {
     },
     data: DataTypes.JSON
   }, {
-    timestamps: false
-  });
-  receipts.associate = function(models) {
+      timestamps: false
+    });
+  receipts.associate = function (models) {
     // associations can be defined here
   };
   return receipts;
