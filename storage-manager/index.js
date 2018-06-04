@@ -5,19 +5,7 @@ let Sidechain = require('../abi/Sidechain.json');
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
 let sidechain = web3.eth.contract(Sidechain.abi).at(env.contractAddress);
-
-let storageType = null;
-if (env.database == 'level') {
-  storageType = './storages/level';
-} else if (env.database == 'rocksdb') {
-  storageType = './storages/rocksdb';
-} else if (env.database == 'postgres') {
-  storageType = './storages/postgres';
-} else {
-  throw new Error('Not supported database.');
-}
-
-let Storage = require(storageType);
+let Storage = require('./storages/postgres');
 
 class StorageManager {
   constructor (storage) {
@@ -66,6 +54,11 @@ class StorageManager {
   async getOffchainReceipts (targetStageHeight) {
     let offchainReceipts = await this.storage.getOffchainReceipts(targetStageHeight);
     return offchainReceipts;
+  }
+
+  async getAccountBalances () {
+    let balances = await this.storage.getAccountBalances();
+    return balances;
   }
 
   async removeOffchainReceipt (lightTxHash) {

@@ -17,13 +17,8 @@ There are some settings you need to edit.
 2. `web3Port`: Ethereum full node API port.
 3. `serverAddress`: Your privileged address, it would be the only address that can produce a **stage** onto the main chain.
 4. `contractAddress`: The sidechain contract address for governance of BOLT protocol. Please look up the [BOLT contracts project](https://github.com/BOLT-Protocol/contracts).
-5. `database`: Gringotts support three databases right now. You can fill this field with the following types of database.
-  
-    1. `level`: Leveldb
-    2. `rocksdb`: Rocksdb
-    3. `postgres`: Postgres database, it would make Gringotts node stateless in this mode. So your blockchain services could be scaled out for performance issue.
-6. `boosterPort`: Http port of Gringotts node.
-7. `production`: You need to configure database connection informations if you use PostgreSQL as your database.
+5. `boosterPort`: Http port of Gringotts node.
+6. `production`: You need to configure database connection informations if you use PostgreSQL as your database.
 
 ```javascript
 let env = {
