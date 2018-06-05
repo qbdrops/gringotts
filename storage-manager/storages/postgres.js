@@ -27,6 +27,7 @@ let ContractAddressModel = Model.contract_address;
 let ExpectedStageHeightModel = Model.expected_stage_height;
 let GSNNumberModel = Model.gsn_number;
 let TreeModel = Model.trees;
+let AccountSnapshotModel = Model.account_snapshot;
 
 abiDecoder.addABI(Sidechain.abi);
 
@@ -35,10 +36,10 @@ class Postgres {
     try {
       let decodedTx = txDecoder.decodeTx(serializedTx);
       let functionParams = abiDecoder.decodeMethod(decodedTx.data);
-
       let receiptRootHash = functionParams.params[1].value[0].slice(2);
       let accountRootHash = functionParams.params[1].value[1].slice(2);
       let trees = await this.getTrees(stageHeight);
+
       let receiptTree = trees.receipt_tree;
       let accountTree = trees.account_tree;
 
@@ -62,7 +63,10 @@ class Postgres {
       tx = await sequelize.transaction({
         isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
       });
-      let accountHashes = await this.accountHashes(tx);
+      let accountData = await this.accountData(tx);
+      let accountHashes = accountData.map((e) => {
+        return this._sha3(Object.values(e).reduce((acc, curr) => acc + curr, ''));
+      });
       await this.increaseExpectedStageHeight(tx);
       let receiptHashes = await this.pendingReceiptHashes(stageHeight, tx);
 
@@ -71,7 +75,7 @@ class Postgres {
       let receiptTree = new IndexedMerkleTree(stageHeight, receiptHashes);
       let accountTree = new IndexedMerkleTree(stageHeight, accountHashes);
 
-      await this.setTrees(stageHeight, receiptTree, accountTree, tx);
+      await this.setTrees(stageHeight, receiptTree, accountTree, accountData, tx);
       // ipfs 
       await tx.commit();
       return {
@@ -112,7 +116,7 @@ class Postgres {
     return gsnNumberModel;
   }
 
-  async setTrees (stageHeight, receiptTree, accountTree, tx = null) {
+  async setTrees (stageHeight, receiptTree, accountTree, accountData, tx = null) {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
     }
@@ -128,37 +132,66 @@ class Postgres {
       }, {
         transaction: tx
       });
+      await AccountSnapshotModel.create({
+        stage_height: stageHeight,
+        account_data: accountData
+      }, {
+        transaction: tx
+      });
     } else {
-      throw new Error('this stage is already save in DB!');
+      await TreeModel.update({
+        stage_height: stageHeight,
+        receipt_tree: receiptTree,
+        account_tree: accountTree
+      }, {
+        where: { stage_height: stageHeight }
+      }, {
+        transaction: tx
+      });
+      await AccountSnapshotModel.update({
+        stage_height: stageHeight,
+        account_data: accountData
+      }, {
+        where: { stage_height: stageHeight }
+      }, {
+        transaction: tx
+      });
+      // throw new Error('this stage is already save in DB!');
     }
   }
 
-  async accountHashes (tx = null) {
+  async accountData (tx = null) {
     let assets = await AssetModel.findAll({ 'order': [['address', 'ASC'], ['asset_id', 'ASC']] }, {
       transaction: tx
     });
+
     let address;
     let data = {};
-    let accountDatas = [];
+    let accountData = [];
     assets.map((asset) => {
+      asset = asset.dataValues;
       if (address != asset.address) {
-        if (Object.keys(data).length > 1) {
-          accountDatas.push(data);
+        if (Object.keys(data).length > 0) {
+          accountData.push(data);
+          data = {};
         }
-        data = { address: address };
         address = asset.address;
-        data[asset.asset_id] = asset.balance;
+        data[address] = {};
+        data[address][asset.asset_id] = asset.balance;
       } else {
-        data[asset.asset_id] = asset.balance;
+        data[address][asset.asset_id] = asset.balance;
       }
     });
-    if (Object.keys(data).length > 1) {
-      accountDatas.push(data);
+    accountData.push(data);
+    return accountData;
+  }
+
+  async getAccountsByStageHeight (stageHeight) {
+    if (stageHeight) {
+      stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
     }
-    let accountHashes = accountDatas.map((accountData) => {
-      return this._sha3(Object.values(accountData).reduce((acc, curr) => acc + curr, ''));
-    });
-    return accountHashes;
+    let accounts = await AccountSnapshotModel.findOne({ where: { stage_height: stageHeight } });
+    return accounts.account_data;
   }
 
   async getTrees (stageHeight, tx = null) {

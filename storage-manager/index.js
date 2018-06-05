@@ -47,7 +47,7 @@ class StorageManager {
     await this.storage.saveContractAddress(contractAddress);
   }
 
-  async addOffchainReceipt(receipt) {
+  async addOffchainReceipt (receipt) {
     await this.storage.addOffchainReceipt(receipt);
   }
 
@@ -59,6 +59,11 @@ class StorageManager {
   async getAccountBalances () {
     let balances = await this.storage.getAccountBalances();
     return balances;
+  }
+
+  async getAccountsByStageHeight (stageHeight) {
+    let accounts = await this.storage.getAccountsByStageHeight(stageHeight);
+    return accounts;
   }
 
   async removeOffchainReceipt (lightTxHash) {
@@ -118,7 +123,7 @@ sidechain.Attach({ toBlock: 'latest' }).watch(async (err, result) => {
     let stageHeight = result.args._stageHeight;
     // Remove offchain receipt json
     await storageManager.removeOffchainReceipts(stageHeight);
-  } catch(e) {
+  } catch (e) {
     console.error(e);
   }
 });
