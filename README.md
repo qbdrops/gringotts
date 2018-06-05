@@ -1,4 +1,4 @@
-# Gringotts Node
+# Gringotts
 
 Gringotts plays a role in providing transaction processing and data storage. Furthermore, it is designed to build Indexed Merkle Trees and distribute receipts for security purposes of BOLT protocol.
 
@@ -16,9 +16,9 @@ There are some settings you need to edit.
 1. `web3Host`: Ethereum full node host.
 2. `web3Port`: Ethereum full node API port.
 3. `serverAddress`: Your privileged address, it would be the only address that can produce a **stage** onto the main chain.
-4. `contractAddress`: The sidechain contract address for governance of BOLT protocol. Please look up the [BOLT contracts project](https://github.com/BOLT-Protocol/contracts).
-5. `boosterPort`: Http port of Gringotts node.
-6. `production`: You need to configure database connection informations if you use PostgreSQL as your database.
+4. `contractAddress`: The sidechain contract address for governance of BOLT protocol. Please look up the [BOLT contracts project](https://github.com/BOLT-Protocol/contracts/tree/master/gringotts).
+5. `boosterPort`: Http port of Gringotts.
+6. `production`: You need to configure database connection if you use PostgreSQL as your database.
 
 ```javascript
 let env = {
@@ -26,7 +26,6 @@ let env = {
   web3Port: '8545',
   serverAddress: '',
   contractAddress: '',
-  database: 'postgres',
   boosterPort: '3000',
   production: {
     username: '',
@@ -41,7 +40,7 @@ let env = {
 
 ### Database migration
 
-If you choose PostgreSQL as your database of Gringotts node you should do the database migration process first.
+If you choose PostgreSQL as your database you should do the database migration first.
 
 ```
 npm run pgmigrate
@@ -55,8 +54,12 @@ npm start
 
 ## Sending your first light transaction
 
-Please look up the nodejs version SDK for sending transactions from client side and accepting transactions from server side.
+Please look up the [nodejs version SDK](https://github.com/BOLT-Protocol/wizard_nodejs) for sending transactions from client side and accepting transactions from server side.
+
+## A demo project
+
+You can find a example backend project that uses our [nodejs version SDK](https://github.com/BOLT-Protocol/wizard_nodejs) and collaberates with Gringotts.
 
 ## To understand BOLT protocol
 
-You can learn the concepts of BOLT protocol including security analysis, how BOLT protocol deal with the performance issues and user experience problems of public blockchains.
+You can learn the concepts of [BOLT protocol](https://github.com/BOLT-Protocol/wiki/blob/master/yellow_paper_eng.md) including security analysis, how BOLT protocol deal with the performance issues and user experience problems of public blockchains.
