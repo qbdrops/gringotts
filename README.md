@@ -58,7 +58,7 @@ Please look up the [nodejs version SDK](https://github.com/BOLT-Protocol/wizard_
 
 ## A demo project
 
-You can find a example backend project that uses our [nodejs version SDK](https://github.com/BOLT-Protocol/wizard_nodejs) and collaberates with Gringotts.
+You can find a [example backend project](https://github.com/BOLT-Protocol/wizard_nodejs_demo) that uses our [nodejs version SDK](https://github.com/BOLT-Protocol/wizard_nodejs) and collaberates with Gringotts.
 
 ## To understand BOLT protocol
 
