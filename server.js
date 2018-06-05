@@ -103,11 +103,12 @@ function isValidSig (lightTx) {
   return (isClientSigValid && isServerSigValid);
 }
 
-app.get('/receipt/:stageHeight', async function (req, res) {
+app.get('/receipts/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
     stageHeight = parseInt(stageHeight).toString(16).padStart(64, '0').slice(-64);
     let receipts = await storageManager.getReceiptByStageHeight(stageHeight);
+    receipts = receipts.map(receipt => receipt.data);
     res.send(receipts);
   } catch (e) {
     console.error(e);
