@@ -130,7 +130,7 @@ class IndexedMerkleTree {
     return this.treeNodes.filter(treeNode => indexes.includes(treeNode.treeNodeIndex));
   }
 
-  _getLeafIndexRange() {
+  _getLeafIndexRange () {
     let l = 2 ** (this.treeHeight - 1);
     let u = 2 ** (this.treeHeight) - 1;
     var s = [];
