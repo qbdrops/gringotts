@@ -92,6 +92,11 @@ class StorageManager {
     return receipts;
   }
 
+  async getReceiptByStageHeight (stageHeight) {
+    let receipts = await this.storage.getReceiptByStageHeight(stageHeight);
+    return receipts;
+  }
+
   async getReceiptByLightTxHash (lightTxHash) {
     let receipt = await this.storage.getReceiptByLightTxHash(lightTxHash);
     return receipt;

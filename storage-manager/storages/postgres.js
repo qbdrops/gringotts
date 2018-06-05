@@ -306,6 +306,13 @@ class Postgres {
     return receipt;
   }
 
+  async getReceiptByStageHeight (stageHeight, tx = null) {
+    let receipts = await ReceiptModel.findAll({ where: { stage_height: stageHeight } }, {
+      transaction: tx
+    });
+    return receipts;
+  }
+
   async getBalance (address, assetID, tx = null) {
     let asset = await AssetModel.findOne({ where: { address: address } }, {
       transaction: tx
