@@ -64,9 +64,13 @@ class Postgres {
         isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
       });
       let accountData = await this.accountData(tx);
-      let accountHashes = accountData.map((e) => {
-        return this._sha3(Object.values(e).reduce((acc, curr) => acc + curr, ''));
+      let accountHashes = Object.keys(accountData).map(address => {
+        let balances = accountData[address];
+        return this._sha3(Object.keys(balances)
+          .sort()
+          .reduce((acc, assetID) => acc + assetID + balances[assetID], address));
       });
+
       await this.increaseExpectedStageHeight(tx);
       let receiptHashes = await this.pendingReceiptHashes(stageHeight, tx);
 
@@ -121,9 +125,14 @@ class Postgres {
       stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
     }
 
-    let result = await TreeModel.findOne({ where: { stage_height: stageHeight } }, {
+    let result = await TreeModel.findOne({
+      where: {
+        stage_height: stageHeight
+      }
+    }, {
       transaction: tx
     });
+
     if (!result) {
       await TreeModel.create({
         stage_height: stageHeight,
@@ -144,7 +153,9 @@ class Postgres {
         receipt_tree: receiptTree,
         account_tree: accountTree
       }, {
-        where: { stage_height: stageHeight }
+        where: { 
+          stage_height: stageHeight 
+        }
       }, {
         transaction: tx
       });
@@ -152,7 +163,9 @@ class Postgres {
         stage_height: stageHeight,
         account_data: accountData
       }, {
-        where: { stage_height: stageHeight }
+        where: { 
+          stage_height: stageHeight 
+        }
       }, {
         transaction: tx
       });
@@ -161,36 +174,32 @@ class Postgres {
   }
 
   async accountData (tx = null) {
-    let assets = await AssetModel.findAll({ 'order': [['address', 'ASC'], ['asset_id', 'ASC']] }, {
+    let assets = await AssetModel.findAll({
+      'order': [
+        ['address', 'ASC'],
+        ['asset_id', 'ASC']
+      ]
+    }, {
       transaction: tx
     });
 
-    let address;
-    let data = {};
-    let accountData = [];
-    assets.map((asset) => {
-      asset = asset.dataValues;
-      if (address != asset.address) {
-        if (Object.keys(data).length > 0) {
-          accountData.push(data);
-          data = {};
-        }
-        address = asset.address;
-        data[address] = {};
-        data[address][asset.asset_id] = asset.balance;
-      } else {
-        data[address][asset.asset_id] = asset.balance;
-      }
-    });
-    accountData.push(data);
+    let accountData = assets.reduce((acc, asset) => {
+      acc[asset.address] = acc[asset.address] || {};
+      acc[asset.address][asset.asset_id] = asset.balance;
+      return acc;
+    }, {});
+
     return accountData;
   }
 
-  async getAccountsByStageHeight (stageHeight) {
-    if (stageHeight) {
-      stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
-    }
-    let accounts = await AccountSnapshotModel.findOne({ where: { stage_height: stageHeight } });
+  async getAccountsByStageHeight (stageHeight, tx = null) {
+    let accounts = await AccountSnapshotModel.findOne({
+      where: {
+        stage_height: stageHeight
+      }
+    }, {
+      transaction: tx
+    });
     return accounts.account_data;
   }
 
@@ -198,7 +207,11 @@ class Postgres {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
     }
-    let trees = await TreeModel.findOne({ where: { stage_height: stageHeight } }, {
+    let trees = await TreeModel.findOne({
+      where: {
+        stage_height: stageHeight
+      }
+    }, {
       transaction: tx
     });
     return trees;
@@ -258,7 +271,13 @@ class Postgres {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
     }
-    let result = ReceiptModel.update({ onchain: true }, { where: { stage_height: stageHeight } });
+    let result = ReceiptModel.update({
+      onchain: true
+    }, {
+      where: {
+        stage_height: stageHeight
+      }
+    });
     return result;
   }
 
@@ -301,7 +320,12 @@ class Postgres {
   }
 
   async pendingLightTxHashesOfReceipts () {
-    let receipts = await ReceiptModel.findAll({ attributes: ['receipt_hash'], where: { onchain: false } }).map((e) => {
+    let receipts = await ReceiptModel.findAll({
+      attributes: ['receipt_hash'],
+      where: {
+        onchain: false
+      }
+    }).map((e) => {
       return e.receipt_hash;
     });
     return receipts;
@@ -324,7 +348,12 @@ class Postgres {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
     }
-    let receipts = await ReceiptModel.findAll({ attributes: ['receipt_hash'], where: { stage_height: stageHeight } }, {
+    let receipts = await ReceiptModel.findAll({
+      attributes: ['receipt_hash'],
+      where: { 
+        stage_height: stageHeight 
+      }
+    }, {
       transaction: tx
     }).map((e) => {
       return e.receipt_hash;
@@ -333,21 +362,33 @@ class Postgres {
   }
 
   async getReceiptByLightTxHash (lightTxHash, tx = null) {
-    let receipt = await ReceiptModel.findOne({ where: { light_tx_hash: lightTxHash } }, {
+    let receipt = await ReceiptModel.findOne({
+      where: {
+        light_tx_hash: lightTxHash
+      }
+    }, {
       transaction: tx
     });
     return receipt;
   }
 
   async getReceiptByStageHeight (stageHeight, tx = null) {
-    let receipts = await ReceiptModel.findAll({ where: { stage_height: stageHeight } }, {
+    let receipts = await ReceiptModel.findAll({
+      where: {
+        stage_height: stageHeight
+      }
+    }, {
       transaction: tx
     });
     return receipts;
   }
 
   async getBalance (address, assetID, tx = null) {
-    let asset = await AssetModel.findOne({ where: { address: address } }, {
+    let asset = await AssetModel.findOne({
+      where: {
+        address: address
+      }
+    }, {
       transaction: tx
     });
 
@@ -359,7 +400,13 @@ class Postgres {
   }
 
   async getAsset (address, assetID, tx = null) {
-    let asset = await AssetModel.findOne({ where: { address: address, asset_id: assetID } }, { transaction: tx });
+    let asset = await AssetModel.findOne({
+      where: {
+        address: address, asset_id: assetID
+      }
+    }, {
+      transaction: tx
+    });
     return asset;
   }
 
