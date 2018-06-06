@@ -103,6 +103,18 @@ function isValidSig (lightTx) {
   return (isClientSigValid && isServerSigValid);
 }
 
+app.get('/accounts/:stageHeight', async function (req, res) {
+  try {
+    let stageHeight = req.params.stageHeight;
+    stageHeight = parseInt(stageHeight).toString(16).padStart(64, '0').slice(-64);
+    let accounts = await storageManager.getAccountsByStageHeight(stageHeight);
+    res.send(accounts);
+  } catch (e) {
+    console.error(e);
+    res.status(500).send({ ok: false, errors: e.message });
+  }
+});
+
 app.get('/receipts/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
