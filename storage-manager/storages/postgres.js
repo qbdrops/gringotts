@@ -64,12 +64,7 @@ class Postgres {
         isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
       });
       let accountData = await this.accountData(tx);
-      let accountHashes = Object.keys(accountData).map(address => {
-        let balances = accountData[address];
-        return this._sha3(Object.keys(balances)
-          .sort()
-          .reduce((acc, assetID) => acc + assetID + balances[assetID], address));
-      });
+      let accountHashes = this.accountHashes(accountData);
 
       await this.increaseExpectedStageHeight(tx);
       let receiptHashes = await this.pendingReceiptHashes(stageHeight, tx);
@@ -153,8 +148,8 @@ class Postgres {
         receipt_tree: receiptTree,
         account_tree: accountTree
       }, {
-        where: { 
-          stage_height: stageHeight 
+        where: {
+          stage_height: stageHeight
         }
       }, {
         transaction: tx
@@ -163,8 +158,8 @@ class Postgres {
         stage_height: stageHeight,
         account_data: accountData
       }, {
-        where: { 
-          stage_height: stageHeight 
+        where: {
+          stage_height: stageHeight
         }
       }, {
         transaction: tx
@@ -190,6 +185,16 @@ class Postgres {
     }, {});
 
     return accountData;
+  }
+
+  accountHashes (accountData) {
+    let result = Object.keys(accountData).map(address => {
+      let balances = accountData[address];
+      return this._sha3(Object.keys(balances)
+        .sort()
+        .reduce((acc, assetID) => acc + assetID + balances[assetID], address));
+    });
+    return result;
   }
 
   async getAccountsByStageHeight (stageHeight, tx = null) {
@@ -350,8 +355,8 @@ class Postgres {
     }
     let receipts = await ReceiptModel.findAll({
       attributes: ['receipt_hash'],
-      where: { 
-        stage_height: stageHeight 
+      where: {
+        stage_height: stageHeight
       }
     }, {
       transaction: tx
