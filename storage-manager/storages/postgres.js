@@ -390,20 +390,24 @@ class Postgres {
       } else if (type === LightTxTypes.remittance) {
         let value = new BigNumber('0x' + lightTx.lightTxData.value);
 
+        // Get 'from' balance
         fromBalance = await this.getBalance(fromAddress, assetID, tx);
-        toBalance = await this.getBalance(toAddress, assetID, tx);
-
         fromBalance = new BigNumber('0x' + fromBalance);
-        toBalance = new BigNumber('0x' + toBalance);
         if (fromBalance.isGreaterThanOrEqualTo(value)) {
+          // Minus 'from' balance
           fromBalance = fromBalance.minus(value);
-          toBalance = toBalance.plus(value);
-
           fromBalance = fromBalance.toString(16).padStart(64, '0');
-          toBalance = toBalance.toString(16).padStart(64, '0');
-
-          await this.setBalance(toAddress, assetID, toBalance, tx);
+          // Save 'from' balance
           await this.setBalance(fromAddress, assetID, fromBalance, tx);
+
+          // Get 'to' balance
+          toBalance = await this.getBalance(toAddress, assetID, tx);
+          toBalance = new BigNumber('0x' + toBalance);
+          // Plus 'to' balance
+          toBalance = toBalance.plus(value);
+          toBalance = toBalance.toString(16).padStart(64, '0');
+          // Save 'to' balance
+          await this.setBalance(toAddress, assetID, toBalance, tx);
         } else {
           code = ErrorCodes.INSUFFICIENT_BALANCE;
           throw new Error('Insufficient balance.');
