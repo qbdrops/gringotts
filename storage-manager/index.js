@@ -111,6 +111,11 @@ class StorageManager {
     let result = await this.storage.applyLightTx(lightTx);
     return result;
   }
+
+  async getReceipts (address) {
+    let result = await this.storage.getReceipts(address);
+    return result;
+  }
 }
 
 let storage = new Storage();

@@ -5,6 +5,9 @@ module.exports = (sequelize, DataTypes) => {
     stage_height: DataTypes.CHAR(64),
     light_tx_hash: DataTypes.CHAR(64),
     receipt_hash: DataTypes.CHAR(64),
+    from: DataTypes.CHAR(64),
+    to: DataTypes.CHAR(64),
+    value: DataTypes.CHAR(64),
     onchain: {
       allowNull: false,
       type: DataTypes.BOOLEAN,
@@ -12,8 +15,8 @@ module.exports = (sequelize, DataTypes) => {
     },
     data: DataTypes.JSON
   }, {
-      timestamps: false
-    });
+    timestamps: false
+  });
   receipts.associate = function (models) {
     // associations can be defined here
   };

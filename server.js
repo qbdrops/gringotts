@@ -139,6 +139,22 @@ app.get('/receipt/:lightTxHash', async function (req, res) {
   }
 });
 
+app.get('/personalreceipt/:address', async function (req, res) {
+  try {
+    let address = req.params.address;
+    if (address.length != 40) {
+      res.send({ message: 'address is not correct!' });
+    } else {
+      address = address.slice(-40).padStart(64, '0');
+      let receipts = await storageManager.getReceipts(address);
+      res.send(receipts);
+    }
+  } catch (e) {
+    console.error(e);
+    res.status(500).send({ errors: e.error });
+  }
+});
+
 app.post('/send/light_tx', async function (req, res) {
   try {
     let lightTxJson = req.body.lightTxJson;
