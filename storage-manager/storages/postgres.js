@@ -547,7 +547,7 @@ class Postgres {
     }
   }
 
-  async getReceipts (address) {
+  async getReceiptsByAddress (address) {
     let result = await ReceiptModel.findAll({
       where: {
         [Op.or]: [

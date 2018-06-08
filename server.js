@@ -141,14 +141,9 @@ app.get('/receipt/:lightTxHash', async function (req, res) {
 
 app.get('/personalreceipt/:address', async function (req, res) {
   try {
-    let address = req.params.address;
-    if (address.length != 40) {
-      res.send({ message: 'address is not correct!' });
-    } else {
-      address = address.slice(-40).padStart(64, '0');
-      let receipts = await storageManager.getReceipts(address);
-      res.send(receipts);
-    }
+    let address = req.params.address.slice(-40).padStart(64, '0');
+    let receipts = await storageManager.getReceiptsByAddress(address);
+    res.send(receipts);
   } catch (e) {
     console.error(e);
     res.status(500).send({ errors: e.error });
