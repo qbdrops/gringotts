@@ -14,6 +14,7 @@ let EthUtils = require('ethereumjs-util');
 
 const Sequelize = Model.Sequelize;
 const sequelize = Model.sequelize;
+const Op = Sequelize.Op;
 
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
@@ -527,6 +528,9 @@ class Postgres {
         stage_height: receipt.receiptData.stageHeight,
         light_tx_hash: receipt.lightTxHash,
         receipt_hash: receipt.receiptHash,
+        from: receipt.lightTxData.from,
+        to: receipt.lightTxData.to,
+        value: receipt.lightTxData.value,
         data: receipt.toJson()
       }, {
         transaction: tx
@@ -541,6 +545,18 @@ class Postgres {
       await tx.rollback();
       return { ok: false, code: code, message: e.message };
     }
+  }
+
+  async getReceiptsByAddress (address) {
+    let result = await ReceiptModel.findAll({
+      where: {
+        [Op.or]: [
+          { from: address },
+          { to: address }]
+      },
+      order: [['gsn', 'DESC']]
+    }).map(receipt => receipt.data);
+    return result;
   }
 
   _sha3 (content) {

@@ -86,8 +86,8 @@ function isValidSig (lightTx) {
       let address = EthUtils.pubToAddress(publicKey).toString('hex').padStart(64, '0');
       isClientSigValid = (to == address);
     } else if ((type == LightTxTypes.withdrawal) ||
-              (type == LightTxTypes.instantWithdrawal) ||
-              (type == LightTxTypes.remittance)) {
+      (type == LightTxTypes.instantWithdrawal) ||
+      (type == LightTxTypes.remittance)) {
       let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.clientLightTx.v, lightTx.sig.clientLightTx.r, lightTx.sig.clientLightTx.s);
       let address = EthUtils.pubToAddress(publicKey).toString('hex').padStart(64, '0');
       isClientSigValid = (from == address);
@@ -136,6 +136,17 @@ app.get('/receipt/:lightTxHash', async function (req, res) {
   } catch (e) {
     console.error(e);
     res.status(500).send({ ok: false, errors: e.message });
+  }
+});
+
+app.get('/personalreceipt/:address', async function (req, res) {
+  try {
+    let address = req.params.address.slice(-40).padStart(64, '0');
+    let receipts = await storageManager.getReceiptsByAddress(address);
+    res.send(receipts);
+  } catch (e) {
+    console.error(e);
+    res.status(500).send({ ok: false, message: e.message, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
   }
 });
 
