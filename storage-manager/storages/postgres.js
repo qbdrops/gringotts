@@ -555,9 +555,7 @@ class Postgres {
           { to: address }]
       },
       order: [['gsn', 'DESC']]
-    }).map((receipt) => {
-      return receipt.data;
-    });
+    }).map(receipt => receipt.data);
     return result;
   }
 
