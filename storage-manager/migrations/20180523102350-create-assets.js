@@ -13,7 +13,6 @@ module.exports = {
       },
       asset_id: {
         allowNull: false,
-        unique: true,
         type: Sequelize.CHAR(64)
       },
       address: {
