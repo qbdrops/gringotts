@@ -28,8 +28,8 @@ class StorageManager {
     await this.storage.setTrees(stageHeight, receiptTree, accountTree);
   }
 
-  async getBalance (address) {
-    let balance = await this.storage.getBalance(address);
+  async getBalance (address, assetID) {
+    let balance = await this.storage.getBalance(address, assetID);
     return balance;
   }
 
