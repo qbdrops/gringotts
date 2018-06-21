@@ -390,9 +390,15 @@ class Postgres {
   }
 
   async getBalance (address, assetID, tx = null) {
+    if (!assetID) {
+      assetID = '1'.padStart(64, '0');
+    } else {
+      assetID = assetID.toString().padStart(64, '0');
+    }
     let asset = await AssetModel.findOne({
       where: {
-        address: address
+        address: address,
+        asset_id: assetID
       }
     }, {
       transaction: tx
