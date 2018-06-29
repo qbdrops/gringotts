@@ -2,6 +2,7 @@
 module.exports = (sequelize, DataTypes) => {
   var receipts = sequelize.define('receipts', {
     gsn: DataTypes.CHAR(64),
+    log_id: DataTypes.CHAR(64),
     stage_height: DataTypes.CHAR(64),
     light_tx_hash: DataTypes.CHAR(64),
     receipt_hash: DataTypes.CHAR(64),

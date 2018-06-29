@@ -367,6 +367,17 @@ class Postgres {
     return receipts;
   }
 
+  async getReceiptByLogID (logID, tx = null) {
+    let receipt = await ReceiptModel.findOne({
+      where: {
+        log_id: logID
+      }
+    }, {
+      transaction: tx
+    });
+    return receipt;
+  }
+
   async getReceiptByLightTxHash (lightTxHash, tx = null) {
     let receipt = await ReceiptModel.findOne({
       where: {
@@ -447,6 +458,7 @@ class Postgres {
     let fromAddress = lightTx.lightTxData.from;
     let toAddress = lightTx.lightTxData.to;
     let assetID = lightTx.lightTxData.assetID;
+    let logID = lightTx.lightTxData.logID;
 
     let fromBalance = initBalance;
     let toBalance = initBalance;
@@ -456,14 +468,32 @@ class Postgres {
         isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
       });
       if (type === LightTxTypes.deposit) {
-        let value = new BigNumber('0x' + lightTx.lightTxData.value);
-        toBalance = await this.getBalance(toAddress, assetID, tx);
+        let oldReceipt = await this.getReceiptByLogID(logID);
+        let depositLog = sidechain.depositLogs('0x' + logID);
+        /**
+         * depositLog[0]: stage height
+         * depositLog[1]: users' address
+         * depositLog[2]: users' deposit value
+         * depositLog[3]: if users' funds are relayed to booster
+         */
+        if (oldReceipt || depositLog[3] == true) {
+          code = ErrorCodes.CONTAINS_KNOWN_LOG_ID;
+          throw new Error('Contains known log id.');
+        } else {
+          if (depositLog[1] != '0x' + toAddress) {
+            code = ErrorCodes.WRONG_LOG_ID;
+            throw new Error('Wrong log id.');
+          } else {
+            let value = new BigNumber('0x' + lightTx.lightTxData.value);
+            toBalance = await this.getBalance(toAddress, assetID, tx);
 
-        toBalance = new BigNumber('0x' + toBalance);
-        toBalance = toBalance.plus(value);
-        toBalance = toBalance.toString(16).padStart(64, '0');
+            toBalance = new BigNumber('0x' + toBalance);
+            toBalance = toBalance.plus(value);
+            toBalance = toBalance.toString(16).padStart(64, '0');
 
-        await this.setBalance(toAddress, assetID, toBalance, tx);
+            await this.setBalance(toAddress, assetID, toBalance, tx);
+          }
+        }
       } else if ((type === LightTxTypes.withdrawal) ||
         (type === LightTxTypes.instantWithdrawal)) {
         let value = new BigNumber('0x' + lightTx.lightTxData.value);
@@ -531,6 +561,7 @@ class Postgres {
       let receipt = new Receipt(receiptJson);
       await ReceiptModel.create({
         gsn: receipt.receiptData.GSN,
+        log_id: receipt.lightTxData.logID,
         stage_height: receipt.receiptData.stageHeight,
         light_tx_hash: receipt.lightTxHash,
         receipt_hash: receipt.receiptHash,
