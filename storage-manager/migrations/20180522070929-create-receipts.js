@@ -13,6 +13,10 @@ module.exports = {
         type: Sequelize.CHAR(64),
         allowNull: false,
       },
+      log_id: {
+        allowNull: false,
+        type: Sequelize.CHAR(64)
+      },
       stage_height: {
         allowNull: true,
         type: Sequelize.CHAR(64)
