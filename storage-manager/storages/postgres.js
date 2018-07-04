@@ -480,7 +480,8 @@ class Postgres {
           code = ErrorCodes.CONTAINS_KNOWN_LOG_ID;
           throw new Error('Contains known log id.');
         } else {
-          if (depositLog[1] != '0x' + toAddress) {
+          if (depositLog[1] != '0x' + toAddress ||
+              depositLog[2] != '0x' + lightTx.lightTxData.value) {
             code = ErrorCodes.WRONG_LOG_ID;
             throw new Error('Wrong log id.');
           } else {
