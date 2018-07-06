@@ -1,7 +1,7 @@
 let assert = require('assert');
 let env = require('../../env');
 let Web3 = require('web3');
-let Sidechain = require('../../abi/Sidechain.json');
+let Booster = require('../../abi/Booster.json');
 let BigNumber = require('bignumber.js');
 let Receipt = require('../../models/receipt');
 let ErrorCodes = require('../../errors/codes');
@@ -18,8 +18,8 @@ const Op = Sequelize.Op;
 
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
-let sidechain = web3.eth.contract(Sidechain.abi).at(env.contractAddress);
-let nextContractStageHeight = parseInt(sidechain.stageHeight()) + 1;
+let booster = web3.eth.contract(Booster.abi).at(env.contractAddress);
+let nextContractStageHeight = parseInt(booster.stageHeight()) + 1;
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 
 let ReceiptModel = Model.receipts;
@@ -30,7 +30,7 @@ let GSNNumberModel = Model.gsn_number;
 let TreeModel = Model.trees;
 let AccountSnapshotModel = Model.account_snapshot;
 
-abiDecoder.addABI(Sidechain.abi);
+abiDecoder.addABI(Booster.abi);
 
 class Postgres {
   async attach (stageHeight, serializedTx) {
@@ -288,14 +288,14 @@ class Postgres {
   }
 
   async init () {
-    assert(env.contractAddress, 'Sidechain address is empty.');
+    assert(env.contractAddress, 'Booster address is empty.');
     let contractAddress = await ContractAddressModel.findById(1);
     if (!contractAddress && env.contractAddress) {
       await ContractAddressModel.create({
         address: env.contractAddress
       });
     } else if (contractAddress && (contractAddress.address != env.contractAddress)) {
-      throw new Error('Sidechain address is not consistent.');
+      throw new Error('Booster address is not consistent.');
     }
 
     let expectedStageHeightModel = await ExpectedStageHeightModel.findById(1);
@@ -469,7 +469,7 @@ class Postgres {
       });
       if (type === LightTxTypes.deposit) {
         let oldReceipt = await this.getReceiptByLogID(logID);
-        let depositLog = sidechain.depositLogs('0x' + logID);
+        let depositLog = booster.depositLogs('0x' + logID);
         /**
          * depositLog[0]: stage height
          * depositLog[1]: users' address

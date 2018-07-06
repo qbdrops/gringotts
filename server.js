@@ -4,7 +4,7 @@ let bodyParser = require('body-parser');
 let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
 let storageManager = require('./storage-manager');
-let Sidechain = require('./abi/Sidechain.json');
+let Booster = require('./abi/Booster.json');
 let ErrorCodes = require('./errors/codes');
 let LightTransaction = require('./models/light-transaction');
 let LightTxTypes = require('./models/types');
@@ -13,7 +13,7 @@ let Web3 = require('web3');
 
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
-let sidechain = web3.eth.contract(Sidechain.abi).at(env.contractAddress);
+let booster = web3.eth.contract(Booster.abi).at(env.contractAddress);
 
 let boosterPort = parseInt(env.boosterPort);
 
@@ -198,7 +198,7 @@ app.post('/send/light_tx', async function (req, res) {
 
 app.get('/roothash', async function (req, res) {
   try {
-    let stageHeight = parseInt(sidechain.stageHeight()) + 1;
+    let stageHeight = parseInt(booster.stageHeight()) + 1;
     let hasPendingReceipts = await storageManager.hasPendingReceipts(stageHeight);
 
     if (hasPendingReceipts) {
@@ -253,7 +253,7 @@ app.post('/attach', async function (req, res) {
   }
 });
 
-app.get('/sidechain/address', async function (req, res) {
+app.get('/booster/address', async function (req, res) {
   try {
     res.send({ address: contractAddress });
   } catch (e) {
