@@ -402,7 +402,7 @@ class Postgres {
 
   async getBalance (address, assetID, tx = null) {
     if (!assetID) {
-      assetID = '1'.padStart(64, '0');
+      assetID = '0'.padStart(64, '0');
     } else {
       assetID = assetID.toString().padStart(64, '0');
     }
@@ -474,14 +474,16 @@ class Postgres {
          * depositLog[0]: stage height
          * depositLog[1]: users' address
          * depositLog[2]: users' deposit value
-         * depositLog[3]: if users' funds are relayed to booster
+         * depositLog[3]: users' deposit asset ID
+         * depositLog[4]: if users' funds are relayed to booster
          */
-        if (oldReceipt || depositLog[3] == true) {
+        if (oldReceipt || depositLog[4] == true) {
           code = ErrorCodes.CONTAINS_KNOWN_LOG_ID;
           throw new Error('Contains known log id.');
         } else {
           if (depositLog[1] != '0x' + toAddress ||
-              depositLog[2] != '0x' + lightTx.lightTxData.value) {
+              depositLog[2] != '0x' + lightTx.lightTxData.value ||
+              depositLog[3] != '0x' + lightTx.lightTxData.assetID) {
             code = ErrorCodes.WRONG_LOG_ID;
             throw new Error('Wrong log id.');
           } else {
