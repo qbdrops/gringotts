@@ -12,7 +12,11 @@ module.exports = {
         type: Sequelize.CHAR(64)
       },
       account_data: {
-        allowNull: true,
+        allowNull: false,
+        type: Sequelize.JSON
+      },
+      asset_roothash: {
+        allowNull: false,
         type: Sequelize.JSON
       }
     }).then(() => {
