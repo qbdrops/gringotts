@@ -1,10 +1,10 @@
 let env = require('../env');
 let Web3 = require('web3');
-let Sidechain = require('../abi/Sidechain.json');
+let Booster = require('../abi/Booster.json');
 
 let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
 let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
-let sidechain = web3.eth.contract(Sidechain.abi).at(env.contractAddress);
+let booster = web3.eth.contract(Booster.abi).at(env.contractAddress);
 let Storage = require('./storages/postgres');
 
 class StorageManager {
@@ -122,7 +122,7 @@ let storage = new Storage();
 let storageManager = new StorageManager(storage);
 
 // Watch latest block
-sidechain.Attach({ toBlock: 'latest' }).watch(async (err, result) => {
+booster.Attach({ toBlock: 'latest' }).watch(async (err, result) => {
   try {
     console.log('attach');
     let stageHeight = result.args._stageHeight;

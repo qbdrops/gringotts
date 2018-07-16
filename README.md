@@ -16,7 +16,7 @@ There are some settings you need to edit.
 1. `web3Host`: Ethereum full node host.
 2. `web3Port`: Ethereum full node API port.
 3. `serverAddress`: Your privileged address, it would be the only address that can produce a **stage** onto the main chain.
-4. `contractAddress`: The sidechain contract address for governance of BOLT protocol. Please look up the [BOLT contracts project](https://github.com/BOLT-Protocol/contracts/tree/master/gringotts).
+4. `contractAddress`: The booster contract address for governance of BOLT protocol. Please look up the [BOLT contracts project](https://github.com/BOLT-Protocol/contracts/tree/master/gringotts).
 5. `boosterPort`: Http port of Gringotts.
 6. `production`: You need to configure database connection if you use PostgreSQL as your database.
 
