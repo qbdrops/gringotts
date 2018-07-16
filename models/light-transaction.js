@@ -2,8 +2,9 @@ let EthUtils = require('ethereumjs-util');
 let assert = require('assert');
 let types = require('./types.js');
 
-const allowedLightTxDataKeys = ['from', 'to', 'assetID', 'value', 'fee', 'nonce', 'logID', 'metadataHash'];
+const allowedLightTxDataKeys = ['from', 'to', 'assetID', 'value', 'fee', 'nonce', 'logID', 'clientMetadataHash'];
 const allowedSigKeys = ['clientLightTx', 'serverLightTx'];
+const allowedMetadataKeys = ['client', 'server'];
 const instantWithdrawalLimit = 10;
 
 class LightTransaction {
@@ -13,6 +14,7 @@ class LightTransaction {
 
     let lightTxData = lightTxJson.lightTxData;
     let sig = Object.assign({ clientLightTx: {}, serverLightTx: {} }, lightTxJson.sig);
+    let metadata = Object.assign({ client: {}, server: {} }, lightTxJson.metadata);
 
     // Remove keys which are not in the whitelist
     Object.keys(lightTxData).forEach(key => {
@@ -27,12 +29,18 @@ class LightTransaction {
       }
     });
 
+    Object.keys(metadata).forEach(key => {
+      if (!allowedMetadataKeys.includes(key)) {
+        delete metadata[key];
+      }
+    });
+
     // Check if all lightTxData keys are included
     // Meanwhile make an ordered lightTxData
     let keys = Object.keys(lightTxData);
     let orderedLightTxData = {};
     allowedLightTxDataKeys.forEach(key => {
-      if (key != 'metadataHash') {
+      if (key != 'clientMetadataHash') {
         assert(keys.includes(key), 'Parameter \'lightTxData\' does not include key \'' + key + '\'.');
       }
       orderedLightTxData[key] = (lightTxData[key] || lightTxData[key] == 0) ? lightTxData[key] : '';
@@ -46,11 +54,11 @@ class LightTransaction {
       assert(isSigFormatCorrect || isSigDefault, '\'sig\' does not have correct format.');
     });
 
-    this.metadata = (lightTxJson.metadata || {});
     this.lightTxData = this._normalize(orderedLightTxData);
-    this.lightTxData.metadataHash = this._sha3(JSON.stringify(this.metadata));
+    this.lightTxData.clientMetadataHash = this._sha3(JSON.stringify(metadata.client));
     this.sig = sig;
     this.lightTxHash = this._sha3(Object.values(this.lightTxData).reduce((acc, curr) => acc + curr, ''));
+    this.metadata = metadata;
   }
 
   _normalize (lightTxData) {
