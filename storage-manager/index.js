@@ -116,6 +116,11 @@ class StorageManager {
     let result = await this.storage.getReceiptsByAddress(address);
     return result;
   }
+
+  async getAssetList () {
+    let result = await this.storage.getAssetList();
+    return result;
+  }
 }
 
 let storage = new Storage();

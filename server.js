@@ -105,6 +105,21 @@ function isValidSig (lightTx) {
   return (isClientSigValid && isServerSigValid);
 }
 
+async function isValidAsset (lightTx) {
+  let isValid = false;
+  let assetList = await storageManager.getAssetList();
+  assetList.forEach((asset) => {
+    let address = asset.asset_address;
+    if (address.slice(0, 2) == '0x') {
+      address = address.substring(2);
+    }
+    if (lightTx.assetID == address.padStart(64, '0')) {
+      isValid = true;
+    }
+  });
+  return isValid;
+}
+
 app.get('/accounts/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
@@ -170,14 +185,20 @@ app.post('/send/light_tx', async function (req, res) {
     } else {
       let isValidSigLightTx = isValidSig(lightTx);
       if (isValidSigLightTx) {
-        let updateResult = await storageManager.applyLightTx(lightTx);
+        let isValidAssetLightTx = isValidAsset(lightTx);
+        if (isValidAssetLightTx) {
+          let updateResult = await storageManager.applyLightTx(lightTx);
 
-        if (updateResult.ok) {
-          success = true;
-          receipt = updateResult.receipt;
+          if (updateResult.ok) {
+            success = true;
+            receipt = updateResult.receipt;
+          } else {
+            message = updateResult.message;
+            code = updateResult.code;
+          }
         } else {
-          message = updateResult.message;
-          code = updateResult.code;
+          message = 'Asset ID is not support.';
+          code = ErrorCodes.WRONG_ASSET_ID;
         }
       } else {
         message = 'Contains wrong signature receipt.';
@@ -275,6 +296,16 @@ app.get('/pending/receipts', async function (req, res) {
   try {
     let pendingLightTxHashesOfReceipts = await storageManager.pendingLightTxHashesOfReceipts();
     res.send({ lightTxHashes: pendingLightTxHashesOfReceipts });
+  } catch (e) {
+    console.log(e);
+    res.status(500).send({ errors: e.message });
+  }
+});
+
+app.get('/assetlist', async function (req, res) {
+  try {
+    let assetList = await storageManager.getAssetList();
+    res.send({ assetList: assetList });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });

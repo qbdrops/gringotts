@@ -2,6 +2,7 @@ let assert = require('assert');
 let env = require('../../env');
 let Web3 = require('web3');
 let Booster = require('../../abi/Booster.json');
+let EIP20 = require('../../abi/EIP20.json');
 let BigNumber = require('bignumber.js');
 let Receipt = require('../../models/receipt');
 let ErrorCodes = require('../../errors/codes');
@@ -24,6 +25,7 @@ let initBalance = '0000000000000000000000000000000000000000000000000000000000000
 
 let ReceiptModel = Model.receipts;
 let AssetModel = Model.assets;
+let AssetListModel = Model.asset_lists;
 let ContractAddressModel = Model.contract_address;
 let ExpectedStageHeightModel = Model.expected_stage_height;
 let GSNNumberModel = Model.gsn_number;
@@ -309,6 +311,27 @@ class Postgres {
     }
 
     console.log('gsn: ' + gsn);
+
+    let assetList = await AssetListModel.findById(1);
+    if (!assetList) {
+      await AssetListModel.create({
+        asset_name: 'ETH',
+        asset_decimals: 18,
+        asset_address: '0x' + '0'.padStart(40, '0')
+      });
+      let assetListLength = booster.getAssetAddressesLength();
+      for (let i = 0; i < assetListLength.toNumber(); i++) {
+        let address = booster.assetAddressesArray(i);
+        let contract = web3.eth.contract(EIP20.abi).at(address);
+        let name = contract.symbol();
+        let decimals = contract.decimals();
+        await AssetListModel.create({
+          asset_name: name,
+          asset_decimals: decimals.toNumber(),
+          asset_address: address
+        });
+      }
+    }
   }
 
   async pendingLightTxHashesOfReceipts () {
@@ -587,6 +610,19 @@ class Postgres {
 
   _sha3 (content) {
     return EthUtils.sha3(content).toString('hex');
+  }
+
+  async getAssetList () {
+    let result = await AssetListModel.findAll({
+      raw: true
+    }).map(asset => {
+      return {
+        asset_name: asset.asset_name,
+        asset_decimals: asset.asset_decimals,
+        asset_address: asset.asset_address
+      };
+    });
+    return result;
   }
 }
 
