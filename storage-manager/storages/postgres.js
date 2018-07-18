@@ -65,7 +65,7 @@ class Postgres {
         isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
       });
       let accountData = await this.accountData(tx);
-      let accountHashes = this.accountHashes(accountData);
+      let accountHashes = this.accountHashes(stageHeight, accountData);
 
       await this.increaseExpectedStageHeight(tx);
       let receiptHashes = await this.pendingReceiptHashes(stageHeight, tx);
@@ -73,9 +73,9 @@ class Postgres {
       console.log('Building Stage Height: ' + stageHeight);
 
       let receiptTree = new IndexedMerkleTree(stageHeight, receiptHashes);
-      let accountTree = new IndexedMerkleTree(stageHeight, accountHashes);
+      let accountTree = new IndexedMerkleTree(stageHeight, Object.values(accountHashes));
 
-      await this.setTrees(stageHeight, receiptTree, accountTree, accountData, tx);
+      await this.setTrees(stageHeight, receiptTree, accountTree, accountData, accountHashes, tx);
       // ipfs 
       await tx.commit();
       return {
@@ -116,7 +116,7 @@ class Postgres {
     return gsnNumberModel;
   }
 
-  async setTrees (stageHeight, receiptTree, accountTree, accountData, tx = null) {
+  async setTrees (stageHeight, receiptTree, accountTree, accountData, accountHashes, tx = null) {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
     }
@@ -139,33 +139,13 @@ class Postgres {
       });
       await AccountSnapshotModel.create({
         stage_height: stageHeight,
-        account_data: accountData
+        account_data: accountData,
+        asset_roothash: accountHashes
       }, {
         transaction: tx
       });
     } else {
-      await TreeModel.update({
-        stage_height: stageHeight,
-        receipt_tree: receiptTree,
-        account_tree: accountTree
-      }, {
-        where: {
-          stage_height: stageHeight
-        }
-      }, {
-        transaction: tx
-      });
-      await AccountSnapshotModel.update({
-        stage_height: stageHeight,
-        account_data: accountData
-      }, {
-        where: {
-          stage_height: stageHeight
-        }
-      }, {
-        transaction: tx
-      });
-      // throw new Error('this stage is already save in DB!');
+      throw new Error('this stage is already save in DB!');
     }
   }
 
@@ -188,13 +168,19 @@ class Postgres {
     return accountData;
   }
 
-  accountHashes (accountData) {
-    let result = Object.keys(accountData).map(address => {
-      let balances = accountData[address];
-      return this._sha3(Object.keys(balances)
-        .sort()
-        .reduce((acc, assetID) => acc + assetID + balances[assetID], address));
-    });
+  accountHashes (stageHeight, accountData) {
+    let result = Object.keys(accountData)
+      .reduce((acc, address) => {
+        let balances = accountData[address];
+        let assetHashes = Object.keys(balances).map((assetID) => {
+          return this._sha3(assetID + balances[assetID]);
+        });
+        let assetTree = new IndexedMerkleTree(stageHeight, assetHashes);
+        let roothash = this._sha3(address + assetTree.rootHash);
+        acc[address] = roothash;
+        return acc;
+      }, {});
+
     return result;
   }
 
