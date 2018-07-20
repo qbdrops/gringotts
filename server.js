@@ -249,7 +249,22 @@ app.get('/roothash/:stageHeight', async function (req, res) {
     let trees = await storageManager.getTrees(stageHeight);
 
     if (Object.keys(trees).length > 0) {
-      res.send({ ok: true, receiptRootHash: trees.receiptTree.rootHash, accountRootHash: trees.accountTree.rootHash });
+      res.send({ ok: true, receiptRootHash: trees.receipt_tree.rootHash, accountRootHash: trees.account_tree.rootHash });
+    } else {
+      res.send({ ok: false, message: 'StageHeight does not exist.' });
+    }
+  } catch (e) {
+    res.send({ ok: false, message: e.message });
+  }
+});
+
+app.get('/trees/:stageHeight', async function (req, res) {
+  try {
+    let stageHeight = req.params.stageHeight;
+    let trees = await storageManager.getTrees(stageHeight);
+
+    if (Object.keys(trees).length > 0) {
+      res.send({ ok: true, receiptTree: trees.receipt_tree, accountTree: trees.account_tree });
     } else {
       res.send({ ok: false, message: 'StageHeight does not exist.' });
     }
