@@ -99,7 +99,7 @@ function isValidSig (lightTx) {
     // validate signatures of lightTxs
     let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.serverLightTx.v, lightTx.sig.serverLightTx.r, lightTx.sig.serverLightTx.s);
     let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
-    isServerSigValid = (account == address);
+    isServerSigValid = (account.toLowerCase() == address.toLowerCase());
   }
 
   return (isClientSigValid && isServerSigValid);
