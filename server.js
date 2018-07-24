@@ -86,13 +86,13 @@ function isValidSig (lightTx) {
     if (type == LightTxTypes.deposit) {
       let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.clientLightTx.v, lightTx.sig.clientLightTx.r, lightTx.sig.clientLightTx.s);
       let address = EthUtils.pubToAddress(publicKey).toString('hex').padStart(64, '0');
-      isClientSigValid = (to == address);
+      isClientSigValid = (to.toLowerCase() == address.toLowerCase());
     } else if ((type == LightTxTypes.withdrawal) ||
       (type == LightTxTypes.instantWithdrawal) ||
       (type == LightTxTypes.remittance)) {
       let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.clientLightTx.v, lightTx.sig.clientLightTx.r, lightTx.sig.clientLightTx.s);
       let address = EthUtils.pubToAddress(publicKey).toString('hex').padStart(64, '0');
-      isClientSigValid = (from == address);
+      isClientSigValid = (from.toLowerCase() == address.toLowerCase());
     } else {
       new Error('Not supported light transaction type.');
     }
