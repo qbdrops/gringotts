@@ -35,10 +35,10 @@ let burnAddress = '0000000000000000000000000000000000000000000000000000000000000
 
 app.get('/balance/:address', async function (req, res) {
   try {
-    let address = req.params.address;
+    let address = req.params.address.toLowerCase();
     address = address.padStart(64, '0');
     let assetID = req.query.assetID || '0'; // default is 0
-    assetID = assetID.padStart(64, '0');
+    assetID = assetID.toLowerCase().padStart(64, '0');
     if (address && (address != burnAddress)) {
       let balance = await storageManager.getBalance(address, assetID);
       balance = new BigNumber('0x' + balance);
