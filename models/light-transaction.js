@@ -14,7 +14,9 @@ class LightTransaction {
 
     let lightTxData = lightTxJson.lightTxData;
     let sig = Object.assign({ clientLightTx: {}, serverLightTx: {} }, lightTxJson.sig);
-    let metadata = Object.assign({ client: {}, server: {} }, lightTxJson.metadata);
+    let metadata = Object.assign({ client: '', server: '' }, lightTxJson.metadata);
+    assert(typeof metadata.client == 'string', 'Paramter \'metadata.client\' should be a string type.');
+    assert(typeof metadata.server == 'string', 'Paramter \'metadata.server\' should be a string type.');
 
     // Remove keys which are not in the whitelist
     Object.keys(lightTxData).forEach(key => {
@@ -55,7 +57,7 @@ class LightTransaction {
     });
 
     this.lightTxData = this._normalize(orderedLightTxData);
-    this.lightTxData.clientMetadataHash = this._sha3(JSON.stringify(metadata.client));
+    this.lightTxData.clientMetadataHash = this._sha3(metadata.client);
     this.sig = sig;
     this.lightTxHash = this._sha3(Object.values(this.lightTxData).reduce((acc, curr) => acc + curr, ''));
     this.metadata = metadata;
