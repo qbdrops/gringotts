@@ -15,6 +15,8 @@ class LightTransaction {
     let lightTxData = lightTxJson.lightTxData;
     let sig = Object.assign({ clientLightTx: {}, serverLightTx: {} }, lightTxJson.sig);
     let metadata = Object.assign({ client: '', server: '' }, lightTxJson.metadata);
+    assert(typeof metadata.client == 'string', 'Paramter \'metadata.client\' should be a string type.');
+    assert(typeof metadata.server == 'string', 'Paramter \'metadata.server\' should be a string type.');
 
     // Remove keys which are not in the whitelist
     Object.keys(lightTxData).forEach(key => {
