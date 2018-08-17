@@ -409,25 +409,41 @@ class Postgres {
     return receipts;
   }
 
-  async getBalance (address, assetID, tx = null) {
+  async getBalance (address, assetID = null, tx = null) {
+    let asset;
     if (!assetID) {
-      assetID = '0'.padStart(64, '0');
+      asset = await AssetModel.findAll({
+        where: {
+          address: address
+        }
+      }, {
+        transaction: tx
+      }).map(e => {
+        return {
+          assetID: e.asset_id,
+          balance: new BigNumber('0x' + e.balance)
+        };
+      });
+      if (asset) {
+        return asset;
+      } else {
+        return initBalance.toString(16).padStart(64, '0');
+      }
     } else {
       assetID = assetID.toString().padStart(64, '0');
-    }
-    let asset = await AssetModel.findOne({
-      where: {
-        address: address,
-        asset_id: assetID
+      asset = await AssetModel.findOne({
+        where: {
+          address: address,
+          asset_id: assetID
+        }
+      }, {
+        transaction: tx
+      });
+      if (asset) {
+        return asset.balance;
+      } else {
+        return initBalance.toString(16).padStart(64, '0');
       }
-    }, {
-      transaction: tx
-    });
-
-    if (asset) {
-      return asset.balance;
-    } else {
-      return initBalance.toString(16).padStart(64, '0');
     }
   }
 

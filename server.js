@@ -35,14 +35,19 @@ let burnAddress = '0000000000000000000000000000000000000000000000000000000000000
 
 app.get('/balance/:address', async function (req, res) {
   try {
-    let address = req.params.address.toLowerCase();
-    address = address.padStart(64, '0');
-    let assetID = req.query.assetID || '0'; // default is 0
-    assetID = assetID.toLowerCase().padStart(64, '0');
+    let address = req.params.address.toLowerCase().padStart(64, '0');
+    let assetID = (req.query.assetID || null);
+    if (assetID != null) {
+      assetID = assetID.toLowerCase().padStart(64, '0');
+    }
     if (address && (address != burnAddress)) {
       let balance = await storageManager.getBalance(address, assetID);
-      balance = new BigNumber('0x' + balance);
-      res.send({ balance: balance.toString() });
+      if (assetID == null) {
+        res.send(balance);
+      } else {
+        balance = new BigNumber('0x' + balance);
+        res.send({ balance: balance.toString() });
+      }
     } else {
       res.status(400).send({ errors: 'Parameter address is missing.' });
     }
@@ -71,7 +76,7 @@ app.get('/slice', async function (req, res) {
   }
 });
 
-function isValidSig (lightTx) {
+function isValidSig(lightTx) {
   let type = lightTx.type();
   let from = lightTx.lightTxData.from;
   let to = lightTx.lightTxData.to;
@@ -105,7 +110,7 @@ function isValidSig (lightTx) {
   return (isClientSigValid && isServerSigValid);
 }
 
-async function isValidAsset (lightTx) {
+async function isValidAsset(lightTx) {
   let isValid = false;
   let assetList = await storageManager.getAssetList();
   assetList.forEach((asset) => {
