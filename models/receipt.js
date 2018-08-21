@@ -50,7 +50,7 @@ class Receipt {
     this.lightTxHash = lightTx.lightTxHash;
     this.lightTxData = lightTx.lightTxData;
     this.receiptData = this._normalize(orderedReceiptData);
-    this.metadata = (receiptJson.metadata || {});
+    this.metadata = (receiptJson.metadata);
     this.receiptData.serverMetadataHash = this._sha3(this.metadata.server);
     this.receiptHash = this._sha3(Object.values(this.receiptData).reduce((acc, curr) => acc + curr, ''));
     this.sig = receiptJson.sig;
