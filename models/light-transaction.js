@@ -83,6 +83,7 @@ class LightTransaction {
     } else {
       let m = parseFloat(n);
       m = toWei ? (m * 1e18) : m;
+      m = Math.floor(m);
       let h = m.toString(16);
       assert(h != 'NaN', '\'' + n + '\' can not be parsed to an integer.');
       n = h.padStart(64, '0');
