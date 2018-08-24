@@ -17,10 +17,8 @@ const Sequelize = Model.Sequelize;
 const sequelize = Model.sequelize;
 const Op = Sequelize.Op;
 
-let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
-let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
-let booster = web3.eth.contract(Booster.abi).at(env.contractAddress);
-let nextContractStageHeight = parseInt(booster.stageHeight()) + 1;
+let web3 = new Web3(env.web3Url);
+let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 
 let ReceiptModel = Model.receipts;
@@ -48,9 +46,9 @@ class Postgres {
 
       if ((receiptTree.rootHash === receiptRootHash) &&
         accountTree.rootHash === accountRootHash) {
-        let txHash = web3.eth.sendRawTransaction(serializedTx);
-        console.log('Committed txHash: ' + txHash);
-        return txHash;
+        let receipt = await web3.eth.sendSignedTransaction(serializedTx);
+        console.log('Committed txHash: ' + receipt.transactionHash);
+        return receipt.transactionHash;
       } else {
         throw new Error('Invalid signed root hashes.');
       }
@@ -289,7 +287,7 @@ class Postgres {
     let expectedStageHeightModel = await ExpectedStageHeightModel.findById(1);
     let expectedStageHeight;
     if (!expectedStageHeightModel) {
-      expectedStageHeight = nextContractStageHeight;
+      expectedStageHeight = parseInt(await booster.methods.stageHeight().call()) + 1;
       await ExpectedStageHeightModel.create({
         height: expectedStageHeight
       });
@@ -319,15 +317,15 @@ class Postgres {
         asset_decimals: 18,
         asset_address: '0x' + '0'.padStart(40, '0')
       });
-      let assetListLength = booster.getAssetAddressesLength();
-      for (let i = 0; i < assetListLength.toNumber(); i++) {
-        let address = booster.assetAddressesArray(i);
-        let contract = web3.eth.contract(EIP20.abi).at(address);
-        let name = contract.symbol();
-        let decimals = contract.decimals();
+      let assetListLength = await booster.methods.getAssetAddressesLength().call();
+      for (let i = 0; i < assetListLength; i++) {
+        let address = await booster.methods.assetAddressesArray(i).call();
+        let contract = new web3.eth.Contract(EIP20.abi, address);
+        let name = await contract.methods.symbol().call();
+        let decimals = await contract.methods.decimals().call();
         await AssetListModel.create({
           asset_name: name,
-          asset_decimals: decimals.toNumber(),
+          asset_decimals: decimals,
           asset_address: address
         });
       }
@@ -480,10 +478,10 @@ class Postgres {
   async applyLightTx (lightTx) {
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
     let type = lightTx.type();
-    let fromAddress = lightTx.lightTxData.from;
-    let toAddress = lightTx.lightTxData.to;
-    let assetID = lightTx.lightTxData.assetID;
-    let logID = lightTx.lightTxData.logID;
+    let fromAddress = lightTx.lightTxData.from.toLowerCase();
+    let toAddress = lightTx.lightTxData.to.toLowerCase();
+    let assetID = lightTx.lightTxData.assetID.toLowerCase();
+    let logID = lightTx.lightTxData.logID.toLowerCase();
 
     let fromBalance = initBalance;
     let toBalance = initBalance;
@@ -494,7 +492,7 @@ class Postgres {
       });
       if (type === LightTxTypes.deposit) {
         let oldReceipt = await this.getReceiptByLogID(logID);
-        let depositLog = booster.depositLogs('0x' + logID);
+        let depositLog = await booster.methods.depositLogs('0x' + logID).call();
         /**
          * depositLog[0]: stage height
          * depositLog[1]: users' address
@@ -506,9 +504,9 @@ class Postgres {
           code = ErrorCodes.CONTAINS_KNOWN_LOG_ID;
           throw new Error('Contains known log id.');
         } else {
-          if (depositLog[1] != '0x' + toAddress ||
-              depositLog[2] != '0x' + lightTx.lightTxData.value ||
-              depositLog[3] != '0x' + lightTx.lightTxData.assetID) {
+          if (depositLog[1].toLowerCase() != '0x' + toAddress ||
+              depositLog[2].toLowerCase() != '0x' + lightTx.lightTxData.value.toLowerCase() ||
+              depositLog[3].toLowerCase() != '0x' + assetID) {
             code = ErrorCodes.WRONG_LOG_ID;
             throw new Error('Wrong log id.');
           } else {

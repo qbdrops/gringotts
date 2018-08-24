@@ -64,11 +64,11 @@ class LightTransaction {
   }
 
   _normalize (lightTxData) {
-    lightTxData.from    = lightTxData.from.slice(-40).padStart(64, '0').slice(-64);
-    lightTxData.to      = lightTxData.to.slice(-40).padStart(64, '0').slice(-64);
-    lightTxData.logID   = lightTxData.logID.toString(16).padStart(64, '0').slice(-64);
-    lightTxData.nonce   = lightTxData.nonce.toString(16).padStart(64, '0').slice(-64);
-    lightTxData.assetID = this._to32BytesHex(lightTxData.assetID, false);
+    lightTxData.from    = this._remove0x(lightTxData.from).padStart(64, '0').slice(-64).toLowerCase();
+    lightTxData.to      = this._remove0x(lightTxData.to).padStart(64, '0').slice(-64).toLowerCase();
+    lightTxData.logID   = this._remove0x(lightTxData.logID).padStart(64, '0').slice(-64).toLowerCase();
+    lightTxData.nonce   = this._remove0x(lightTxData.nonce).padStart(64, '0').slice(-64).toLowerCase();
+    lightTxData.assetID = this._remove0x(lightTxData.assetID).padStart(64, '0').slice(-64).toLowerCase();
     lightTxData.value   = this._to32BytesHex(lightTxData.value, true);
     lightTxData.fee     = this._to32BytesHex(lightTxData.fee, true);
     return lightTxData;
@@ -79,17 +79,25 @@ class LightTransaction {
     let lengthIs64Bytes = (n.toString().length == 64);
 
     if (startWith0x || lengthIs64Bytes) {
-      n = n.slice(-64);
+      n = n.slice(-64).toLowerCase();
     } else {
       let m = parseFloat(n);
       m = toWei ? (m * 1e18) : m;
       m = Math.floor(m);
       let h = m.toString(16);
       assert(h != 'NaN', '\'' + n + '\' can not be parsed to an integer.');
-      n = h.padStart(64, '0');
+      n = h.padStart(64, '0').toLowerCase();
     }
 
     return n;
+  }
+
+  _remove0x (value) {
+    value = value.toString();
+    if (value.slice(0, 2) == '0x') {
+      value = value.substring(2);
+    }
+    return value;
   }
 
   type () {
