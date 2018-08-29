@@ -11,9 +11,8 @@ let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
 let Web3 = require('web3');
 
-let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
-let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
-let booster = web3.eth.contract(Booster.abi).at(env.contractAddress);
+let web3 = new Web3(env.web3Url);
+let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
 
 let boosterPort = parseInt(env.boosterPort);
 
@@ -224,7 +223,7 @@ app.post('/send/light_tx', async function (req, res) {
 
 app.get('/roothash', async function (req, res) {
   try {
-    let stageHeight = parseInt(booster.stageHeight()) + 1;
+    let stageHeight = parseInt(await booster.methods.stageHeight().call()) + 1;
     let hasPendingReceipts = await storageManager.hasPendingReceipts(stageHeight);
 
     if (hasPendingReceipts) {

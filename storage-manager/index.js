@@ -2,9 +2,8 @@ let env = require('../env');
 let Web3 = require('web3');
 let Booster = require('../abi/Booster.json');
 
-let web3Url = 'http://' + env.web3Host + ':' + env.web3Port;
-let web3 = new Web3(new Web3.providers.HttpProvider(web3Url));
-let booster = web3.eth.contract(Booster.abi).at(env.contractAddress);
+let web3 = new Web3(env.web3Url);
+let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
 let Storage = require('./storages/postgres');
 
 class StorageManager {
@@ -127,10 +126,13 @@ let storage = new Storage();
 let storageManager = new StorageManager(storage);
 
 // Watch latest block
-booster.Attach({ toBlock: 'latest' }).watch(async (err, result) => {
+booster.events.Attach({
+  toBlock: 'latest' 
+}, async (err, result) => {
+  if (err) console.error(err);
   try {
     console.log('attach');
-    let stageHeight = result.args._stageHeight;
+    let stageHeight = result.returnValues._stageHeight;
     // Remove offchain receipt json
     await storageManager.removeOffchainReceipts(stageHeight);
   } catch (e) {
