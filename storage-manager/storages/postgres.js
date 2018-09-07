@@ -37,8 +37,8 @@ class Postgres {
     try {
       let decodedTx = txDecoder.decodeTx(serializedTx);
       let functionParams = abiDecoder.decodeMethod(decodedTx.data);
-      let receiptRootHash = functionParams.params[1].value[0].slice(2);
-      let accountRootHash = functionParams.params[1].value[1].slice(2);
+      let receiptRootHash = functionParams.params[0].value[0].slice(2);
+      let accountRootHash = functionParams.params[0].value[1].slice(2);
       let trees = await this.getTrees(stageHeight);
 
       let receiptTree = trees.receipt_tree;
