@@ -55,23 +55,17 @@ app.get('/balance/:address', async function (req, res) {
   }
 });
 
-app.get('/slice', async function (req, res) {
+app.get('/slice/:stageHeight/:receiptHash', async function (req, res) {
   try {
-    let query = req.query;
-    let stageHeight = query.stage_height;
-    let lightTxHash = query.light_tx_hash;
+    let stageHeight = req.params.stageHeight;
+    let receiptHash = req.params.receiptHash;
+    let proof = await storageManager.getReceiptProof(stageHeight, receiptHash);
 
-    let trees = await storageManager.getTrees(stageHeight);
-    let receiptTree = trees.receiptTree;
-    let receipt = await storageManager.getReceiptByLightTxHash(lightTxHash);
-    let slice = receiptTree.getSlice(receipt.receiptHash);
-    let treeNodeIndex = receiptTree.computeLeafIndex(receipt.receiptHash);
-    let receiptHashArray = receiptTree.getAllLeafElements(receipt.receiptHash);
-
-    res.send({ slice: slice, receiptHashArray: receiptHashArray, treeNodeIndex: treeNodeIndex });
+    if (Object.keys(proof).length > 0) {
+      res.send({ ok: true, proof: proof });
+    }
   } catch (e) {
-    console.log(e);
-    res.status(500).send({ errors: e.message });
+    res.send({ ok: false, message: e.message });
   }
 });
 

@@ -8,6 +8,7 @@ let Receipt = require('../../models/receipt');
 let ErrorCodes = require('../../errors/codes');
 let LightTxTypes = require('../../models/types');
 let IndexedMerkleTree = require('../utils/indexed-merkle-tree');
+let GetProof = require('../utils/get-proof');
 let txDecoder = require('ethereum-tx-decoder');
 let abiDecoder = require('abi-decoder');
 let Model = require('../models');
@@ -37,8 +38,8 @@ class Postgres {
     try {
       let decodedTx = txDecoder.decodeTx(serializedTx);
       let functionParams = abiDecoder.decodeMethod(decodedTx.data);
-      let receiptRootHash = functionParams.params[1].value[0].slice(2);
-      let accountRootHash = functionParams.params[1].value[1].slice(2);
+      let receiptRootHash = functionParams.params[0].value[0].slice(2);
+      let accountRootHash = functionParams.params[0].value[1].slice(2);
       let trees = await this.getTrees(stageHeight);
 
       let receiptTree = trees.receipt_tree;
@@ -207,6 +208,23 @@ class Postgres {
       transaction: tx
     });
     return trees;
+  }
+
+  async getReceiptProof (stageHeight, receiptHash, tx = null) {
+    if (stageHeight) {
+      stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
+    }
+    let trees = await TreeModel.findOne({
+      where: {
+        stage_height: stageHeight
+      }
+    }, {
+      transaction: tx
+    });
+
+    let proof = new GetProof(stageHeight, receiptHash, trees.receipt_tree).build();
+
+    return proof;
   }
 
   async getContractAddress () {

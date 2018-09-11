@@ -8,7 +8,9 @@
     "lint": "./node_modules/.bin/eslint .",
     "start": "node server.js",
     "reset": "rm -rf ./chaindata/level ./chaindata/rocksdb",
-    "pgmigrate": "NODE_ENV=production ./node_modules/.bin/sequelize db:migrate --config env.js --migrations-path ./storage-manager/migrations --models-path ./storage-manager/models"
+    "pgmigrate": "NODE_ENV=production ./node_modules/.bin/sequelize db:migrate --config env.js --migrations-path ./storage-manager/migrations --models-path ./storage-manager/models",
+    "deleteDB": "NODE_ENV=production ./node_modules/.bin/sequelize db:migrate:undo:all --config env.js --migrations-path ./storage-manager/migrations --models-path ./storage-manager/models",
+    "restart": "npm run deleteDB && npm run pgmigrate && node server.js"
   },
   "author": "ifc-dev <dev@infinitechain.io>",
   "license": "ISC",
