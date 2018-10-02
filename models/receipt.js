@@ -54,9 +54,9 @@ class Receipt {
     this.receiptData.serverMetadataHash = this._sha3(this.metadata.server);
     this.receiptHash = this._sha3(Object.values(this.receiptData).reduce((acc, curr) => acc + curr, ''));
     this.sig = receiptJson.sig;
-    // Initialize serverReceipt sig if it is undefined.
-    if (!this.sig.serverReceipt || !this.hasServerReceiptSig()) {
-      this.sig.serverReceipt = {};
+    // Initialize boosterReceipt sig if it is undefined.
+    if (!this.sig.boosterReceipt || !this.hasBoosterReceiptSig()) {
+      this.sig.boosterReceipt = {};
     }
   }
 
@@ -95,8 +95,8 @@ class Receipt {
     return (Object.keys(this.sig.serverLightTx).sort().toString() == 'r,s,v');
   }
 
-  hasServerReceiptSig () {
-    return (Object.keys(this.sig.serverReceipt).sort().toString() == 'r,s,v');
+  hasBoosterReceiptSig () {
+    return (Object.keys(this.sig.boosterReceipt).sort().toString() == 'r,s,v');
   }
 
   toJson () {

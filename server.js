@@ -28,8 +28,10 @@ app.use(cors());
 var server = require('http').createServer(app);
 
 const account = env.serverAddress;
-const contractAddress = env.contractAddress;
 const serverAddress = env.serverAddress;
+// Addresses of booster
+const contractAddress = env.contractAddress;
+const accountAddress = '0x' + EthUtils.privateToAddress(Buffer.from(env.signerKey, 'hex')).toString('hex');
 let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
 
 app.get('/balance/:address', async function (req, res) {
@@ -289,7 +291,7 @@ app.post('/attach', async function (req, res) {
 
 app.get('/booster/address', async function (req, res) {
   try {
-    res.send({ address: contractAddress });
+    res.send({ contractAddress: contractAddress, accountAddress: accountAddress });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
