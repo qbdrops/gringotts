@@ -13,6 +13,7 @@ let txDecoder = require('ethereum-tx-decoder');
 let abiDecoder = require('abi-decoder');
 let Model = require('../models');
 let EthUtils = require('ethereumjs-util');
+let Signer = require('../../utils/signer');
 
 const Sequelize = Model.Sequelize;
 const sequelize = Model.sequelize;
@@ -21,6 +22,8 @@ const Op = Sequelize.Op;
 let web3 = new Web3(env.web3Url);
 let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
+let signer = new Signer();
+signer.importPrivateKey(env.signerKey);
 
 let ReceiptModel = Model.receipts;
 let AssetModel = Model.assets;
@@ -603,16 +606,17 @@ class Postgres {
       };
 
       let receipt = new Receipt(receiptJson);
+      let signedReceipt = signer.signWithBoosterKey(receipt);
       await ReceiptModel.create({
-        gsn: receipt.receiptData.GSN,
-        log_id: receipt.lightTxData.logID,
-        stage_height: receipt.receiptData.stageHeight,
-        light_tx_hash: receipt.lightTxHash,
-        receipt_hash: receipt.receiptHash,
-        from: receipt.lightTxData.from,
-        to: receipt.lightTxData.to,
-        value: receipt.lightTxData.value,
-        data: receipt.toJson()
+        gsn: signedReceipt.receiptData.GSN,
+        log_id: signedReceipt.lightTxData.logID,
+        stage_height: signedReceipt.receiptData.stageHeight,
+        light_tx_hash: signedReceipt.lightTxHash,
+        receipt_hash: signedReceipt.receiptHash,
+        from: signedReceipt.lightTxData.from,
+        to: signedReceipt.lightTxData.to,
+        value: signedReceipt.lightTxData.value,
+        data: signedReceipt.toJson()
       }, {
         transaction: tx
       });
