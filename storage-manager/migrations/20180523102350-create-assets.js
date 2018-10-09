@@ -18,6 +18,11 @@ module.exports = {
       address: {
         allowNull: false,
         type: Sequelize.TEXT
+      },
+      pre_gsn: {
+        type: Sequelize.NUMERIC,
+        allowNull: false,
+        default: 0
       }
     }).then(() => {
       queryInterface.addIndex('assets', ['asset_id', 'address']);
