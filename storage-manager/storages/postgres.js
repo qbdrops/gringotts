@@ -528,9 +528,10 @@ class Postgres {
     let toBalance = initBalance;
     let toPreGSN = 0;
     let fromPreGSN = 0;
+    let tx;
 
     try {
-      let tx = await sequelize.transaction({
+      tx = await sequelize.transaction({
         isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
       });
 
@@ -650,7 +651,7 @@ class Postgres {
         fromBalance: fromBalance,
         toBalance: toBalance,
       };
-      
+
       let receipt = new Receipt(receiptJson);
       let signedReceipt = signer.signWithBoosterKey(receipt);
       await ReceiptModel.create({
