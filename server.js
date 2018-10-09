@@ -27,11 +27,9 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 
-const account = env.serverAddress;
-const serverAddress = env.serverAddress;
-// Addresses of booster
-const contractAddress = env.contractAddress;
-const accountAddress = '0x' + EthUtils.privateToAddress(Buffer.from(env.signerKey, 'hex')).toString('hex');
+const serverAccountAddress = env.serverAddress;
+const boostarContractAddress = env.contractAddress;
+const boostarAccountAddress = '0x' + EthUtils.privateToAddress(Buffer.from(env.signerKey, 'hex')).toString('hex');
 let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
 
 app.get('/balance/:address', async function (req, res) {
@@ -99,7 +97,7 @@ function isValidSig(lightTx) {
     // validate signatures of lightTxs
     let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.serverLightTx.v, lightTx.sig.serverLightTx.r, lightTx.sig.serverLightTx.s);
     let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
-    isServerSigValid = (account.toLowerCase() == address.toLowerCase());
+    isServerSigValid = (serverAccountAddress.toLowerCase() == address.toLowerCase());
   }
 
   return (isClientSigValid && isServerSigValid);
@@ -291,7 +289,7 @@ app.post('/attach', async function (req, res) {
 
 app.get('/booster/address', async function (req, res) {
   try {
-    res.send({ contractAddress: contractAddress, accountAddress: accountAddress });
+    res.send({ contractAddress: boostarContractAddress, accountAddress: boostarAccountAddress });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
@@ -300,7 +298,7 @@ app.get('/booster/address', async function (req, res) {
 
 app.get('/server/address', async function (req, res) {
   try {
-    res.send({ address: serverAddress });
+    res.send({ address: serverAccountAddress });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });

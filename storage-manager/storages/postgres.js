@@ -18,7 +18,6 @@ let Signer = require('../../utils/signer');
 const Sequelize = Model.Sequelize;
 const sequelize = Model.sequelize;
 const Op = Sequelize.Op;
-// const EtherAssetID = '0000000000000000000000000000000000000000000000000000000000000000';
 const EtherEmptyAddress = '0x0000000000000000000000000000000000000000';
 
 let web3 = new Web3(env.web3Url);
@@ -542,7 +541,7 @@ class Postgres {
       await gsnNumberModel.increment('gsn', {
         transaction: tx
       });
-      let gsn = parseInt(gsnNumberModel.gsn,10);
+      let gsn = parseInt(gsnNumberModel.gsn, 10);
 
       if (type === LightTxTypes.deposit) {
         let oldReceipt = await this.getReceiptByLogID(logID);
@@ -552,13 +551,7 @@ class Postgres {
          * depositLog[1]: users' address
          * depositLog[2]: users' deposit value
          * depositLog[3]: users' deposit asset ID
-         * depositLog[
-         * 
-         * 
-         * 
-         * 
-         * 
-         * ]4]: if users' funds are relayed to booster
+         * depositLog[4]: if users' funds are relayed to booster
          */
         if (oldReceipt || depositLog[4] == true) {
           code = ErrorCodes.CONTAINS_KNOWN_LOG_ID;
