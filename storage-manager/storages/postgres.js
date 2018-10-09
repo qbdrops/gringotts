@@ -18,6 +18,8 @@ let Signer = require('../../utils/signer');
 const Sequelize = Model.Sequelize;
 const sequelize = Model.sequelize;
 const Op = Sequelize.Op;
+// const EtherAssetID = '0000000000000000000000000000000000000000000000000000000000000000';
+const EtherEmptyAddress = '0x0000000000000000000000000000000000000000';
 
 let web3 = new Web3(env.web3Url);
 let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
@@ -318,7 +320,7 @@ class Postgres {
 
     console.log('expectedStageHeight: ' + expectedStageHeight);
 
-    let gsnNumberModel = await GSNNumberModel.findById(1);
+    let gsnNumberModel = await this.gsnNumberModel();
     let gsn;
     if (!gsnNumberModel) {
       gsn = 0;
@@ -336,7 +338,7 @@ class Postgres {
       await AssetListModel.create({
         asset_name: 'ETH',
         asset_decimals: 18,
-        asset_address: '0x' + '0'.padStart(40, '0')
+        asset_address: EtherEmptyAddress
       });
       let assetListLength = await booster.methods.getAssetAddressesLength().call();
       for (let i = 0; i < assetListLength; i++) {
@@ -474,23 +476,41 @@ class Postgres {
     }, {
       transaction: tx
     });
+
+    if (!asset) {
+      asset = AssetModel.build({
+        address: address,
+        asset_id: assetID,
+        balance: initBalance,
+        pre_gsn: 0
+      }, {
+        transaction: tx
+      });
+      await asset.save();
+    }
     return asset;
   }
 
-  async setBalance (address, assetID, balance, tx = null) {
+  async setBalance (address, assetID, balance, preGSN = 0, tx = null) {
     let asset = await this.getAsset(address, assetID, tx);
 
     if (asset) {
       await asset.update({
         address: address,
         asset_id: assetID,
-        balance: balance
+        balance: balance,
+        pre_gsn: preGSN
+      }, {
+        transaction: tx
       });
     } else {
       asset = AssetModel.build({
         address: address,
         asset_id: assetID,
-        balance: balance
+        balance: balance,
+        pre_gsn: preGSN
+      }, {
+        transaction: tx
       });
       await asset.save();
     }
@@ -506,11 +526,23 @@ class Postgres {
 
     let fromBalance = initBalance;
     let toBalance = initBalance;
-    let tx;
+    let toPreGSN = 0;
+    let fromPreGSN = 0;
+
     try {
-      tx = await sequelize.transaction({
+      let tx = await sequelize.transaction({
         isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
       });
+
+      let gsnNumberModel = await this.gsnNumberModel(tx);
+      if (!gsnNumberModel) {
+        throw new Error('Cannot get the newest gsn number.');
+      }
+      await gsnNumberModel.increment('gsn', {
+        transaction: tx
+      });
+      let gsn = parseInt(gsnNumberModel.gsn,10);
+
       if (type === LightTxTypes.deposit) {
         let oldReceipt = await this.getReceiptByLogID(logID);
         let depositLog = await booster.methods.depositLogs('0x' + logID).call();
@@ -519,7 +551,13 @@ class Postgres {
          * depositLog[1]: users' address
          * depositLog[2]: users' deposit value
          * depositLog[3]: users' deposit asset ID
-         * depositLog[4]: if users' funds are relayed to booster
+         * depositLog[
+         * 
+         * 
+         * 
+         * 
+         * 
+         * ]4]: if users' funds are relayed to booster
          */
         if (oldReceipt || depositLog[4] == true) {
           code = ErrorCodes.CONTAINS_KNOWN_LOG_ID;
@@ -532,26 +570,31 @@ class Postgres {
             throw new Error('Wrong log id.');
           } else {
             let value = new BigNumber('0x' + lightTx.lightTxData.value);
-            toBalance = await this.getBalance(toAddress, assetID, tx);
+            let toAsset = await this.getAsset(toAddress, assetID, tx);
 
+            toPreGSN = parseInt(toAsset.pre_gsn, 10);
+            toBalance = toAsset.balance;
             toBalance = new BigNumber('0x' + toBalance);
             toBalance = toBalance.plus(value);
             toBalance = toBalance.toString(16).padStart(64, '0');
 
-            await this.setBalance(toAddress, assetID, toBalance, tx);
+            await this.setBalance(toAddress, assetID, toBalance, gsn, tx);
           }
         }
       } else if ((type === LightTxTypes.withdrawal) ||
         (type === LightTxTypes.instantWithdrawal)) {
         let value = new BigNumber('0x' + lightTx.lightTxData.value);
-        fromBalance = await this.getBalance(fromAddress, assetID, tx);
+        let fromAsset = await this.getAsset(fromAddress, assetID, tx);
 
+        fromPreGSN = parseInt(fromAsset.pre_gsn, 10);
+        fromBalance = fromAsset.balance;
         fromBalance = new BigNumber('0x' + fromBalance);
+
         if (fromBalance.isGreaterThanOrEqualTo(value)) {
           fromBalance = fromBalance.minus(value);
           fromBalance = fromBalance.toString(16).padStart(64, '0');
 
-          await this.setBalance(fromAddress, assetID, fromBalance, tx);
+          await this.setBalance(fromAddress, assetID, fromBalance, gsn, tx);
         } else {
           code = ErrorCodes.INSUFFICIENT_BALANCE;
           throw new Error('Insufficient balance.');
@@ -560,23 +603,31 @@ class Postgres {
         let value = new BigNumber('0x' + lightTx.lightTxData.value);
 
         // Get 'from' balance
-        fromBalance = await this.getBalance(fromAddress, assetID, tx);
+        let fromAsset = await this.getAsset(fromAddress, assetID, tx);
+
+        fromPreGSN = parseInt(fromAsset.pre_gsn, 10);
+        fromBalance = fromAsset.balance;
         fromBalance = new BigNumber('0x' + fromBalance);
+
         if (fromBalance.isGreaterThanOrEqualTo(value)) {
           // Minus 'from' balance
           fromBalance = fromBalance.minus(value);
           fromBalance = fromBalance.toString(16).padStart(64, '0');
           // Save 'from' balance
-          await this.setBalance(fromAddress, assetID, fromBalance, tx);
+          await this.setBalance(fromAddress, assetID, fromBalance, gsn, tx);
 
           // Get 'to' balance
-          toBalance = await this.getBalance(toAddress, assetID, tx);
+          let toAsset = await this.getAsset(toAddress, assetID, tx);
+
+          toPreGSN = parseInt(toAsset.pre_gsn, 10);
+          toBalance = toAsset.balance;
           toBalance = new BigNumber('0x' + toBalance);
           // Plus 'to' balance
           toBalance = toBalance.plus(value);
           toBalance = toBalance.toString(16).padStart(64, '0');
+
           // Save 'to' balance
-          await this.setBalance(toAddress, assetID, toBalance, tx);
+          await this.setBalance(toAddress, assetID, toBalance, gsn, tx);
         } else {
           code = ErrorCodes.INSUFFICIENT_BALANCE;
           throw new Error('Insufficient balance.');
@@ -589,22 +640,17 @@ class Postgres {
       let expectedStageHeightModel = await this.expectedStageHeightModel(tx);
       let expectedStageHeight = expectedStageHeightModel.height;
 
-      let gsnNumberModel = await this.gsnNumberModel(tx);
-      await gsnNumberModel.increment('gsn', {
-        transaction: tx
-      });
-
-      let gsn = gsnNumberModel.gsn;
-
       let receiptJson = lightTx.toJson();
       receiptJson.receiptData = {
         stageHeight: parseInt(expectedStageHeight, 10),
-        GSN: parseInt(gsn, 10),
+        GSN: gsn,
+        fromPreGSN: fromPreGSN,
+        toPreGSN: toPreGSN,
         lightTxHash: lightTx.lightTxHash,
         fromBalance: fromBalance,
         toBalance: toBalance,
       };
-
+      
       let receipt = new Receipt(receiptJson);
       let signedReceipt = signer.signWithBoosterKey(receipt);
       await ReceiptModel.create({
