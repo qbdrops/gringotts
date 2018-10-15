@@ -564,12 +564,13 @@ class Postgres {
             throw new Error('Wrong log id.');
           } else {
             let value = new BigNumber('0x' + lightTx.lightTxData.value);
+            let valueMinusFee = value.minus(new BigNumber('0x' + lightTx.lightTxData.fee));
             let toAsset = await this.getAsset(toAddress, assetID, tx);
 
             toPreGSN = parseInt(toAsset.pre_gsn, 10);
             toBalance = toAsset.balance;
             toBalance = new BigNumber('0x' + toBalance);
-            toBalance = toBalance.plus(value);
+            toBalance = toBalance.plus(valueMinusFee);
             toBalance = toBalance.toString(16).padStart(64, '0');
 
             await this.setBalance(toAddress, assetID, toBalance, gsn, tx);
@@ -578,14 +579,15 @@ class Postgres {
       } else if ((type === LightTxTypes.withdrawal) ||
         (type === LightTxTypes.instantWithdrawal)) {
         let value = new BigNumber('0x' + lightTx.lightTxData.value);
+        let valuePlusFee = value.plus(new BigNumber('0x' + lightTx.lightTxData.fee));
         let fromAsset = await this.getAsset(fromAddress, assetID, tx);
 
         fromPreGSN = parseInt(fromAsset.pre_gsn, 10);
         fromBalance = fromAsset.balance;
         fromBalance = new BigNumber('0x' + fromBalance);
 
-        if (fromBalance.isGreaterThanOrEqualTo(value)) {
-          fromBalance = fromBalance.minus(value);
+        if (fromBalance.isGreaterThanOrEqualTo(valuePlusFee)) {
+          fromBalance = fromBalance.minus(valuePlusFee);
           fromBalance = fromBalance.toString(16).padStart(64, '0');
 
           await this.setBalance(fromAddress, assetID, fromBalance, gsn, tx);
@@ -595,6 +597,7 @@ class Postgres {
         }
       } else if (type === LightTxTypes.remittance) {
         let value = new BigNumber('0x' + lightTx.lightTxData.value);
+        let valuePlusFee = value.plus(new BigNumber('0x' + lightTx.lightTxData.fee));
 
         // Get 'from' balance
         let fromAsset = await this.getAsset(fromAddress, assetID, tx);
@@ -603,9 +606,9 @@ class Postgres {
         fromBalance = fromAsset.balance;
         fromBalance = new BigNumber('0x' + fromBalance);
 
-        if (fromBalance.isGreaterThanOrEqualTo(value)) {
+        if (fromBalance.isGreaterThanOrEqualTo(valuePlusFee)) {
           // Minus 'from' balance
-          fromBalance = fromBalance.minus(value);
+          fromBalance = fromBalance.minus(valuePlusFee);
           fromBalance = fromBalance.toString(16).padStart(64, '0');
           // Save 'from' balance
           await this.setBalance(fromAddress, assetID, fromBalance, gsn, tx);
@@ -656,6 +659,8 @@ class Postgres {
         from: signedReceipt.lightTxData.from,
         to: signedReceipt.lightTxData.to,
         value: signedReceipt.lightTxData.value,
+        fee: signedReceipt.lightTxData.fee,
+        asset_id: signedReceipt.lightTxData.assetID,
         data: signedReceipt.toJson()
       }, {
         transaction: tx

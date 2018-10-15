@@ -9,6 +9,8 @@ module.exports = (sequelize, DataTypes) => {
     from: DataTypes.CHAR(64),
     to: DataTypes.CHAR(64),
     value: DataTypes.CHAR(64),
+    fee: DataTypes.CHAR(64),
+    asset_id: DataTypes.CHAR(64),
     onchain: {
       allowNull: false,
       type: DataTypes.BOOLEAN,
