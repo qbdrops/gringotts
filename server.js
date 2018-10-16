@@ -88,8 +88,8 @@ function isValidSig(lightTx) {
     } else if ((type == LightTxTypes.withdrawal) ||
       (type == LightTxTypes.instantWithdrawal) ||
       (type == LightTxTypes.remittance)) {
-      let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.clientLightTx.v, lightTx.sig.clientLightTx.r, lightTx.sig.clientLightTx.s);
-      let address = EthUtils.pubToAddress(publicKey).toString('hex').padStart(64, '0');
+        let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.clientLightTx.v, lightTx.sig.clientLightTx.r, lightTx.sig.clientLightTx.s);
+        let address = EthUtils.pubToAddress(publicKey).toString('hex').padStart(64, '0');
       isClientSigValid = (from.toLowerCase() == address.toLowerCase());
     } else {
       new Error('Not supported light transaction type.');
@@ -111,7 +111,7 @@ async function isValidAsset(lightTx) {
     if (address.slice(0, 2) == '0x') {
       address = address.substring(2);
     }
-    if (lightTx.assetID == address.padStart(64, '0')) {
+    if (lightTx.lightTxData.assetID == address.padStart(64, '0').toLowerCase()) {
       isValid = true;
     }
   });
@@ -183,7 +183,7 @@ app.post('/send/light_tx', async function (req, res) {
     } else {
       let isValidSigLightTx = isValidSig(lightTx);
       if (isValidSigLightTx) {
-        let isValidAssetLightTx = isValidAsset(lightTx);
+        let isValidAssetLightTx = await isValidAsset(lightTx);
         if (isValidAssetLightTx) {
           let updateResult = await storageManager.applyLightTx(lightTx);
 
