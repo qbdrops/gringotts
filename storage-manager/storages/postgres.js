@@ -564,13 +564,12 @@ class Postgres {
             throw new Error('Wrong log id.');
           } else {
             let value = new BigNumber('0x' + lightTx.lightTxData.value);
-            let valueMinusFee = value.minus(new BigNumber('0x' + lightTx.lightTxData.fee));
             let toAsset = await this.getAsset(toAddress, assetID, tx);
 
             toPreGSN = parseInt(toAsset.pre_gsn, 10);
             toBalance = toAsset.balance;
             toBalance = new BigNumber('0x' + toBalance);
-            toBalance = toBalance.plus(valueMinusFee);
+            toBalance = toBalance.plus(value);
             toBalance = toBalance.toString(16).padStart(64, '0');
 
             await this.setBalance(toAddress, assetID, toBalance, gsn, tx);
