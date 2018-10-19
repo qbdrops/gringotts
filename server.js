@@ -29,8 +29,8 @@ app.use(cors());
 var server = require('http').createServer(app);
 
 const serverAccountAddress = env.serverAddress;
-const boostarContractAddress = env.contractAddress;
-const boostarAccountAddress = '0x' + EthUtils.privateToAddress(Buffer.from(env.signerKey, 'hex')).toString('hex');
+const boosterContractAddress = env.contractAddress;
+const boosterAccountAddress = '0x' + EthUtils.privateToAddress(Buffer.from(env.signerKey, 'hex')).toString('hex');
 let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
 let stageBuildingLock = false;
 
@@ -343,7 +343,7 @@ app.post('/attach', async function (req, res) {
 
 app.get('/booster/address', async function (req, res) {
   try {
-    res.send({ contractAddress: boostarContractAddress, accountAddress: boostarAccountAddress });
+    res.send({ contractAddress: boosterContractAddress, accountAddress: boosterAccountAddress });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
