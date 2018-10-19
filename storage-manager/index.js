@@ -1,9 +1,3 @@
-let env = require('../env');
-let Web3 = require('web3');
-let Booster = require('../abi/Booster.json');
-
-let web3 = new Web3(env.web3Url);
-let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
 let Storage = require('./storages/postgres');
 
 class StorageManager {
@@ -13,14 +7,13 @@ class StorageManager {
     this.init();
   }
 
-  async attach (stageHeight, serializedTx) {
-    let txHash = await this.storage.attach(stageHeight, serializedTx);
-    return txHash;
-  }
-
   async commitTrees (stageHeight) {
     let trees = await this.storage.commitTrees(stageHeight);
     return trees;
+  }
+
+  async increaseExpectedStageHeight () {
+    await this.storage.increaseExpectedStageHeight();
   }
 
   async setTrees (stageHeight, receiptTree, accountTree) {
@@ -125,24 +118,14 @@ class StorageManager {
     let result = await this.storage.getAssetList();
     return result;
   }
+
+  async getFee (stageHeight) {
+    let result = await this.storage.getFee(stageHeight);
+    return result;
+  }
 }
 
 let storage = new Storage();
 let storageManager = new StorageManager(storage);
-
-// Watch latest block
-booster.events.Attach({
-  toBlock: 'latest' 
-}, async (err, result) => {
-  if (err) console.error(err);
-  try {
-    console.log('attach');
-    let stageHeight = result.returnValues._stageHeight;
-    // Remove offchain receipt json
-    await storageManager.removeOffchainReceipts(stageHeight);
-  } catch (e) {
-    console.error(e);
-  }
-});
 
 module.exports = storageManager;
