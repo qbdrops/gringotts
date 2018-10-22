@@ -8,7 +8,6 @@ module.exports = {
         type: Sequelize.INTEGER
       },
       stage_height: {
-        unique: true,
         allowNull: false,
         type: Sequelize.CHAR(64)
       },
