@@ -284,7 +284,10 @@ app.post('/attach', async function (req, res) {
 
     let stageHeight = parseInt(await booster.methods.stageHeight().call()) + 1;
     let hasPendingReceipts = await storageManager.hasPendingReceipts(stageHeight);
-    if (hasPendingReceipts) {
+    if (stageBuildingLock === true) {
+      message = 'Stage are building.';
+      code = ErrorCodes.STAGE_IS_CURRENTLY_BUILDING;
+    } else if (hasPendingReceipts) {
       stageBuildingLock = true;
       let trees = await storageManager.commitTrees(stageHeight);
       let fees = await storageManager.getFee(stageHeight);
