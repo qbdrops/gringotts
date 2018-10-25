@@ -2,6 +2,7 @@ const EthUtils = require('ethereumjs-util');
 const keythereum = require('keythereum');
 const assert = require('assert');
 const Receipt = require('../models/receipt');
+const LightTransaction = require('../models/light-transaction');
 
 class Signer {
   constructor () {
@@ -25,7 +26,6 @@ class Signer {
       this.key = Buffer.from(privateKey, options.encoding);
     } else if (typeof privateKey === 'object') {
       this.key = keythereum.recover(options.password, privateKey);
-      console.log(this.key);
     } else {
       throw new Error('Unsupported private key type.');
     }
@@ -49,12 +49,18 @@ class Signer {
     return this._sign('booster', object);
   }
 
+  signWithClientKey (object) {
+    return this._sign('client', object);
+  }
+
   _sign (caller, object) {
     let klass;
-    if (object instanceof Receipt) {
+    if (object instanceof LightTransaction) {
+      klass = 'lightTx';
+    } else if (object instanceof Receipt) {
       klass = 'receipt';
     } else {
-      throw new Error('\'object\' should be instance of \'Receipt\'.');
+      throw new Error('\'object\' should be instance of \'LightTransaction\' or \'Receipt\'.');
     }
     if (!this.key) {
       throw new Error('Please set private key first.');
