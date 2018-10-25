@@ -10,7 +10,7 @@ let LightTransaction = require('./models/light-transaction');
 let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
 let Web3 = require('web3');
-let EthereumTx = require('ethereumjs-tx');
+let Infinitechain = require('./utils/infinitechain');
 
 let web3 = new Web3(env.web3Url);
 let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
@@ -33,6 +33,7 @@ const boosterContractAddress = env.contractAddress;
 const boosterAccountAddress = '0x' + EthUtils.privateToAddress(Buffer.from(env.signerKey, 'hex')).toString('hex');
 let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
 let stageBuildingLock = false;
+let generateEmptyTx = env.generateEmptyTx || false;
 
 app.get('/balance/:address', async function (req, res) {
   try {
@@ -281,6 +282,7 @@ app.post('/attach', async function (req, res) {
     let message = 'Something went wrong.';
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
     let txHash = null;
+    let chain = new Infinitechain();
 
     let stageHeight = parseInt(await booster.methods.stageHeight().call()) + 1;
     let hasPendingReceipts = await storageManager.hasPendingReceipts(stageHeight);
@@ -289,43 +291,23 @@ app.post('/attach', async function (req, res) {
       code = ErrorCodes.STAGE_IS_CURRENTLY_BUILDING;
     } else if (hasPendingReceipts) {
       stageBuildingLock = true;
-      let trees = await storageManager.commitTrees(stageHeight);
-      let fees = await storageManager.getFee(stageHeight);
-      let assetList = [];
-      let feeList = [];
-      for (let i = 0; i < fees.length; i++) {
-        assetList.push('0x' + fees[i].assetID);
-        feeList.push('0x' + fees[i].fee);
-      }
-      let nonce = web3.utils.toHex(await web3.eth.getTransactionCount(boostarAccountAddress, 'pending'));
-      let txMethodData = booster.methods.attach([
-        '0x' + trees.receiptRootHash,
-        '0x' + trees.accountRootHash,
-        '0x'
-      ], assetList, feeList).encodeABI();
-
-      let txParams = {
-        data: txMethodData,
-        from: boostarAccountAddress,
-        to: env.contractAddress,
-        value: '0x0',
-        nonce: nonce,
-        gas: 4700000,
-        gasPrice: '0x2540be400'
-      };
-
-      let tx = new EthereumTx(txParams);
-      tx.sign(Buffer.from(env.signerKey, 'hex'));
-      let serializedTx = '0x' + tx.serialize().toString('hex');
-
-      let receipt = await web3.eth.sendSignedTransaction(serializedTx);
+      let receipt = await chain.attach(stageHeight);
       txHash = receipt.transactionHash;
-      console.log('Committed txHash: ' + txHash);
-      await storageManager.increaseExpectedStageHeight();
       success = true;
     } else {
-      message = 'Receipts are empty.';
-      code = ErrorCodes.RECEIPTS_ARE_EMPTY;
+      if (generateEmptyTx === true) {
+        // generate an empty light tx
+        console.log('Receipts are empty, generate an empty light tx');
+        await chain.sendLightTx(boosterAccountAddress, boosterAccountAddress, 0, 0, 0);
+        // attach
+        stageBuildingLock = true;
+        let receipt = await chain.attach(stageHeight);
+        txHash = receipt.transactionHash;
+        success = true;
+      } else {
+        message = 'Receipts are empty.';
+        code = ErrorCodes.RECEIPTS_ARE_EMPTY;
+      }
     }
 
     stageBuildingLock = false;
