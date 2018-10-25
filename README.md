@@ -61,3 +61,9 @@ You can find a [example backend project](https://github.com/BOLT-Protocol/wizard
 ## To understand BOLT protocol
 
 You can learn the concepts of [BOLT protocol](https://github.com/BOLT-Protocol/wiki/blob/master/yellow_paper_eng.md) including security analysis, how BOLT protocol deal with the performance issues and user experience problems of public blockchains.
+
+
+
+## License
+SSPL
+https://www.mongodb.com/licensing/server-side-public-license
