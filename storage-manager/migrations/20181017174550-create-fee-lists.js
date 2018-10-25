@@ -1,13 +1,13 @@
 'use strict';
 module.exports = {
   up: (queryInterface, Sequelize) => {
-    return queryInterface.createTable('assets', {
+    return queryInterface.createTable('fee_lists', {
       id: {
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      balance: {
+      stage_height: {
         allowNull: false,
         type: Sequelize.CHAR(64)
       },
@@ -15,20 +15,13 @@ module.exports = {
         allowNull: false,
         type: Sequelize.CHAR(64)
       },
-      address: {
+      fee: {
         allowNull: false,
-        type: Sequelize.TEXT
-      },
-      pre_gsn: {
-        type: Sequelize.NUMERIC,
-        allowNull: false,
-        default: 0
+        type: Sequelize.CHAR(64)
       }
-    }).then(() => {
-      queryInterface.addIndex('assets', ['asset_id', 'address']);
     });
   },
   down: (queryInterface, Sequelize) => {
-    return queryInterface.dropTable('assets');
+    return queryInterface.dropTable('fee_lists');
   }
 };

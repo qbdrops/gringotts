@@ -9,18 +9,20 @@ let ErrorCodes = require('../../errors/codes');
 let LightTxTypes = require('../../models/types');
 let IndexedMerkleTree = require('../utils/indexed-merkle-tree');
 let GetProof = require('../utils/get-proof');
-let txDecoder = require('ethereum-tx-decoder');
-let abiDecoder = require('abi-decoder');
 let Model = require('../models');
 let EthUtils = require('ethereumjs-util');
+let Signer = require('../../utils/signer');
 
 const Sequelize = Model.Sequelize;
 const sequelize = Model.sequelize;
 const Op = Sequelize.Op;
+const EtherEmptyAddress = '0x0000000000000000000000000000000000000000';
 
 let web3 = new Web3(env.web3Url);
 let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
+let signer = new Signer();
+signer.importPrivateKey(env.signerKey);
 
 let ReceiptModel = Model.receipts;
 let AssetModel = Model.assets;
@@ -30,34 +32,9 @@ let ExpectedStageHeightModel = Model.expected_stage_height;
 let GSNNumberModel = Model.gsn_number;
 let TreeModel = Model.trees;
 let AccountSnapshotModel = Model.account_snapshot;
-
-abiDecoder.addABI(Booster.abi);
+let FeeListModel = Model.fee_lists;
 
 class Postgres {
-  async attach (stageHeight, serializedTx) {
-    try {
-      let decodedTx = txDecoder.decodeTx(serializedTx);
-      let functionParams = abiDecoder.decodeMethod(decodedTx.data);
-      let receiptRootHash = functionParams.params[0].value[0].slice(2);
-      let accountRootHash = functionParams.params[0].value[1].slice(2);
-      let trees = await this.getTrees(stageHeight);
-
-      let receiptTree = trees.receipt_tree;
-      let accountTree = trees.account_tree;
-
-      if ((receiptTree.rootHash === receiptRootHash) &&
-        accountTree.rootHash === accountRootHash) {
-        let receipt = await web3.eth.sendSignedTransaction(serializedTx);
-        console.log('Committed txHash: ' + receipt.transactionHash);
-        return receipt.transactionHash;
-      } else {
-        throw new Error('Invalid signed root hashes.');
-      }
-    } catch (e) {
-      throw e;
-    }
-  }
-
   async commitTrees (stageHeight) {
     let tx;
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
@@ -68,7 +45,6 @@ class Postgres {
       let accountData = await this.accountData(tx);
       let accountHashes = this.accountHashes(stageHeight, accountData);
 
-      await this.increaseExpectedStageHeight(tx);
       let receiptHashes = await this.pendingReceiptHashes(stageHeight, tx);
 
       console.log('Building Stage Height: ' + stageHeight);
@@ -122,7 +98,14 @@ class Postgres {
       stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
     }
 
-    let result = await TreeModel.findOne({
+    let tree = await TreeModel.findOne({
+      where: {
+        stage_height: stageHeight
+      }
+    }, {
+      transaction: tx
+    });
+    let accountSnapshot = await AccountSnapshotModel.findOne({
       where: {
         stage_height: stageHeight
       }
@@ -130,7 +113,7 @@ class Postgres {
       transaction: tx
     });
 
-    if (!result) {
+    if (!tree) {
       await TreeModel.create({
         stage_height: stageHeight,
         receipt_tree: receiptTree,
@@ -146,7 +129,26 @@ class Postgres {
         transaction: tx
       });
     } else {
-      throw new Error('this stage is already save in DB!');
+      await tree.update({
+        stage_height: stageHeight,
+        receipt_tree: receiptTree,
+        account_tree: accountTree
+      }, {
+        where: {
+          stage_height: stageHeight
+        },
+        transaction: tx
+      });
+      await accountSnapshot.update({
+        stage_height: stageHeight,
+        account_data: accountData,
+        asset_roothash: accountHashes
+      }, {
+        where: {
+          stage_height: stageHeight
+        },
+        transaction: tx
+      });
     }
   }
 
@@ -310,12 +312,12 @@ class Postgres {
         height: expectedStageHeight
       });
     } else {
-      expectedStageHeight = parseInt(expectedStageHeightModel.height, 16);
+      expectedStageHeight = parseInt(expectedStageHeightModel.height);
     }
 
     console.log('expectedStageHeight: ' + expectedStageHeight);
 
-    let gsnNumberModel = await GSNNumberModel.findById(1);
+    let gsnNumberModel = await this.gsnNumberModel();
     let gsn;
     if (!gsnNumberModel) {
       gsn = 0;
@@ -333,7 +335,7 @@ class Postgres {
       await AssetListModel.create({
         asset_name: 'ETH',
         asset_decimals: 18,
-        asset_address: '0x' + '0'.padStart(40, '0')
+        asset_address: EtherEmptyAddress
       });
       let assetListLength = await booster.methods.getAssetAddressesLength().call();
       for (let i = 0; i < assetListLength; i++) {
@@ -471,23 +473,41 @@ class Postgres {
     }, {
       transaction: tx
     });
+
+    if (!asset) {
+      asset = AssetModel.build({
+        address: address,
+        asset_id: assetID,
+        balance: initBalance,
+        pre_gsn: 0
+      }, {
+        transaction: tx
+      });
+      await asset.save();
+    }
     return asset;
   }
 
-  async setBalance (address, assetID, balance, tx = null) {
+  async setBalance (address, assetID, balance, preGSN = 0, tx = null) {
     let asset = await this.getAsset(address, assetID, tx);
 
     if (asset) {
       await asset.update({
         address: address,
         asset_id: assetID,
-        balance: balance
+        balance: balance,
+        pre_gsn: preGSN
+      }, {
+        transaction: tx
       });
     } else {
       asset = AssetModel.build({
         address: address,
         asset_id: assetID,
-        balance: balance
+        balance: balance,
+        pre_gsn: preGSN
+      }, {
+        transaction: tx
       });
       await asset.save();
     }
@@ -503,11 +523,26 @@ class Postgres {
 
     let fromBalance = initBalance;
     let toBalance = initBalance;
+    let toPreGSN = 0;
+    let fromPreGSN = 0;
     let tx;
+
     try {
       tx = await sequelize.transaction({
         isolationLevel: Sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED
       });
+
+      let gsnNumberModel = await this.gsnNumberModel(tx);
+      if (!gsnNumberModel) {
+        throw new Error('Cannot get the newest gsn number.');
+      }
+      await gsnNumberModel.increment('gsn', {
+        transaction: tx
+      });
+      let gsn = parseInt(gsnNumberModel.gsn, 10);
+      let expectedStageHeightModel = await this.expectedStageHeightModel(tx);
+      let expectedStageHeight = parseInt(expectedStageHeightModel.height);
+
       if (type === LightTxTypes.deposit) {
         let oldReceipt = await this.getReceiptByLogID(logID);
         let depositLog = await booster.methods.depositLogs('0x' + logID).call();
@@ -529,51 +564,77 @@ class Postgres {
             throw new Error('Wrong log id.');
           } else {
             let value = new BigNumber('0x' + lightTx.lightTxData.value);
-            toBalance = await this.getBalance(toAddress, assetID, tx);
+            let toAsset = await this.getAsset(toAddress, assetID, tx);
 
+            toPreGSN = parseInt(toAsset.pre_gsn, 10);
+            toBalance = toAsset.balance;
             toBalance = new BigNumber('0x' + toBalance);
             toBalance = toBalance.plus(value);
             toBalance = toBalance.toString(16).padStart(64, '0');
 
-            await this.setBalance(toAddress, assetID, toBalance, tx);
+            await this.setBalance(toAddress, assetID, toBalance, gsn, tx);
           }
         }
       } else if ((type === LightTxTypes.withdrawal) ||
         (type === LightTxTypes.instantWithdrawal)) {
         let value = new BigNumber('0x' + lightTx.lightTxData.value);
-        fromBalance = await this.getBalance(fromAddress, assetID, tx);
+        let fee = new BigNumber('0x' + lightTx.lightTxData.fee);
+        let valuePlusFee = value.plus(fee);
+        let fromAsset = await this.getAsset(fromAddress, assetID, tx);
 
+        fromPreGSN = parseInt(fromAsset.pre_gsn, 10);
+        fromBalance = fromAsset.balance;
         fromBalance = new BigNumber('0x' + fromBalance);
-        if (fromBalance.isGreaterThanOrEqualTo(value)) {
-          fromBalance = fromBalance.minus(value);
+
+        if (fromBalance.isGreaterThanOrEqualTo(valuePlusFee)) {
+          fromBalance = fromBalance.minus(valuePlusFee);
           fromBalance = fromBalance.toString(16).padStart(64, '0');
 
-          await this.setBalance(fromAddress, assetID, fromBalance, tx);
+          await this.setBalance(fromAddress, assetID, fromBalance, gsn, tx);
+
+          let originFee = await this.getFee(expectedStageHeight, assetID, tx);
+          let newFee = new BigNumber('0x' + originFee).plus(fee);
+          await this.setFee(expectedStageHeight, assetID, newFee, tx);
         } else {
           code = ErrorCodes.INSUFFICIENT_BALANCE;
           throw new Error('Insufficient balance.');
         }
       } else if (type === LightTxTypes.remittance) {
         let value = new BigNumber('0x' + lightTx.lightTxData.value);
+        let fee = new BigNumber('0x' + lightTx.lightTxData.fee);
+        let valuePlusFee = value.plus(fee);
 
         // Get 'from' balance
-        fromBalance = await this.getBalance(fromAddress, assetID, tx);
+        let fromAsset = await this.getAsset(fromAddress, assetID, tx);
+
+        fromPreGSN = parseInt(fromAsset.pre_gsn, 10);
+        fromBalance = fromAsset.balance;
         fromBalance = new BigNumber('0x' + fromBalance);
-        if (fromBalance.isGreaterThanOrEqualTo(value)) {
+
+        if (fromBalance.isGreaterThanOrEqualTo(valuePlusFee)) {
           // Minus 'from' balance
-          fromBalance = fromBalance.minus(value);
+          fromBalance = fromBalance.minus(valuePlusFee);
           fromBalance = fromBalance.toString(16).padStart(64, '0');
           // Save 'from' balance
-          await this.setBalance(fromAddress, assetID, fromBalance, tx);
+          await this.setBalance(fromAddress, assetID, fromBalance, gsn, tx);
 
           // Get 'to' balance
-          toBalance = await this.getBalance(toAddress, assetID, tx);
+          let toAsset = await this.getAsset(toAddress, assetID, tx);
+
+          toPreGSN = parseInt(toAsset.pre_gsn, 10);
+          toBalance = toAsset.balance;
           toBalance = new BigNumber('0x' + toBalance);
           // Plus 'to' balance
           toBalance = toBalance.plus(value);
           toBalance = toBalance.toString(16).padStart(64, '0');
+
           // Save 'to' balance
-          await this.setBalance(toAddress, assetID, toBalance, tx);
+          await this.setBalance(toAddress, assetID, toBalance, gsn, tx);
+
+          // Give fee to gringotts
+          let originFee = await this.getFee(expectedStageHeight, assetID, tx);
+          let newFee = new BigNumber('0x' + originFee).plus(fee);
+          await this.setFee(expectedStageHeight, assetID, newFee, tx);
         } else {
           code = ErrorCodes.INSUFFICIENT_BALANCE;
           throw new Error('Insufficient balance.');
@@ -583,36 +644,31 @@ class Postgres {
         throw new Error('Invalid light transaction type.');
       }
 
-      let expectedStageHeightModel = await this.expectedStageHeightModel(tx);
-      let expectedStageHeight = expectedStageHeightModel.height;
-
-      let gsnNumberModel = await this.gsnNumberModel(tx);
-      await gsnNumberModel.increment('gsn', {
-        transaction: tx
-      });
-
-      let gsn = gsnNumberModel.gsn;
-
       let receiptJson = lightTx.toJson();
       receiptJson.receiptData = {
-        stageHeight: parseInt(expectedStageHeight, 10),
-        GSN: parseInt(gsn, 10),
+        stageHeight: expectedStageHeight,
+        GSN: gsn,
+        fromPreGSN: fromPreGSN,
+        toPreGSN: toPreGSN,
         lightTxHash: lightTx.lightTxHash,
         fromBalance: fromBalance,
         toBalance: toBalance,
       };
 
       let receipt = new Receipt(receiptJson);
+      let signedReceipt = signer.signWithBoosterKey(receipt);
       await ReceiptModel.create({
-        gsn: receipt.receiptData.GSN,
-        log_id: receipt.lightTxData.logID,
-        stage_height: receipt.receiptData.stageHeight,
-        light_tx_hash: receipt.lightTxHash,
-        receipt_hash: receipt.receiptHash,
-        from: receipt.lightTxData.from,
-        to: receipt.lightTxData.to,
-        value: receipt.lightTxData.value,
-        data: receipt.toJson()
+        gsn: signedReceipt.receiptData.GSN,
+        log_id: signedReceipt.lightTxData.logID,
+        stage_height: signedReceipt.receiptData.stageHeight,
+        light_tx_hash: signedReceipt.lightTxHash,
+        receipt_hash: signedReceipt.receiptHash,
+        from: signedReceipt.lightTxData.from,
+        to: signedReceipt.lightTxData.to,
+        value: signedReceipt.lightTxData.value,
+        fee: signedReceipt.lightTxData.fee,
+        asset_id: signedReceipt.lightTxData.assetID,
+        data: signedReceipt.toJson()
       }, {
         transaction: tx
       });
@@ -655,6 +711,77 @@ class Postgres {
       };
     });
     return result;
+  }
+
+  async getFee (stageHeight, assetID = null, tx = null) {
+    stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
+    if (assetID) {
+      assetID = assetID.toString(16).padStart(64, '0').slice(-64);
+      let assetFee = await FeeListModel.findOne({
+        where: {
+          stage_height: stageHeight,
+          asset_id: assetID
+        }
+      }, {
+        transaction: tx
+      });
+      if (assetFee) {
+        assetFee = assetFee.fee;
+      } else {
+        assetFee = initBalance;
+      }
+      return assetFee;
+    } else {
+      let assetFees = await FeeListModel.findAll({
+        where: {
+          stage_height: stageHeight
+        }
+      }, {
+        transaction: tx
+      }).map((data) => {
+        return {
+          assetID: data.asset_id,
+          fee: data.fee
+        }
+      });
+      if (!assetFees) {
+        assetFees = [];
+      }
+      return assetFees;
+    }
+  }
+
+  async setFee (stageHeight, assetID, value, tx = null) {
+    stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
+    assetID = assetID.toString(16).padStart(64, '0').slice(-64);
+    value = value.toString(16).padStart(64, '0').slice(-64);
+    let assetFee = await FeeListModel.findOne({
+      where: {
+        stage_height: stageHeight,
+        asset_id: assetID
+      }
+    }, {
+      transaction: tx
+    });
+
+    if (assetFee) {
+      await assetFee.update({
+        stage_height: stageHeight,
+        asset_id: assetID,
+        fee: value
+      }, {
+        transaction: tx
+      });
+    } else {
+      assetFee = await FeeListModel.build({
+        stage_height: stageHeight,
+        asset_id: assetID,
+        fee: value
+      }, {
+        transaction: tx
+      });
+      await assetFee.save();
+    }
   }
 }
 

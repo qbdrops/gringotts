@@ -43,6 +43,14 @@ module.exports = {
         allowNull: true,
         type: Sequelize.CHAR(64)
       },
+      fee: {
+        allowNull: true,
+        type: Sequelize.CHAR(64)
+      },
+      asset_id: {
+        allowNull: true,
+        type: Sequelize.CHAR(64)
+      },
       onchain: {
         allowNull: false,
         type: Sequelize.BOOLEAN,

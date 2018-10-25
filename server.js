@@ -10,6 +10,7 @@ let LightTransaction = require('./models/light-transaction');
 let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
 let Web3 = require('web3');
+let EthereumTx = require('ethereumjs-tx');
 
 let web3 = new Web3(env.web3Url);
 let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
@@ -27,10 +28,11 @@ app.use(cors());
 
 var server = require('http').createServer(app);
 
-const account = env.serverAddress;
-const contractAddress = env.contractAddress;
-const serverAddress = env.serverAddress;
+const serverAccountAddress = env.serverAddress;
+const boostarContractAddress = env.contractAddress;
+const boostarAccountAddress = '0x' + EthUtils.privateToAddress(Buffer.from(env.signerKey, 'hex')).toString('hex');
 let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
+let stageBuildingLock = false;
 
 app.get('/balance/:address', async function (req, res) {
   try {
@@ -59,7 +61,7 @@ app.get('/slice/:stageHeight/:receiptHash', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
     let receiptHash = req.params.receiptHash;
-    let proof = await storageManager.getReceiptProof(stageHeight, receiptHash);
+    let proof = await storageManager.getReceiptProof(parseInt(stageHeight), receiptHash);
 
     if (Object.keys(proof).length > 0) {
       res.send({ ok: true, proof: proof });
@@ -88,8 +90,8 @@ function isValidSig(lightTx) {
     } else if ((type == LightTxTypes.withdrawal) ||
       (type == LightTxTypes.instantWithdrawal) ||
       (type == LightTxTypes.remittance)) {
-      let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.clientLightTx.v, lightTx.sig.clientLightTx.r, lightTx.sig.clientLightTx.s);
-      let address = EthUtils.pubToAddress(publicKey).toString('hex').padStart(64, '0');
+        let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.clientLightTx.v, lightTx.sig.clientLightTx.r, lightTx.sig.clientLightTx.s);
+        let address = EthUtils.pubToAddress(publicKey).toString('hex').padStart(64, '0');
       isClientSigValid = (from.toLowerCase() == address.toLowerCase());
     } else {
       new Error('Not supported light transaction type.');
@@ -97,7 +99,7 @@ function isValidSig(lightTx) {
     // validate signatures of lightTxs
     let publicKey = EthUtils.ecrecover(ethMsgHash, lightTx.sig.serverLightTx.v, lightTx.sig.serverLightTx.r, lightTx.sig.serverLightTx.s);
     let address = '0x' + EthUtils.pubToAddress(publicKey).toString('hex');
-    isServerSigValid = (account.toLowerCase() == address.toLowerCase());
+    isServerSigValid = (serverAccountAddress.toLowerCase() == address.toLowerCase());
   }
 
   return (isClientSigValid && isServerSigValid);
@@ -111,7 +113,7 @@ async function isValidAsset(lightTx) {
     if (address.slice(0, 2) == '0x') {
       address = address.substring(2);
     }
-    if (lightTx.assetID == address.padStart(64, '0')) {
+    if (lightTx.lightTxData.assetID == address.padStart(64, '0').toLowerCase()) {
       isValid = true;
     }
   });
@@ -167,40 +169,42 @@ app.get('/personalreceipt/:address', async function (req, res) {
 
 app.post('/send/light_tx', async function (req, res) {
   try {
-    let lightTxJson = req.body.lightTxJson;
-    let lightTx = new LightTransaction(lightTxJson);
-
-    let oldReceipt = await storageManager.getReceiptByLightTxHash(lightTx.lightTxHash);
-
     let success = false;
     let message = 'Something went wrong.';
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
     let receipt = null;
-
-    if (oldReceipt) {
-      message = 'Contains known light transaction.';
-      code = ErrorCodes.CONTAINS_KNOWN_LIGHT_TX;
+    if (stageBuildingLock) {
+      message = 'Stage is currently building.';
+      code = ErrorCodes.STAGE_IS_CURRENTLY_BUILDING;
     } else {
-      let isValidSigLightTx = isValidSig(lightTx);
-      if (isValidSigLightTx) {
-        let isValidAssetLightTx = isValidAsset(lightTx);
-        if (isValidAssetLightTx) {
-          let updateResult = await storageManager.applyLightTx(lightTx);
+      let lightTxJson = req.body.lightTxJson;
+      let lightTx = new LightTransaction(lightTxJson);
+      let oldReceipt = await storageManager.getReceiptByLightTxHash(lightTx.lightTxHash);
+      if (oldReceipt) {
+        message = 'Contains known light transaction.';
+        code = ErrorCodes.CONTAINS_KNOWN_LIGHT_TX;
+      } else {
+        let isValidSigLightTx = isValidSig(lightTx);
+        if (isValidSigLightTx) {
+          let isValidAssetLightTx = await isValidAsset(lightTx);
+          if (isValidAssetLightTx) {
+            let updateResult = await storageManager.applyLightTx(lightTx);
 
-          if (updateResult.ok) {
-            success = true;
-            receipt = updateResult.receipt;
+            if (updateResult.ok) {
+              success = true;
+              receipt = updateResult.receipt;
+            } else {
+              message = updateResult.message;
+              code = updateResult.code;
+            }
           } else {
-            message = updateResult.message;
-            code = updateResult.code;
+            message = 'Asset ID is not support.';
+            code = ErrorCodes.WRONG_ASSET_ID;
           }
         } else {
-          message = 'Asset ID is not support.';
-          code = ErrorCodes.WRONG_ASSET_ID;
+          message = 'Contains wrong signature receipt.';
+          code = ErrorCodes.WRONG_SIGNATURE;
         }
-      } else {
-        message = 'Contains wrong signature receipt.';
-        code = ErrorCodes.WRONG_SIGNATURE;
       }
     }
 
@@ -273,23 +277,73 @@ app.get('/trees/:stageHeight', async function (req, res) {
 
 app.post('/attach', async function (req, res) {
   try {
-    let stageHeight = req.body.stageHeight;
-    let serializedTx = req.body.serializedTx;
-    if (stageHeight) {
-      let txHash = await storageManager.attach(stageHeight, serializedTx);
+    let success = false;
+    let message = 'Something went wrong.';
+    let code = ErrorCodes.SOMETHING_WENT_WRONG;
+    let txHash = null;
+
+    let stageHeight = parseInt(await booster.methods.stageHeight().call()) + 1;
+    let hasPendingReceipts = await storageManager.hasPendingReceipts(stageHeight);
+    if (stageBuildingLock === true) {
+      message = 'Stage are building.';
+      code = ErrorCodes.STAGE_IS_CURRENTLY_BUILDING;
+    } else if (hasPendingReceipts) {
+      stageBuildingLock = true;
+      let trees = await storageManager.commitTrees(stageHeight);
+      let fees = await storageManager.getFee(stageHeight);
+      let assetList = [];
+      let feeList = [];
+      for (let i = 0; i < fees.length; i++) {
+        assetList.push('0x' + fees[i].assetID);
+        feeList.push('0x' + fees[i].fee);
+      }
+      let nonce = web3.utils.toHex(await web3.eth.getTransactionCount(boostarAccountAddress, 'pending'));
+      let txMethodData = booster.methods.attach([
+        '0x' + trees.receiptRootHash,
+        '0x' + trees.accountRootHash,
+        '0x'
+      ], assetList, feeList).encodeABI();
+
+      let txParams = {
+        data: txMethodData,
+        from: boostarAccountAddress,
+        to: env.contractAddress,
+        value: '0x0',
+        nonce: nonce,
+        gas: 4700000,
+        gasPrice: '0x2540be400'
+      };
+
+      let tx = new EthereumTx(txParams);
+      tx.sign(Buffer.from(env.signerKey, 'hex'));
+      let serializedTx = '0x' + tx.serialize().toString('hex');
+
+      let receipt = await web3.eth.sendSignedTransaction(serializedTx);
+      txHash = receipt.transactionHash;
+      console.log('Committed txHash: ' + txHash);
+      await storageManager.increaseExpectedStageHeight();
+      success = true;
+    } else {
+      message = 'Receipts are empty.';
+      code = ErrorCodes.RECEIPTS_ARE_EMPTY;
+    }
+
+    stageBuildingLock = false;
+    if (success) {
       res.send({ ok: true, txHash: txHash });
     } else {
-      res.send({ ok: false, errors: 'Does not provide rootHash.' });
+      res.send({ ok: false, message: message, code: code });
     }
   } catch (e) {
     console.log(e);
-    res.send({ ok: false, errors: e.message });
+    stageBuildingLock = false;
+    res.send({ ok: false, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
   }
 });
 
 app.get('/booster/address', async function (req, res) {
   try {
-    res.send({ address: contractAddress });
+    res.send({ contractAddress: boostarContractAddress, accountAddress: boostarAccountAddress });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
@@ -298,7 +352,7 @@ app.get('/booster/address', async function (req, res) {
 
 app.get('/server/address', async function (req, res) {
   try {
-    res.send({ address: serverAddress });
+    res.send({ address: serverAccountAddress });
   } catch (e) {
     console.log(e);
     res.status(500).send({ errors: e.message });
@@ -335,4 +389,19 @@ server.listen(boosterPort, async function () {
 
 server.on('error', function (err) {
   console.error(err);
+});
+
+// Watch latest block
+booster.events.Attach({
+  toBlock: 'latest' 
+}, async (err, result) => {
+  if (err) console.error(err);
+  try {
+    console.log('attach');
+    let stageHeight = result.returnValues._stageHeight;
+    // Remove offchain receipt json
+    await storageManager.removeOffchainReceipts(parseInt(stageHeight, 16));
+  } catch (e) {
+    console.error(e);
+  }
 });
