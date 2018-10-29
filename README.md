@@ -65,5 +65,4 @@ You can learn the concepts of [BOLT protocol](https://github.com/BOLT-Protocol/w
 
 
 ## License
-SSPL
-https://www.mongodb.com/licensing/server-side-public-license
+agpl-3.0
