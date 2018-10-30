@@ -2,6 +2,7 @@ const axios = require('axios');
 const assert = require('assert');
 const EthUtils = require('ethereumjs-util');
 const EthereumTx = require('ethereumjs-tx');
+const Web3 = require('web3');
 const Signer = require('./signer');
 const env = require('../env');
 const types = require('../models/types');
@@ -11,6 +12,7 @@ const boosterAccountAddress = '0x' + EthUtils.privateToAddress(Buffer.from(env.s
 
 class Infinitechain {
   constructor (web3, storageManager) {
+    assert(web3 instanceof Web3, 'web3 is invalid.');
     this.web3 = web3;
     this.booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
     this.storageManager = storageManager;

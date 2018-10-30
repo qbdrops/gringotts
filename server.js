@@ -394,7 +394,7 @@ function connectToWeb3 () {
   });
 
   this.web3._provider.on('end', (eventObj) => {
-    console.log('Try to reconnect...');
+    console.log('Try to reconnect to: ' + env.web3Url + ' ...');
     delay(5000).then(() => {
       connectToWeb3();
     });

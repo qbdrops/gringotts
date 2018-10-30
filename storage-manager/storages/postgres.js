@@ -34,7 +34,7 @@ let FeeListModel = Model.fee_lists;
 
 class Postgres {
   constructor (web3) {
-    assert(web3 && web3 instanceof Web3, "web3 is invalid.");
+    assert(web3 instanceof Web3, 'web3 is invalid.');
     this.web3 = web3;
     this.booster = new this.web3.eth.Contract(Booster.abi, env.contractAddress);
   }
