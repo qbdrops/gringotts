@@ -107,6 +107,11 @@ class StorageManager {
     return receipt;
   }
 
+  async getReceiptByGSN (GSN) {
+    let receipt = await this.storage.getReceiptByGSN(GSN);
+    return receipt;
+  }
+
   async applyLightTx (lightTx) {
     let result = await this.storage.applyLightTx(lightTx);
     return result;

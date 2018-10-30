@@ -424,6 +424,17 @@ class Postgres {
     return receipt;
   }
 
+  async getReceiptByGSN (GSN, tx = null) {
+    let receipt = await ReceiptModel.findOne({
+      where: {
+        gsn: GSN
+      }
+    }, {
+      transaction: tx
+    });
+    return receipt;
+  }
+
   async getReceiptByStageHeight (stageHeight, tx = null) {
     let receipts = await ReceiptModel.findAll({
       where: {
