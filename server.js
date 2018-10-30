@@ -147,7 +147,27 @@ app.get('/receipt/:lightTxHash', async function (req, res) {
   try {
     let lightTxHash = req.params.lightTxHash;
     let receipt = await this.storageManager.getReceiptByLightTxHash(lightTxHash);
-    res.send(receipt);
+    if (receipt !== null) {
+      res.send(receipt);
+    } else {
+      res.status(404).send({ ok: false, errors: 'Not found' });
+    }
+  } catch (e) {
+    console.error(e);
+    res.status(500).send({ ok: false, errors: e.message });
+  }
+});
+
+app.get('/receipt_by_gsn/:GSN', async function (req, res) {
+  try {
+    let GSN = req.params.GSN;
+    GSN = GSN.padStart(64, '0');
+    let receipt = await this.storageManager.getReceiptByGSN(GSN);
+    if (receipt !== null) {
+      res.send(receipt);
+    } else {
+      res.status(404).send({ ok: false, errors: 'Not found' });
+    }
   } catch (e) {
     console.error(e);
     res.status(500).send({ ok: false, errors: e.message });
