@@ -1,6 +1,5 @@
 const axios = require('axios');
 const assert = require('assert');
-const Web3 = require('web3');
 const EthUtils = require('ethereumjs-util');
 const EthereumTx = require('ethereumjs-tx');
 const Signer = require('./signer');
@@ -9,12 +8,12 @@ const types = require('../models/types');
 const LightTransaction = require('../models/light-transaction');
 const Booster = require('../abi/Booster.json');
 const boosterAccountAddress = '0x' + EthUtils.privateToAddress(Buffer.from(env.signerKey, 'hex')).toString('hex');
-let web3 = new Web3(env.web3Url);
-let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
-let storageManager = require('../storage-manager');
 
 class Infinitechain {
-  constructor () {
+  constructor (web3, storageManager) {
+    this.web3 = web3;
+    this.booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
+    this.storageManager = storageManager;
     let signer = new Signer();
     signer.importPrivateKey(env.signerKey);
     this.signer = signer;
@@ -63,8 +62,8 @@ class Infinitechain {
   }
 
   async attach (stageHeight) {
-    let trees = await storageManager.commitTrees(stageHeight);
-    let fees = await storageManager.getFee(stageHeight);
+    let trees = await this.storageManager.commitTrees(stageHeight);
+    let fees = await this.storageManager.getFee(stageHeight);
     let assetList = [];
     let feeList = [];
     let txHash = '';
@@ -73,8 +72,8 @@ class Infinitechain {
       assetList.push('0x' + fees[i].assetID);
       feeList.push('0x' + fees[i].fee);
     }
-    let nonce = web3.utils.toHex(await web3.eth.getTransactionCount(boosterAccountAddress, 'pending'));
-    let txMethodData = booster.methods.attach([
+    let nonce = this.web3.utils.toHex(await this.web3.eth.getTransactionCount(boosterAccountAddress, 'pending'));
+    let txMethodData = this.booster.methods.attach([
       '0x' + trees.receiptRootHash,
       '0x' + trees.accountRootHash,
       '0x'
@@ -94,10 +93,10 @@ class Infinitechain {
     tx.sign(Buffer.from(env.signerKey, 'hex'));
     let serializedTx = '0x' + tx.serialize().toString('hex');
 
-    receipt = await web3.eth.sendSignedTransaction(serializedTx);
+    receipt = await this.web3.eth.sendSignedTransaction(serializedTx);
     txHash = receipt.transactionHash;
-    console.log('Committed txHash: ' + txHash);
-    await storageManager.increaseExpectedStageHeight();
+    console.log('Attach txHash: ' + txHash);
+    await this.storageManager.increaseExpectedStageHeight();
     return receipt;
   }
 

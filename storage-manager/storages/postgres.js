@@ -18,8 +18,6 @@ const sequelize = Model.sequelize;
 const Op = Sequelize.Op;
 const EtherEmptyAddress = '0x0000000000000000000000000000000000000000';
 
-let web3 = new Web3(env.web3Url);
-let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 let signer = new Signer();
 signer.importPrivateKey(env.signerKey);
@@ -35,6 +33,12 @@ let AccountSnapshotModel = Model.account_snapshot;
 let FeeListModel = Model.fee_lists;
 
 class Postgres {
+  constructor (web3) {
+    assert(web3 && web3 instanceof Web3, "web3 is invalid.");
+    this.web3 = web3;
+    this.booster = new this.web3.eth.Contract(Booster.abi, env.contractAddress);
+  }
+
   async commitTrees (stageHeight) {
     let tx;
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
@@ -66,6 +70,20 @@ class Postgres {
       await tx.rollback();
       return { ok: false, code: code, message: e.message };
     }
+  }
+
+  async getExpectedStageHeight (tx = null) {
+    let expectedStageHeightModel = await this.expectedStageHeightModel(tx);
+    let expectedStageHeight;
+    if (!expectedStageHeightModel) {
+      expectedStageHeight = parseInt(await this.booster.methods.stageHeight().call()) + 1;
+      await ExpectedStageHeightModel.create({
+        height: expectedStageHeight
+      });
+    } else {
+      expectedStageHeight = parseInt(expectedStageHeightModel.height);
+    }
+    return expectedStageHeight;
   }
 
   async increaseExpectedStageHeight (tx = null) {
@@ -304,17 +322,7 @@ class Postgres {
       throw new Error('Booster address is not consistent.');
     }
 
-    let expectedStageHeightModel = await ExpectedStageHeightModel.findById(1);
-    let expectedStageHeight;
-    if (!expectedStageHeightModel) {
-      expectedStageHeight = parseInt(await booster.methods.stageHeight().call()) + 1;
-      await ExpectedStageHeightModel.create({
-        height: expectedStageHeight
-      });
-    } else {
-      expectedStageHeight = parseInt(expectedStageHeightModel.height);
-    }
-
+    let expectedStageHeight = await this.getExpectedStageHeight();
     console.log('expectedStageHeight: ' + expectedStageHeight);
 
     let gsnNumberModel = await this.gsnNumberModel();
@@ -337,10 +345,10 @@ class Postgres {
         asset_decimals: 18,
         asset_address: EtherEmptyAddress
       });
-      let assetListLength = await booster.methods.getAssetAddressesLength().call();
+      let assetListLength = await this.booster.methods.getAssetAddressesLength().call();
       for (let i = 0; i < assetListLength; i++) {
-        let address = await booster.methods.assetAddressesArray(i).call();
-        let contract = new web3.eth.Contract(EIP20.abi, address);
+        let address = await this.booster.methods.assetAddressesArray(i).call();
+        let contract = new this.web3.eth.Contract(EIP20.abi, address);
         let name = await contract.methods.symbol().call();
         let decimals = await contract.methods.decimals().call();
         await AssetListModel.create({
@@ -545,7 +553,7 @@ class Postgres {
 
       if (type === LightTxTypes.deposit) {
         let oldReceipt = await this.getReceiptByLogID(logID);
-        let depositLog = await booster.methods.depositLogs('0x' + logID).call();
+        let depositLog = await this.booster.methods.depositLogs('0x' + logID).call();
         /**
          * depositLog[0]: stage height
          * depositLog[1]: users' address

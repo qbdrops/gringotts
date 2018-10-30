@@ -3,7 +3,7 @@ let express = require('express');
 let bodyParser = require('body-parser');
 let cors = require('cors');
 let EthUtils = require('ethereumjs-util');
-let storageManager = require('./storage-manager');
+let StorageManager = require('./storage-manager');
 let Booster = require('./abi/Booster.json');
 let ErrorCodes = require('./errors/codes');
 let LightTransaction = require('./models/light-transaction');
@@ -11,9 +11,6 @@ let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
 let Web3 = require('web3');
 let Infinitechain = require('./utils/infinitechain');
-
-let web3 = new Web3(env.web3Url);
-let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
 
 let boosterPort = parseInt(env.boosterPort);
 
@@ -43,7 +40,7 @@ app.get('/balance/:address', async function (req, res) {
       assetID = assetID.toLowerCase().padStart(64, '0');
     }
     if (address && (address != burnAddress)) {
-      let balance = await storageManager.getBalance(address, assetID);
+      let balance = await this.storageManager.getBalance(address, assetID);
       if (assetID == null) {
         res.send(balance);
       } else {
@@ -62,7 +59,7 @@ app.get('/slice/:stageHeight/:receiptHash', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
     let receiptHash = req.params.receiptHash;
-    let proof = await storageManager.getReceiptProof(parseInt(stageHeight), receiptHash);
+    let proof = await this.storageManager.getReceiptProof(parseInt(stageHeight), receiptHash);
 
     if (Object.keys(proof).length > 0) {
       res.send({ ok: true, proof: proof });
@@ -108,7 +105,7 @@ function isValidSig(lightTx) {
 
 async function isValidAsset(lightTx) {
   let isValid = false;
-  let assetList = await storageManager.getAssetList();
+  let assetList = await this.storageManager.getAssetList();
   assetList.forEach((asset) => {
     let address = asset.asset_address;
     if (address.slice(0, 2) == '0x') {
@@ -125,7 +122,7 @@ app.get('/accounts/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
     stageHeight = parseInt(stageHeight).toString(16).padStart(64, '0').slice(-64);
-    let accounts = await storageManager.getAccountsByStageHeight(stageHeight);
+    let accounts = await this.storageManager.getAccountsByStageHeight(stageHeight);
     res.send(accounts);
   } catch (e) {
     console.error(e);
@@ -137,7 +134,7 @@ app.get('/receipts/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
     stageHeight = parseInt(stageHeight).toString(16).padStart(64, '0').slice(-64);
-    let receipts = await storageManager.getReceiptByStageHeight(stageHeight);
+    let receipts = await this.storageManager.getReceiptByStageHeight(stageHeight);
     receipts = receipts.map(receipt => receipt.data);
     res.send(receipts);
   } catch (e) {
@@ -149,7 +146,7 @@ app.get('/receipts/:stageHeight', async function (req, res) {
 app.get('/receipt/:lightTxHash', async function (req, res) {
   try {
     let lightTxHash = req.params.lightTxHash;
-    let receipt = await storageManager.getReceiptByLightTxHash(lightTxHash);
+    let receipt = await this.storageManager.getReceiptByLightTxHash(lightTxHash);
     res.send(receipt);
   } catch (e) {
     console.error(e);
@@ -160,7 +157,7 @@ app.get('/receipt/:lightTxHash', async function (req, res) {
 app.get('/personalreceipt/:address', async function (req, res) {
   try {
     let address = req.params.address.slice(-40).padStart(64, '0');
-    let receipts = await storageManager.getReceiptsByAddress(address);
+    let receipts = await this.storageManager.getReceiptsByAddress(address);
     res.send(receipts);
   } catch (e) {
     console.error(e);
@@ -180,7 +177,7 @@ app.post('/send/light_tx', async function (req, res) {
     } else {
       let lightTxJson = req.body.lightTxJson;
       let lightTx = new LightTransaction(lightTxJson);
-      let oldReceipt = await storageManager.getReceiptByLightTxHash(lightTx.lightTxHash);
+      let oldReceipt = await this.storageManager.getReceiptByLightTxHash(lightTx.lightTxHash);
       if (oldReceipt) {
         message = 'Contains known light transaction.';
         code = ErrorCodes.CONTAINS_KNOWN_LIGHT_TX;
@@ -189,7 +186,7 @@ app.post('/send/light_tx', async function (req, res) {
         if (isValidSigLightTx) {
           let isValidAssetLightTx = await isValidAsset(lightTx);
           if (isValidAssetLightTx) {
-            let updateResult = await storageManager.applyLightTx(lightTx);
+            let updateResult = await this.storageManager.applyLightTx(lightTx);
 
             if (updateResult.ok) {
               success = true;
@@ -222,15 +219,15 @@ app.post('/send/light_tx', async function (req, res) {
 
 app.get('/roothash', async function (req, res) {
   try {
-    let stageHeight = parseInt(await booster.methods.stageHeight().call()) + 1;
-    let hasPendingReceipts = await storageManager.hasPendingReceipts(stageHeight);
+    let stageHeight = parseInt(await this.booster.methods.stageHeight().call()) + 1;
+    let hasPendingReceipts = await this.storageManager.hasPendingReceipts(stageHeight);
 
     if (hasPendingReceipts) {
       /*
         Should Fix account hashes before increasing expectedStageHeight in order to
         prevnet the upcoming light transaction keep changing the accout hashes
        */
-      let trees = await storageManager.commitTrees(stageHeight);
+      let trees = await this.storageManager.commitTrees(stageHeight);
 
       res.send({
         ok: true,
@@ -249,7 +246,7 @@ app.get('/roothash', async function (req, res) {
 app.get('/roothash/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
-    let trees = await storageManager.getTrees(stageHeight);
+    let trees = await this.storageManager.getTrees(stageHeight);
 
     if (Object.keys(trees).length > 0) {
       res.send({ ok: true, receiptRootHash: trees.receipt_tree.rootHash, accountRootHash: trees.account_tree.rootHash });
@@ -264,7 +261,7 @@ app.get('/roothash/:stageHeight', async function (req, res) {
 app.get('/trees/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
-    let trees = await storageManager.getTrees(stageHeight);
+    let trees = await this.storageManager.getTrees(stageHeight);
 
     if (Object.keys(trees).length > 0) {
       res.send({ ok: true, receiptTree: trees.receipt_tree, accountTree: trees.account_tree });
@@ -282,26 +279,25 @@ app.post('/attach', async function (req, res) {
     let message = 'Something went wrong.';
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
     let txHash = null;
-    let chain = new Infinitechain();
 
-    let stageHeight = parseInt(await booster.methods.stageHeight().call()) + 1;
-    let hasPendingReceipts = await storageManager.hasPendingReceipts(stageHeight);
+    let stageHeight = parseInt(await this.booster.methods.stageHeight().call()) + 1;
+    let hasPendingReceipts = await this.storageManager.hasPendingReceipts(stageHeight);
     if (stageBuildingLock === true) {
       message = 'Stage are building.';
       code = ErrorCodes.STAGE_IS_CURRENTLY_BUILDING;
     } else if (hasPendingReceipts) {
       stageBuildingLock = true;
-      let receipt = await chain.attach(stageHeight);
+      let receipt = await this.infinitechain.attach(stageHeight);
       txHash = receipt.transactionHash;
       success = true;
     } else {
       if (generateEmptyTx === true) {
         // generate an empty light tx
         console.log('Receipts are empty, generate an empty light tx');
-        await chain.sendLightTx(boosterAccountAddress, boosterAccountAddress, 0, 0, 0);
+        await this.infinitechain.sendLightTx(boosterAccountAddress, boosterAccountAddress, 0, 0, 0);
         // attach
         stageBuildingLock = true;
-        let receipt = await chain.attach(stageHeight);
+        let receipt = await this.infinitechain.attach(stageHeight);
         txHash = receipt.transactionHash;
         success = true;
       } else {
@@ -343,7 +339,7 @@ app.get('/server/address', async function (req, res) {
 
 app.get('/pending/receipts', async function (req, res) {
   try {
-    let pendingLightTxHashesOfReceipts = await storageManager.pendingLightTxHashesOfReceipts();
+    let pendingLightTxHashesOfReceipts = await this.storageManager.pendingLightTxHashesOfReceipts();
     res.send({ lightTxHashes: pendingLightTxHashesOfReceipts });
   } catch (e) {
     console.log(e);
@@ -353,7 +349,7 @@ app.get('/pending/receipts', async function (req, res) {
 
 app.get('/assetlist', async function (req, res) {
   try {
-    let assetList = await storageManager.getAssetList();
+    let assetList = await this.storageManager.getAssetList();
     res.send({ assetList: assetList });
   } catch (e) {
     console.log(e);
@@ -364,6 +360,7 @@ app.get('/assetlist', async function (req, res) {
 server.listen(boosterPort, async function () {
   try {
     console.log(`App listening on port ${boosterPort}!`);
+    connectToWeb3();
   } catch (e) {
     console.error(e.message);
   }
@@ -373,17 +370,41 @@ server.on('error', function (err) {
   console.error(err);
 });
 
-// Watch latest block
-booster.events.Attach({
-  toBlock: 'latest' 
-}, async (err, result) => {
-  if (err) console.error(err);
-  try {
-    console.log('attach');
-    let stageHeight = result.returnValues._stageHeight;
-    // Remove offchain receipt json
-    await storageManager.removeOffchainReceipts(parseInt(stageHeight, 16));
-  } catch (e) {
-    console.error(e);
-  }
-});
+function connectToWeb3 () {
+  this.web3 = new Web3(env.web3Url);
+  this.booster = new this.web3.eth.Contract(Booster.abi, env.contractAddress);
+  this.web3._provider.on('connect', async (eventObj) => {
+    this.storageManager = new StorageManager(this.web3);
+    this.infinitechain = new Infinitechain(this.web3, this.storageManager);
+    // Watch latest block
+    this.booster.events.Attach({
+      toBlock: 'latest' 
+    }, async (err, result) => {
+      if (err) console.error(err);
+      try {
+        let stageHeight = result.returnValues._stageHeight;
+        // Remove offchain receipt json
+        await this.storageManager.removeOffchainReceipts(parseInt(stageHeight, 16));
+        let expectedStageHeight = await this.storageManager.getExpectedStageHeight();
+        console.log('expectedStageHeight: ' + expectedStageHeight);
+      } catch (e) {
+        console.error(e);
+      }
+    });
+  });
+
+  this.web3._provider.on('end', (eventObj) => {
+    console.log('Try to reconnect...');
+    delay(5000).then(() => {
+      connectToWeb3();
+    });
+  });
+}
+
+function delay (millisecond) {
+  return new Promise(function (resolve, reject) {
+    setTimeout(function () {
+      resolve('');
+    }, millisecond? millisecond : 1000);
+  });
+}
