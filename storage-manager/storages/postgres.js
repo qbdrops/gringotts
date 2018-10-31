@@ -380,7 +380,10 @@ class Postgres {
       where: {
         stage_height: stageHeight,
         onchain: false
-      }
+      },
+      attributes: [
+        'id'
+      ]
     });
     return !!(receipts);
   }

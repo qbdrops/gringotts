@@ -304,18 +304,18 @@ app.post('/attach', async function (req, res) {
     let txHash = null;
 
     let stageHeight = parseInt(await this.booster.methods.stageHeight().call()) + 1;
-    let hexStageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
-    let receipts = await this.storageManager.getReceiptByStageHeight(hexStageHeight);
-    receipts = receipts.map(receipt => new Receipt(receipt.data)).map(receipt => verifier.verifyReceipt(receipt));
-    let hasPendingReceipts = receipts.length > 0;
-    if (receipts.includes(false) === true) {
-      throw new Error('Including wrong signature receipt.');
-    }
+    let hasPendingReceipts = await this.storageManager.hasPendingReceipts(stageHeight);
     if (stageBuildingLock === true) {
       message = 'Stage are building.';
       code = ErrorCodes.STAGE_IS_CURRENTLY_BUILDING;
     } else if (hasPendingReceipts) {
       stageBuildingLock = true;
+      let hexStageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
+      let receipts = await this.storageManager.getReceiptByStageHeight(hexStageHeight);
+      receipts = receipts.map(receipt => new Receipt(receipt.data)).map(receipt => verifier.verifyReceipt(receipt));
+      if (receipts.includes(false) === true) {
+        throw new Error('Including wrong signature receipt.');
+      }
       let receipt = await this.infinitechain.attach(stageHeight);
       txHash = receipt.transactionHash;
       success = true;
