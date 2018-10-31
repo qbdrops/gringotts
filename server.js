@@ -11,6 +11,8 @@ let LightTxTypes = require('./models/types');
 let BigNumber = require('bignumber.js');
 let Web3 = require('web3');
 let Infinitechain = require('./utils/infinitechain');
+let Verifier = require('./utils/verifier');
+let Receipt = require('./models/receipt');
 
 let boosterPort = parseInt(env.boosterPort);
 
@@ -31,6 +33,7 @@ const boosterAccountAddress = '0x' + EthUtils.privateToAddress(Buffer.from(env.s
 let burnAddress = '0000000000000000000000000000000000000000000000000000000000000000';
 let stageBuildingLock = false;
 let generateEmptyTx = env.generateEmptyTx || false;
+let verifier = new Verifier(env.serverAddress, boosterAccountAddress);
 
 app.get('/balance/:address', async function (req, res) {
   try {
@@ -307,19 +310,33 @@ app.post('/attach', async function (req, res) {
       code = ErrorCodes.STAGE_IS_CURRENTLY_BUILDING;
     } else if (hasPendingReceipts) {
       stageBuildingLock = true;
-      let receipt = await this.infinitechain.attach(stageHeight);
-      txHash = receipt.transactionHash;
-      success = true;
+      let hexStageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
+      let receipts = await this.storageManager.getReceiptByStageHeight(hexStageHeight);
+      receipts = receipts.map(receipt => new Receipt(receipt.data)).map(receipt => verifier.verifyReceipt(receipt));
+      if (receipts.includes(false) === true) {
+        message = 'Including wrong signature receipt.';
+        code = ErrorCodes.WRONG_SIGNATURE;
+      } else {
+        let receipt = await this.infinitechain.attach(stageHeight);
+        txHash = receipt.transactionHash;
+        success = true;
+      }
     } else {
       if (generateEmptyTx === true) {
         // generate an empty light tx
         console.log('Receipts are empty, generate an empty light tx');
-        await this.infinitechain.sendLightTx(boosterAccountAddress, boosterAccountAddress, 0, 0, 0);
-        // attach
-        stageBuildingLock = true;
-        let receipt = await this.infinitechain.attach(stageHeight);
-        txHash = receipt.transactionHash;
-        success = true;
+        let res = await this.infinitechain.sendLightTx(boosterAccountAddress, boosterAccountAddress, 0, 0, 0);
+        let receipt = new Receipt(res.data);
+        if (verifier.verifyReceipt(receipt) === false) {
+          message = 'Including wrong signature receipt.';
+          code = ErrorCodes.WRONG_SIGNATURE;
+        } else {
+          // attach
+          stageBuildingLock = true;
+          let txReceipt = await this.infinitechain.attach(stageHeight);
+          txHash = txReceipt.transactionHash;
+          success = true;
+        }
       } else {
         message = 'Receipts are empty.';
         code = ErrorCodes.RECEIPTS_ARE_EMPTY;
