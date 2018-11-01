@@ -515,12 +515,8 @@ class Postgres {
 
     if (asset) {
       await asset.update({
-        address: address,
-        asset_id: assetID,
         balance: balance,
         pre_gsn: preGSN
-      }, {
-        transaction: tx
       });
     } else {
       asset = AssetModel.build({
