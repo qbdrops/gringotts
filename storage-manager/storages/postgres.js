@@ -119,15 +119,13 @@ class Postgres {
     let tree = await TreeModel.findOne({
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     });
     let accountSnapshot = await AccountSnapshotModel.findOne({
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     });
 
@@ -172,11 +170,10 @@ class Postgres {
 
   async accountData (tx = null) {
     let assets = await AssetModel.findAll({
-      'order': [
+      order: [
         ['address', 'ASC'],
         ['asset_id', 'ASC']
-      ]
-    }, {
+      ],
       transaction: tx
     });
 
@@ -209,8 +206,7 @@ class Postgres {
     let accounts = await AccountSnapshotModel.findOne({
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     });
     return accounts.account_data;
@@ -223,8 +219,7 @@ class Postgres {
     let trees = await TreeModel.findOne({
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     });
     return trees;
@@ -237,8 +232,7 @@ class Postgres {
     let trees = await TreeModel.findOne({
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     });
 
@@ -297,7 +291,7 @@ class Postgres {
     this.offchainReceiptHashes.splice(this.offchainReceiptHashes.indexOf(lightTxHash), 1);
   }
 
-  async removeOffchainReceipts (stageHeight) {
+  async removeOffchainReceipts (stageHeight, tx = null) {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
     }
@@ -306,7 +300,8 @@ class Postgres {
     }, {
       where: {
         stage_height: stageHeight
-      }
+      },
+      transaction: tx
     });
     return result;
   }
@@ -396,8 +391,7 @@ class Postgres {
       attributes: ['receipt_hash'],
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     }).map((e) => {
       return e.receipt_hash;
@@ -409,8 +403,7 @@ class Postgres {
     let receipt = await ReceiptModel.findOne({
       where: {
         log_id: logID
-      }
-    }, {
+      },
       transaction: tx
     });
     return receipt;
@@ -420,8 +413,7 @@ class Postgres {
     let receipt = await ReceiptModel.findOne({
       where: {
         light_tx_hash: lightTxHash
-      }
-    }, {
+      },
       transaction: tx
     });
     return receipt;
@@ -431,8 +423,7 @@ class Postgres {
     let receipt = await ReceiptModel.findOne({
       where: {
         gsn: GSN
-      }
-    }, {
+      },
       transaction: tx
     });
     return receipt;
@@ -442,8 +433,7 @@ class Postgres {
     let receipts = await ReceiptModel.findAll({
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     });
     return receipts;
@@ -455,8 +445,7 @@ class Postgres {
       asset = await AssetModel.findAll({
         where: {
           address: address
-        }
-      }, {
+        },
         transaction: tx
       }).map(e => {
         return {
@@ -475,8 +464,7 @@ class Postgres {
         where: {
           address: address,
           asset_id: assetID
-        }
-      }, {
+        },
         transaction: tx
       });
       if (asset) {
@@ -491,8 +479,7 @@ class Postgres {
     let asset = await AssetModel.findOne({
       where: {
         address: address, asset_id: assetID
-      }
-    }, {
+      },
       transaction: tx
     });
 
@@ -517,6 +504,8 @@ class Postgres {
       await asset.update({
         balance: balance,
         pre_gsn: preGSN
+      }, {
+        transaction: tx
       });
     } else {
       asset = AssetModel.build({
@@ -739,8 +728,7 @@ class Postgres {
         where: {
           stage_height: stageHeight,
           asset_id: assetID
-        }
-      }, {
+        },
         transaction: tx
       });
       if (assetFee) {
@@ -753,8 +741,7 @@ class Postgres {
       let assetFees = await FeeListModel.findAll({
         where: {
           stage_height: stageHeight
-        }
-      }, {
+        },
         transaction: tx
       }).map((data) => {
         return {
@@ -777,8 +764,7 @@ class Postgres {
       where: {
         stage_height: stageHeight,
         asset_id: assetID
-      }
-    }, {
+      },
       transaction: tx
     });
 
