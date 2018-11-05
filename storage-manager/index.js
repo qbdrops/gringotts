@@ -33,9 +33,9 @@ class StorageManager {
     return trees;
   }
 
-  async getReceiptProof (stageHeight, receiptHash) {
-    let proof = await this.storage.getReceiptProof(stageHeight, receiptHash);
-    return proof;
+  async getReceiptSlice (stageHeight, receiptHash) {
+    let slice = await this.storage.getReceiptSlice(stageHeight, receiptHash);
+    return slice;
   }
 
   async getContractAddress () {
