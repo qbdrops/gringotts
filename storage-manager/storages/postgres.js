@@ -8,7 +8,7 @@ let Receipt = require('../../models/receipt');
 let ErrorCodes = require('../../errors/codes');
 let LightTxTypes = require('../../models/types');
 let IndexedMerkleTree = require('../utils/indexed-merkle-tree');
-let GetProof = require('../utils/get-proof');
+let GetSlice = require('../utils/get-slice');
 let Model = require('../models');
 let EthUtils = require('ethereumjs-util');
 let Signer = require('../../utils/signer');
@@ -225,7 +225,7 @@ class Postgres {
     return trees;
   }
 
-  async getReceiptProof (stageHeight, receiptHash, tx = null) {
+  async getReceiptSlice (stageHeight, receiptHash, tx = null) {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
     }
@@ -236,9 +236,9 @@ class Postgres {
       transaction: tx
     });
 
-    let proof = new GetProof(stageHeight, receiptHash, trees.receipt_tree).build();
+    let slice = new GetSlice(stageHeight, receiptHash, trees.receipt_tree).build();
 
-    return proof;
+    return slice;
   }
 
   async getContractAddress () {

@@ -1,6 +1,6 @@
 const EthUtils = require('ethereumjs-util');
 
-class GetProof {
+class GetSlice {
   constructor (stageHeight, receiptHash, receiptTree) {
     this.stageHeight = stageHeight;
     this.receiptHash = receiptHash;
@@ -82,4 +82,4 @@ class GetProof {
   }
 }
 
-module.exports = GetProof;
+module.exports = GetSlice;

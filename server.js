@@ -62,10 +62,10 @@ app.get('/slice/:stageHeight/:receiptHash', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
     let receiptHash = req.params.receiptHash;
-    let proof = await this.storageManager.getReceiptProof(parseInt(stageHeight), receiptHash);
+    let slice = await this.storageManager.getReceiptSlice(parseInt(stageHeight), receiptHash);
 
-    if (Object.keys(proof).length > 0) {
-      res.send({ ok: true, proof: proof });
+    if (Object.keys(slice).length > 0) {
+      res.send({ ok: true, slice: slice });
     }
   } catch (e) {
     res.send({ ok: false, message: e.message });
