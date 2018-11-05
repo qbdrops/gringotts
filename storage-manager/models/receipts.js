@@ -16,9 +16,13 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BOOLEAN,
       defaultValue: false
     },
-    data: DataTypes.JSON
+    data: DataTypes.JSON,
+    createdAt: {
+      type: DataTypes.DATE,
+      defaultValue: sequelize.literal('NOW()')
+    }
   }, {
-    timestamps: false
+    timestamps: true
   });
   receipts.associate = function (models) {
     // associations can be defined here
