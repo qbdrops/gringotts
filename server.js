@@ -147,6 +147,7 @@ app.get('/receipts/:stageHeight', async function (req, res) {
         receipts = await this.storageManager.getReceiptsByStageHeightAndAddress(stageHeight, address);
       }
     }
+    receipts = receipts.map(receipt => receipt.data);
     res.send(receipts);
   } catch (e) {
     console.error(e);

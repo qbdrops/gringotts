@@ -700,7 +700,7 @@ class Postgres {
       },
       order: [['gsn', 'DESC']],
       transaction: tx
-    }).map(receipt => receipt.data);
+    });
     return result;
   }
 
