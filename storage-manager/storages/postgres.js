@@ -690,15 +690,29 @@ class Postgres {
       return { ok: false, code: code, message: e.message };
     }
   }
+  async getReceiptsByStageHeightAndAddress (stageHeight, address, tx = null) {
+    let result = await ReceiptModel.findAll({
+      where: {
+        [Op.or]: [
+          { from: address },
+          { to: address }],
+        stage_height: stageHeight
+      },
+      order: [['gsn', 'DESC']],
+      transaction: tx
+    }).map(receipt => receipt.data);
+    return result;
+  }
 
-  async getReceiptsByAddress (address) {
+  async getReceiptsByAddress (address, tx = null) {
     let result = await ReceiptModel.findAll({
       where: {
         [Op.or]: [
           { from: address },
           { to: address }]
       },
-      order: [['gsn', 'DESC']]
+      order: [['gsn', 'DESC']],
+      transaction: tx
     }).map(receipt => receipt.data);
     return result;
   }

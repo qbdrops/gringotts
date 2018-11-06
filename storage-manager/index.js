@@ -117,6 +117,11 @@ class StorageManager {
     return result;
   }
 
+  async getReceiptsByStageHeightAndAddress (stageHeight, address) {
+    let receipts = await this.storage.getReceiptsByStageHeightAndAddress(stageHeight, address);
+    return receipts;
+  }
+
   async getReceiptsByAddress (address) {
     let result = await this.storage.getReceiptsByAddress(address);
     return result;
