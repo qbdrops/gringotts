@@ -1,15 +1,18 @@
 let Storage = require('./storages/postgres');
 
 class StorageManager {
-  constructor (storage) {
-    this.storage = storage;
-    // Load pendingReceipts from DB
+  constructor (web3) {
+    this.storage = new Storage(web3);
     this.init();
   }
 
   async commitTrees (stageHeight) {
     let trees = await this.storage.commitTrees(stageHeight);
     return trees;
+  }
+
+  async getExpectedStageHeight () {
+    return await this.storage.getExpectedStageHeight();
   }
 
   async increaseExpectedStageHeight () {
@@ -30,9 +33,9 @@ class StorageManager {
     return trees;
   }
 
-  async getReceiptProof (stageHeight, receiptHash) {
-    let proof = await this.storage.getReceiptProof(stageHeight, receiptHash);
-    return proof;
+  async getReceiptSlice (stageHeight, receiptHash) {
+    let slice = await this.storage.getReceiptSlice(stageHeight, receiptHash);
+    return slice;
   }
 
   async getContractAddress () {
@@ -104,6 +107,11 @@ class StorageManager {
     return receipt;
   }
 
+  async getReceiptByGSN (GSN) {
+    let receipt = await this.storage.getReceiptByGSN(GSN);
+    return receipt;
+  }
+
   async applyLightTx (lightTx) {
     let result = await this.storage.applyLightTx(lightTx);
     return result;
@@ -125,7 +133,4 @@ class StorageManager {
   }
 }
 
-let storage = new Storage();
-let storageManager = new StorageManager(storage);
-
-module.exports = storageManager;
+module.exports = StorageManager;

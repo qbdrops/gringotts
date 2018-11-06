@@ -8,7 +8,7 @@ let Receipt = require('../../models/receipt');
 let ErrorCodes = require('../../errors/codes');
 let LightTxTypes = require('../../models/types');
 let IndexedMerkleTree = require('../utils/indexed-merkle-tree');
-let GetProof = require('../utils/get-proof');
+let GetSlice = require('../utils/get-slice');
 let Model = require('../models');
 let EthUtils = require('ethereumjs-util');
 let Signer = require('../../utils/signer');
@@ -18,8 +18,6 @@ const sequelize = Model.sequelize;
 const Op = Sequelize.Op;
 const EtherEmptyAddress = '0x0000000000000000000000000000000000000000';
 
-let web3 = new Web3(env.web3Url);
-let booster = new web3.eth.Contract(Booster.abi, env.contractAddress);
 let initBalance = '0000000000000000000000000000000000000000000000000000000000000000';
 let signer = new Signer();
 signer.importPrivateKey(env.signerKey);
@@ -35,6 +33,12 @@ let AccountSnapshotModel = Model.account_snapshot;
 let FeeListModel = Model.fee_lists;
 
 class Postgres {
+  constructor (web3) {
+    assert(web3 instanceof Web3, 'web3 is invalid.');
+    this.web3 = web3;
+    this.booster = new this.web3.eth.Contract(Booster.abi, env.contractAddress);
+  }
+
   async commitTrees (stageHeight) {
     let tx;
     let code = ErrorCodes.SOMETHING_WENT_WRONG;
@@ -66,6 +70,20 @@ class Postgres {
       await tx.rollback();
       return { ok: false, code: code, message: e.message };
     }
+  }
+
+  async getExpectedStageHeight (tx = null) {
+    let expectedStageHeightModel = await this.expectedStageHeightModel(tx);
+    let expectedStageHeight;
+    if (!expectedStageHeightModel) {
+      expectedStageHeight = parseInt(await this.booster.methods.stageHeight().call()) + 1;
+      await ExpectedStageHeightModel.create({
+        height: expectedStageHeight
+      });
+    } else {
+      expectedStageHeight = parseInt(expectedStageHeightModel.height);
+    }
+    return expectedStageHeight;
   }
 
   async increaseExpectedStageHeight (tx = null) {
@@ -101,15 +119,13 @@ class Postgres {
     let tree = await TreeModel.findOne({
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     });
     let accountSnapshot = await AccountSnapshotModel.findOne({
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     });
 
@@ -154,11 +170,10 @@ class Postgres {
 
   async accountData (tx = null) {
     let assets = await AssetModel.findAll({
-      'order': [
+      order: [
         ['address', 'ASC'],
         ['asset_id', 'ASC']
-      ]
-    }, {
+      ],
       transaction: tx
     });
 
@@ -191,8 +206,7 @@ class Postgres {
     let accounts = await AccountSnapshotModel.findOne({
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     });
     return accounts.account_data;
@@ -205,28 +219,26 @@ class Postgres {
     let trees = await TreeModel.findOne({
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     });
     return trees;
   }
 
-  async getReceiptProof (stageHeight, receiptHash, tx = null) {
+  async getReceiptSlice (stageHeight, receiptHash, tx = null) {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
     }
     let trees = await TreeModel.findOne({
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     });
 
-    let proof = new GetProof(stageHeight, receiptHash, trees.receipt_tree).build();
+    let slice = new GetSlice(stageHeight, receiptHash, trees.receipt_tree).build();
 
-    return proof;
+    return slice;
   }
 
   async getContractAddress () {
@@ -279,7 +291,7 @@ class Postgres {
     this.offchainReceiptHashes.splice(this.offchainReceiptHashes.indexOf(lightTxHash), 1);
   }
 
-  async removeOffchainReceipts (stageHeight) {
+  async removeOffchainReceipts (stageHeight, tx = null) {
     if (stageHeight) {
       stageHeight = stageHeight.toString(16).slice(-64).padStart(64, '0');
     }
@@ -288,7 +300,8 @@ class Postgres {
     }, {
       where: {
         stage_height: stageHeight
-      }
+      },
+      transaction: tx
     });
     return result;
   }
@@ -304,17 +317,7 @@ class Postgres {
       throw new Error('Booster address is not consistent.');
     }
 
-    let expectedStageHeightModel = await ExpectedStageHeightModel.findById(1);
-    let expectedStageHeight;
-    if (!expectedStageHeightModel) {
-      expectedStageHeight = parseInt(await booster.methods.stageHeight().call()) + 1;
-      await ExpectedStageHeightModel.create({
-        height: expectedStageHeight
-      });
-    } else {
-      expectedStageHeight = parseInt(expectedStageHeightModel.height);
-    }
-
+    let expectedStageHeight = await this.getExpectedStageHeight();
     console.log('expectedStageHeight: ' + expectedStageHeight);
 
     let gsnNumberModel = await this.gsnNumberModel();
@@ -337,10 +340,10 @@ class Postgres {
         asset_decimals: 18,
         asset_address: EtherEmptyAddress
       });
-      let assetListLength = await booster.methods.getAssetAddressesLength().call();
+      let assetListLength = await this.booster.methods.getAssetAddressesLength().call();
       for (let i = 0; i < assetListLength; i++) {
-        let address = await booster.methods.assetAddressesArray(i).call();
-        let contract = new web3.eth.Contract(EIP20.abi, address);
+        let address = await this.booster.methods.assetAddressesArray(i).call();
+        let contract = new this.web3.eth.Contract(EIP20.abi, address);
         let name = await contract.methods.symbol().call();
         let decimals = await contract.methods.decimals().call();
         await AssetListModel.create({
@@ -372,7 +375,10 @@ class Postgres {
       where: {
         stage_height: stageHeight,
         onchain: false
-      }
+      },
+      attributes: [
+        'id'
+      ]
     });
     return !!(receipts);
   }
@@ -385,8 +391,7 @@ class Postgres {
       attributes: ['receipt_hash'],
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     }).map((e) => {
       return e.receipt_hash;
@@ -398,8 +403,7 @@ class Postgres {
     let receipt = await ReceiptModel.findOne({
       where: {
         log_id: logID
-      }
-    }, {
+      },
       transaction: tx
     });
     return receipt;
@@ -409,8 +413,17 @@ class Postgres {
     let receipt = await ReceiptModel.findOne({
       where: {
         light_tx_hash: lightTxHash
-      }
-    }, {
+      },
+      transaction: tx
+    });
+    return receipt;
+  }
+
+  async getReceiptByGSN (GSN, tx = null) {
+    let receipt = await ReceiptModel.findOne({
+      where: {
+        gsn: GSN
+      },
       transaction: tx
     });
     return receipt;
@@ -420,8 +433,7 @@ class Postgres {
     let receipts = await ReceiptModel.findAll({
       where: {
         stage_height: stageHeight
-      }
-    }, {
+      },
       transaction: tx
     });
     return receipts;
@@ -433,8 +445,7 @@ class Postgres {
       asset = await AssetModel.findAll({
         where: {
           address: address
-        }
-      }, {
+        },
         transaction: tx
       }).map(e => {
         return {
@@ -453,8 +464,7 @@ class Postgres {
         where: {
           address: address,
           asset_id: assetID
-        }
-      }, {
+        },
         transaction: tx
       });
       if (asset) {
@@ -469,8 +479,7 @@ class Postgres {
     let asset = await AssetModel.findOne({
       where: {
         address: address, asset_id: assetID
-      }
-    }, {
+      },
       transaction: tx
     });
 
@@ -493,8 +502,6 @@ class Postgres {
 
     if (asset) {
       await asset.update({
-        address: address,
-        asset_id: assetID,
         balance: balance,
         pre_gsn: preGSN
       }, {
@@ -545,7 +552,7 @@ class Postgres {
 
       if (type === LightTxTypes.deposit) {
         let oldReceipt = await this.getReceiptByLogID(logID);
-        let depositLog = await booster.methods.depositLogs('0x' + logID).call();
+        let depositLog = await this.booster.methods.depositLogs('0x' + logID).call();
         /**
          * depositLog[0]: stage height
          * depositLog[1]: users' address
@@ -721,8 +728,7 @@ class Postgres {
         where: {
           stage_height: stageHeight,
           asset_id: assetID
-        }
-      }, {
+        },
         transaction: tx
       });
       if (assetFee) {
@@ -735,8 +741,7 @@ class Postgres {
       let assetFees = await FeeListModel.findAll({
         where: {
           stage_height: stageHeight
-        }
-      }, {
+        },
         transaction: tx
       }).map((data) => {
         return {
@@ -759,8 +764,7 @@ class Postgres {
       where: {
         stage_height: stageHeight,
         asset_id: assetID
-      }
-    }, {
+      },
       transaction: tx
     });
 
