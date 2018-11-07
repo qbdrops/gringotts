@@ -19,13 +19,16 @@ const routeSet = (app) => {
           const args = route.split('|').map((v) => v.trim());
           const entity = args[2].split('.');
           
-          if (Apis.indexOf(entity[0]) < 0) {
+          if (Apis.indexOf(entity[0]) <= -1) {
             Apis.push(entity[0]);
             const api = require(`../api/${entity[0]}`);
-            instance = new api();
+            instance = new api(app);
             csArr.push(instance);
           }
-          app[args[0].toLowerCase()](args[1], instance[entity[1]]);
+          app[args[0].toLowerCase()](
+            args[1],
+            instance[entity[1]]
+          );
         }
         return Promise.all(csArr.map(v => v.init()));
       })

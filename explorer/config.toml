@@ -8,5 +8,9 @@ pathname = [
   "get | /tokenList | postgres.getAssetList",
   "get | /tokenInfo/:assetId | postgres.getTokenInfo",
   "get | /latestReceipts/:number | postgres.getLatestReceipts",
-  "get | /lTxDetail/:hash | postgres.getLTxDetail"
+  "get | /lTxDetail/:hash | postgres.getLTxDetail",
+  "post | /addressLTxList | postgres.getAddressLTxList",
+  "get | /addressBalance/:address | postgres.getAddressBalance",
+  "get | /stageInfo/:stageHeight | stage.getStageInfo",
+  "get | /stageList/:amount | stage.getStageList",
 ]
