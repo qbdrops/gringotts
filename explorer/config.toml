@@ -2,8 +2,6 @@ port = 3002
 
 [api]
 pathname = [
-  "get | /api | test.exec",
-  "get | /test2 | test.test",
   "get | /basicInfo | postgres.getBasicInfo",
   "get | /tokenList | postgres.getAssetList",
   "get | /tokenInfo/:assetId | postgres.getTokenInfo",

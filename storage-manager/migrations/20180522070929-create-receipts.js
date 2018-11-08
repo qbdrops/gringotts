@@ -59,6 +59,9 @@ module.exports = {
       data: {
         allowNull: true,
         type: Sequelize.JSON
+      },
+      createdAt: {
+        type: Sequelize.DATE
       }
     }).then(() => {
       queryInterface.addIndex('receipts', ['gsn', 'light_tx_hash', 'receipt_hash', 'stage_height']);
