@@ -20,7 +20,10 @@ class Gazer extends Initial {
       if (total < amount) {
         total = amount;
         const transactions = await this.latestLtx();
-        // console.log(transactions);
+        const stages = await this.latestStage();
+        // console.log(stages);
+
+        // socket broadcast
       }
     }, 5000);
 
@@ -50,9 +53,27 @@ class Gazer extends Initial {
 
   latestStage() {
     return new Promise(async (resolve, reject) => {
-      const result = await this.pool.query('SELECT * FROM receipts ORDER BY ID DESC');
+      const result = await this.pool.query(`SELECT * FROM trees ORDER BY ID DESC LIMIT ${this.amount}`);
       if (!result.rows) reject([]);
-            
+      result.rows.reduce((prev, curr) => {
+        return prev.then((arr) => {
+          return new Promise((rslv) => {
+            this.getStage(curr['stage_height'])
+              .then((data) => {
+                arr.push({
+                  txAmount: curr['receipt_tree'].leafElements.length,
+                  receiptRootHash: data.receiptRootHash,
+                  accountRootHash: data.accountRootHash,
+                  stageHeight: +`0x${curr['stage_height']}`
+                });
+                rslv(arr);
+              });
+          });
+        });
+        
+      }, Promise.resolve([])).then((finalData) => {
+        resolve(finalData);
+      });
     });
   }
 }

@@ -108,25 +108,9 @@ class Postgres extends Initial {
 
   getAddressLTxList(req, res) {
     const { address, amount, lTxType, tokenType, sort  } = req.body;
-    const longAddr = address.padStart(64, 0);
-    const lontOutside = this.outside.padStart(64, 0);
+
     const order = sort ? sort : 'DESC';
-
-    let whereCondition = '';
-
-    switch (lTxType) {
-    case 'deposit':
-      whereCondition = `AND ("from" = '${lontOutside}' AND "to" = '${longAddr}')`;
-      break;
-    case 'withdraw':
-      whereCondition = `AND "from" = '${longAddr}' AND "to" = '${lontOutside}'`;
-      break;
-    case 'remittance':
-      whereCondition = `AND ("from" = '${longAddr}' AND "to" != '${lontOutside}') OR ("from" != '${lontOutside}' AND "to" = '${longAddr}')`;
-      break;
-    default:
-      break;
-    }
+    const whereCondition = this.typeQuery({ type: lTxType, address });
 
     this.pool.query(`SELECT * FROM receipts WHERE asset_id = '${tokenType.padStart(64, 0)}' ${whereCondition} ORDER BY id ${order} LIMIT ${amount}`, (err, result) => {
       if (err || result.rows.length < 1) { 

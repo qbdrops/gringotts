@@ -36,7 +36,45 @@ class Initial {
     } else {
       return 'remittance';
     }
-    
+  }
+
+  typeQuery({ type, address }) {
+    const longAddr = address && address.padStart(64, 0);
+    const lontOutside = this.outside.padStart(64, 0);
+
+    if (address) {
+      switch (type) {
+      case 'deposit':
+        return `AND ("from" = '${lontOutside}' AND "to" = '${longAddr}')`;
+      case 'withdraw':
+        return `AND "from" = '${longAddr}' AND "to" = '${lontOutside}'`;
+      case 'remittance':
+        return `AND (("from" = '${longAddr}' AND "to" != '${lontOutside}') OR ("from" != '${lontOutside}' AND "to" = '${longAddr}'))`;
+      default:
+        return '';
+      }
+    } else {
+      switch (type) {
+      case 'deposit':
+        return `AND ("from" = '${lontOutside}' AND "to" != '${lontOutside}')`;
+      case 'withdraw':
+        return `AND "from" != '${lontOutside}' AND "to" = '${lontOutside}'`;
+      case 'remittance':
+        return `AND ("from" != '${lontOutside}' AND "to" != '${lontOutside}')`;
+      default:
+        return '';
+      }
+    } 
+
+  }
+
+  getStage(height) {
+    return new Promise((resolve, reject) => {
+      this.booster.methods.stages(height).call().then((result) => {
+        // console.log(result);
+        resolve(result);
+      });
+    });
   }
 }
 

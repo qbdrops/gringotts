@@ -6,20 +6,13 @@ class Stage extends Initial {
 
     this.getStageInfo = this.getStageInfo.bind(this);
     this.getStageList = this.getStageList.bind(this);
+    this.getStageLTxList = this.getStageLTxList.bind(this);
   }
 
   init() {
     console.log('stage init');
   }
 
-  getStage(height) {
-    return new Promise((resolve, reject) => {
-      this.booster.methods.stages(height).call().then((result) => {
-        // console.log(result);
-        resolve(result);
-      });
-    });
-  }
 
   getStageInfo(req, res) {
     const { stageHeight } = req.params;
@@ -82,6 +75,27 @@ class Stage extends Initial {
     });
   }
 
+  async getStageLTxList(req, res) {
+    const { stageHeight, amount, lTxType, tokenType, sort  } = req.body;
+    const height = stageHeight.toString(16).padStart(64, 0);
+    const order = sort ? sort : 'DESC';
+    const whereCondition = this.typeQuery({ type: lTxType });
+
+    const receiptRes = await this.pool.query(`SELECT * FROM receipts WHERE asset_id = '${tokenType.padStart(64, 0)}' AND data -> 'receiptData' ->> 'stageHeight' = '${height}' ${whereCondition} ORDER BY id ${order} LIMIT ${amount}`);
+    if (!receiptRes.rows) return res.json({ error: 'transaction not found' });
+    const results = receiptRes.rows.map((receipt) => {
+      const { from, to, createdAt, value, gsn } = receipt;
+      return {
+        timestamp: Date.parse(createdAt),
+        lTxType: this.getType(from, to),
+        from,
+        to,
+        value,
+        gsn
+      };
+    });
+    res.json(results);
+  }
 }
 
 module.exports = Stage;
