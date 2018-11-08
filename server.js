@@ -137,7 +137,16 @@ app.get('/receipts/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
     stageHeight = parseInt(stageHeight).toString(16).padStart(64, '0').slice(-64);
-    let receipts = await this.storageManager.getReceiptByStageHeight(stageHeight);
+    let address = req.query.address || '';
+    let receipts = [];
+    if (address.length === 0) {
+      receipts = await this.storageManager.getReceiptByStageHeight(stageHeight);
+    } else {
+      address = address.slice(-40).padStart(64, '0');
+      if (address != burnAddress) {
+        receipts = await this.storageManager.getReceiptsByStageHeightAndAddress(stageHeight, address);
+      }
+    }
     receipts = receipts.map(receipt => receipt.data);
     res.send(receipts);
   } catch (e) {
@@ -180,8 +189,12 @@ app.get('/receipt_by_gsn/:GSN', async function (req, res) {
 app.get('/personalreceipt/:address', async function (req, res) {
   try {
     let address = req.params.address.slice(-40).padStart(64, '0');
-    let receipts = await this.storageManager.getReceiptsByAddress(address);
-    res.send(receipts);
+    if (address != burnAddress) {
+      let receipts = await this.storageManager.getReceiptsByAddress(address);
+      res.send(receipts);
+    } else {
+      res.status(400).send({ errors: 'Parameter address is missing.' });
+    }
   } catch (e) {
     console.error(e);
     res.status(500).send({ ok: false, message: e.message, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
@@ -269,6 +282,7 @@ app.get('/roothash', async function (req, res) {
 app.get('/roothash/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
+    stageHeight = parseInt(stageHeight);
     let trees = await this.storageManager.getTrees(stageHeight);
 
     if (Object.keys(trees).length > 0) {
@@ -284,9 +298,10 @@ app.get('/roothash/:stageHeight', async function (req, res) {
 app.get('/trees/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
+    stageHeight = parseInt(stageHeight);
     let trees = await this.storageManager.getTrees(stageHeight);
 
-    if (Object.keys(trees).length > 0) {
+    if (trees && Object.keys(trees).length > 0) {
       res.send({ ok: true, receiptTree: trees.receipt_tree, accountTree: trees.account_tree });
     } else {
       res.send({ ok: false, message: 'StageHeight does not exist.' });
