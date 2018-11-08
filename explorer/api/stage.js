@@ -14,9 +14,11 @@ class Stage extends Initial {
   }
 
 
-  getStageInfo(req, res) {
+  async getStageInfo(req, res) {
     const { stageHeight } = req.params;
     const height = (+stageHeight).toString(16).padStart(64, 0);
+    const period = await this.booster.methods.stagePeriod().call();
+
     this.pool.query(`SELECT * FROM trees WHERE stage_height = '${height}'`, (err, result) => {
       if (err || result.rows.lenght < 1) {
         console.log(err);
@@ -35,7 +37,11 @@ class Stage extends Initial {
           res.json({
             txAmount: receipt_tree.leafElements.length,
             receiptRootHash: stage.receiptRootHash,
-            accountRootHash: stage.accountRootHash
+            accountRootHash: stage.accountRootHash,
+            attachTimestamp: stage.attachTimestamp,
+            challengePeriod: period * 1000,
+            attachHash: '000',
+            finalizeHash: '000'
           });
         });
     });
@@ -84,7 +90,8 @@ class Stage extends Initial {
     const receiptRes = await this.pool.query(`SELECT * FROM receipts WHERE asset_id = '${tokenType.padStart(64, 0)}' AND data -> 'receiptData' ->> 'stageHeight' = '${height}' ${whereCondition} ORDER BY id ${order} LIMIT ${amount}`);
     if (!receiptRes.rows) return res.json({ error: 'transaction not found' });
     const results = receiptRes.rows.map((receipt) => {
-      const { from, to, createdAt, value, gsn } = receipt;
+      const { data, createdAt, value, gsn } = receipt;
+      const { from , to } = data.receiptData;
       return {
         timestamp: Date.parse(createdAt),
         lTxType: this.getType(from, to),
@@ -96,6 +103,7 @@ class Stage extends Initial {
     });
     res.json(results);
   }
+
 }
 
 module.exports = Stage;

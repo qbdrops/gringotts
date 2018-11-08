@@ -23,7 +23,11 @@ class Gazer extends Initial {
         const stages = await this.latestStage();
         // console.log(stages);
 
-        // socket broadcast
+        // socket boardcast
+        this.io.emit('boardcast', {
+          stages,
+          transactions
+        });
       }
     }, 5000);
 
@@ -54,17 +58,23 @@ class Gazer extends Initial {
   latestStage() {
     return new Promise(async (resolve, reject) => {
       const result = await this.pool.query(`SELECT * FROM trees ORDER BY ID DESC LIMIT ${this.amount}`);
+      const period = await this.booster.methods.stagePeriod().call();
+
       if (!result.rows) reject([]);
       result.rows.reduce((prev, curr) => {
         return prev.then((arr) => {
           return new Promise((rslv) => {
             this.getStage(curr['stage_height'])
               .then((data) => {
+                console.log(data);
                 arr.push({
                   txAmount: curr['receipt_tree'].leafElements.length,
                   receiptRootHash: data.receiptRootHash,
                   accountRootHash: data.accountRootHash,
-                  stageHeight: +`0x${curr['stage_height']}`
+                  attachTimestamp: data.attachTimestamp,
+                  finalizeTimeStamp: data.finalizeTimeStamp,
+                  stageHeight: +`0x${curr['stage_height']}`,
+                  challengePeriod: period * 1000
                 });
                 rslv(arr);
               });

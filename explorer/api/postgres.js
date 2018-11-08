@@ -114,9 +114,8 @@ class Postgres extends Initial {
 
     this.pool.query(`SELECT * FROM receipts WHERE asset_id = '${tokenType.padStart(64, 0)}' ${whereCondition} ORDER BY id ${order} LIMIT ${amount}`, (err, result) => {
       if (err || result.rows.length < 1) { 
-        console.log(err);
         return res.json({
-          error: 'not found'
+          error: 'transaction not found'
         });
       }
 
@@ -148,7 +147,7 @@ class Postgres extends Initial {
     this.pool.query(`SELECT * FROM assets WHERE address = '${longAddr}'`, (err, result) => {
       if (err || result.rows.length < 1) {
         return res.json({
-          error: 'address not exit in booster'
+          error: 'address not exit'
         });
       }
       /*eslint-disable camelcase*/
