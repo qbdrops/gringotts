@@ -136,6 +136,11 @@ class StorageManager {
     let result = await this.storage.getFee(stageHeight);
     return result;
   }
+
+  async updateTree({ column, stageHeight, value }) {
+    let result = await this.storage.updateTreeColumn({ column, stageHeight, value });
+    return result;
+  }
 }
 
 module.exports = StorageManager;

@@ -378,8 +378,18 @@ if (mode !== 'production') {
   
   app.post('/finalize', async function (req, res) {
     try {
+      const stageHeight = await this.booster.methods.stageHeight().call();
       const receipt = await this.infinitechain.finalize();
-      res.send(receipt);
+      if (receipt.status) {
+        await this.storageManager.updateTree({
+          column: 'finalizeTxHash',
+          value: receipt.transactionHash.substr(-64),
+          stageHeight: stageHeight.padStart(64, '0')
+        });
+        res.send(receipt);
+      } else {
+        res.send({ ok: false, errors: 'Finalize Fail', code: ErrorCodes.SOMETHING_WENT_WRONG });
+      }
     } catch (e) {
       console.log(e);
       res.send({ ok: false, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
