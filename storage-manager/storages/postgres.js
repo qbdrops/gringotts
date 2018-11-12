@@ -553,6 +553,12 @@ class Postgres {
       if (type === LightTxTypes.deposit) {
         let oldReceipt = await this.getReceiptByLogID(logID);
         let depositLog = await this.booster.methods.depositLogs('0x' + logID).call();
+        for (let i = 1; i <= 10; i++) {
+          if (depositLog[0] != '0x' + initBalance) break;
+          console.log('Can not get depositLog[' + '0x' + logID + ']. Retry......' + i);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          depositLog = await this.booster.methods.depositLogs('0x' + logID).call();
+        }
         /**
          * depositLog[0]: stage height
          * depositLog[1]: users' address
