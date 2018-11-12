@@ -813,7 +813,6 @@ class Postgres {
         }
       }
     );
-    console.log(result);
     return result;
   }
 }

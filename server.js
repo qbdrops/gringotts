@@ -380,7 +380,7 @@ if (mode !== 'production') {
     try {
       const stageHeight = await this.booster.methods.stageHeight().call();
       const receipt = await this.infinitechain.finalize();
-      if (receipt.status) {
+      if (receipt.status === true || receipt.status === '0x1') {
         await this.storageManager.updateTree({
           column: 'finalizeTxHash',
           value: receipt.transactionHash.substr(-64),
