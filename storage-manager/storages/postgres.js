@@ -553,6 +553,12 @@ class Postgres {
       if (type === LightTxTypes.deposit) {
         let oldReceipt = await this.getReceiptByLogID(logID);
         let depositLog = await this.booster.methods.depositLogs('0x' + logID).call();
+        for (let i = 1; i <= 10; i++) {
+          if (depositLog[0] != '0x' + initBalance) break;
+          console.log('Can not get depositLog[' + '0x' + logID + ']. Retry......' + i);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          depositLog = await this.booster.methods.depositLogs('0x' + logID).call();
+        }
         /**
          * depositLog[0]: stage height
          * depositLog[1]: users' address
@@ -690,15 +696,29 @@ class Postgres {
       return { ok: false, code: code, message: e.message };
     }
   }
+  async getReceiptsByStageHeightAndAddress (stageHeight, address, tx = null) {
+    let result = await ReceiptModel.findAll({
+      where: {
+        [Op.or]: [
+          { from: address },
+          { to: address }],
+        stage_height: stageHeight
+      },
+      order: [['gsn', 'DESC']],
+      transaction: tx
+    });
+    return result;
+  }
 
-  async getReceiptsByAddress (address) {
+  async getReceiptsByAddress (address, tx = null) {
     let result = await ReceiptModel.findAll({
       where: {
         [Op.or]: [
           { from: address },
           { to: address }]
       },
-      order: [['gsn', 'DESC']]
+      order: [['gsn', 'DESC']],
+      transaction: tx
     }).map(receipt => receipt.data);
     return result;
   }
@@ -786,6 +806,20 @@ class Postgres {
       });
       await assetFee.save();
     }
+  }
+
+  async updateTreeColumn({ column, stageHeight, value }) {
+    const result = await TreeModel.update(
+      {
+        [column]: value
+      },
+      {
+        where: {
+          stage_height: stageHeight
+        }
+      }
+    );
+    return result;
   }
 }
 
