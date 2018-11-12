@@ -807,6 +807,20 @@ class Postgres {
       await assetFee.save();
     }
   }
+
+  async updateTreeColumn({ column, stageHeight, value }) {
+    const result = await TreeModel.update(
+      {
+        [column]: value
+      },
+      {
+        where: {
+          stage_height: stageHeight
+        }
+      }
+    );
+    return result;
+  }
 }
 
 module.exports = Postgres;

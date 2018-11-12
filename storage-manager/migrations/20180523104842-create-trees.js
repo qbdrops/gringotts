@@ -18,6 +18,10 @@ module.exports = {
       account_tree: {
         allowNull: true,
         type: Sequelize.JSON
+      },
+      finalizeTxHash: {
+        allowNull: true,
+        type: Sequelize.CHAR(64)
       }
     }).then(() => {
       queryInterface.addIndex('trees', ['stage_height']);
