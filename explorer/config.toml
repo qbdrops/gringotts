@@ -1,4 +1,5 @@
 port = 3002
+socketPort = 3003
 
 [api]
 pathname = [

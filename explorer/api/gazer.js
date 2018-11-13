@@ -1,37 +1,50 @@
 const Socket = require('socket.io'); 
 const Initial = require('./initial');
+const readConfig = require('../lib/readConfig');
 
 class Gazer extends Initial {
   constructor(app) {
     super();
     const server = require('http').Server(app);
     this.io = Socket(server);
+    // this.io.set('transports', ['websocket']);
+    this.io.set('origins', '*:*');
     this.amount = 10;
-
-    // this.init = this.init.bind(this);
   }
 
-  init() {
-    let total = 0;
+  async init() {
+    let receiptTotal = 0;
+    let treeTotal = 0;
+    const config = await readConfig();
+    const port = config.socketPort;
+    this.io.listen(port);
+    this.io.on('connection', async (socket) => {
+      console.log('connected');
+      const transactions = await this.latestLtx();
+      const stages = await this.latestStage();
+      socket.emit('lTxs', transactions);
+      socket.emit('stages', stages);
+    });
     setInterval(async () => {
-      const res = await this.pool.query('SELECT COUNT(id) FROM receipts');
-      const amount = +res.rows[0].count;
+      const receiptRes = await this.pool.query('SELECT COUNT(id) FROM receipts');
+      const treeRes = await this.pool.query('SELECT COUNT(id) FROM trees');
+      const receiptAmount = +receiptRes.rows[0].count;
+      const treeAmount = +treeRes.rows[0].count;
 
-      if (total < amount) {
-        total = amount;
+      if (receiptTotal < receiptAmount) {
+        receiptTotal = receiptAmount;
         const transactions = await this.latestLtx();
-        const stages = await this.latestStage();
-        // console.log(stages);
+        this.io.emit('lTxs', transactions);
+      }
 
-        // socket boardcast
-        this.io.emit('boardcast', {
-          stages,
-          transactions
-        });
+      if (treeTotal < treeAmount) {
+        treeTotal = treeAmount;
+        const stages = await this.latestStage();
+        this.io.emit('stages', stages);
       }
     }, 5000);
 
-    console.log('gazer init');
+    console.log(`gazer init, socket running on port ${port}`);
 
     return Promise.resolve();
   }
@@ -47,7 +60,7 @@ class Gazer extends Initial {
           return {
             lTxHash: v.light_tx_hash,
             timestamp: Date.parse(v.createdAt),
-            type: this.getType(from.substr(-40), to.substr(-40)),
+            type: this.getType(from, to),
             value: data.lightTxData.value
           };
         });
@@ -66,7 +79,6 @@ class Gazer extends Initial {
           return new Promise((rslv) => {
             this.getStage(curr['stage_height'])
               .then((data) => {
-                console.log(data);
                 arr.push({
                   txAmount: curr['receipt_tree'].leafElements.length,
                   receiptRootHash: data.receiptRootHash,

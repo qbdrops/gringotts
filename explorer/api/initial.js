@@ -26,12 +26,11 @@ class Initial {
   }
 
   getType(from, to) {
-    const address = this.address.padStart(64, 0);
     const outside = this.outside.padStart(64, 0);
-    if (from === address && to === outside) {
+    if (to === outside) {
       return 'withdraw';
     }
-    else if (from === outside && to === address) {
+    else if (from === outside) {
       return 'deposit';
     } else {
       return 'remittance';
