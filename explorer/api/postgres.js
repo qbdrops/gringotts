@@ -1,6 +1,6 @@
 const Initial = require('./initial');
 const env = require('../../env');
-
+const { bnHex } = require('../lib/math');
 class Postgres extends Initial {
   constructor() {
     super();
@@ -28,39 +28,56 @@ class Postgres extends Initial {
 
   getAssetList(ree, res) {
     this.pool.query('SELECT * FROM asset_lists', (err, result) => {
-      res.json(result.rows);
+      const data = result.rows.map(token => ({
+        assetName: token.asset_name,
+        assetDecimal: token.asset_decimals,
+        assetAddress: token.asset_address
+      }));
+      res.json(data);
     });
   }
 
   // can use assets table
   getTokenInfo(req, res) {
-    const id = req.params.assetId.padStart(64, 0);
-    let balance = 0;
+    let id = req.params.assetId;
+    try {
+      id = id.replace('0x', '').padStart(64, 0);
+    } catch(e) {
+      return res.json({
+        error: 'Please attach assetId'
+      });
+    }
+    let balance = bnHex(0, 16);
     let withdraw = 0;
 
-    this.pool.query(`SELECT data FROM receipts WHERE "from" = '${this.outside.padStart(64, 0)}' OR "to" = '${this.outside.padStart(64, 0)}'`, (err, result) => {
+    this.pool.query(`SELECT data FROM receipts WHERE asset_id = '${id}' ORDER BY id ASC`, (err, result) => {
       if (err) console.log(err);
       const receipts = result.rows
         .map(receipt => receipt.data)
-        .filter(d => d.lightTxData.assetID === id)
         .map((rcpt) => {
           const lTx = rcpt.lightTxData;
           const from = lTx.from.toLowerCase().substr(-40);
           const to = lTx.to.toLowerCase().substr(-40);
-          if (to === this.address && from === this.outside) {
-            balance += parseInt(lTx.value, 16);
-          } else if (from === this.address && to === this.outside) {
-            balance -= parseInt(lTx.value, 16);
+          if (from === this.outside) {
+            balance = balance.add(bnHex(lTx.value));
+          } else if (to === this.outside) {
+            balance = balance.sub(bnHex(lTx.value));
             withdraw++;
           }
         });
 
       res.json({
-        balance,
-        withdraw,
-        totalLTx: receipts.length
+        balance: balance.toString(),
+        totalWithdraw: withdraw,
+        totalLTx: receipts.length,
+        address: id.substr(-40)
       });
     });
+
+    // this.pool.query(`SELECT balance FROM asset_lists WHERE asset_id = '${id}'`, (err, result) => {
+    //   if (err) console.log(err);
+    //   const txAmount = result.rows.length;
+    // })
   }
 
   getLatestReceipts(req, res) {
