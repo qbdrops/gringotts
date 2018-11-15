@@ -98,7 +98,6 @@ class Infinitechain {
     receipt = await this.web3.eth.sendSignedTransaction(serializedTx);
     txHash = receipt.transactionHash;
     console.log('Attach txHash: ' + txHash);
-    await this.storageManager.increaseExpectedStageHeight();
     return receipt;
   }
 

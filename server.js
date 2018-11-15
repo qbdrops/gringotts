@@ -339,7 +339,11 @@ if (mode !== 'production') {
         } else {
           let receipt = await this.infinitechain.attach(stageHeight);
           txHash = receipt.transactionHash;
-          success = true;
+          if (receipt.status === true || receipt.status === '0x1') {
+            success = true;
+          } else {
+            message = 'Attach failed.';
+          }
         }
       } else {
         if (generateEmptyTx === true) {
@@ -355,7 +359,11 @@ if (mode !== 'production') {
             stageBuildingLock = true;
             let txReceipt = await this.infinitechain.attach(stageHeight);
             txHash = txReceipt.transactionHash;
-            success = true;
+            if (txReceipt.status === true || txReceipt.status === '0x1') {
+              success = true;
+            } else {
+              message = 'Attach failed.';
+            }
           }
         } else {
           message = 'Receipts are empty.';
@@ -363,12 +371,14 @@ if (mode !== 'production') {
         }
       }
   
-      stageBuildingLock = false;
       if (success) {
+        await this.storageManager.increaseExpectedStageHeight();
         res.send({ ok: true, txHash: txHash });
       } else {
+        console.log(message, 'code: ' + code);
         res.send({ ok: false, message: message, code: code });
       }
+      stageBuildingLock = false;
     } catch (e) {
       console.log(e);
       stageBuildingLock = false;
@@ -386,10 +396,14 @@ if (mode !== 'production') {
           value: receipt.transactionHash.substr(-64),
           stageHeight: stageHeight.padStart(64, '0')
         });
+        await this.storageManager.removeOffchainReceipts(parseInt(stageHeight));
         res.send(receipt);
       } else {
-        res.send({ ok: false, errors: 'Finalize Fail', code: ErrorCodes.SOMETHING_WENT_WRONG });
+        console.log('Finalize failed.');
+        res.send({ ok: false, errors: 'Finalize failed.', code: ErrorCodes.SOMETHING_WENT_WRONG });
       }
+      let expectedStageHeight = await this.storageManager.getExpectedStageHeight();
+      console.log('expectedStageHeight: ' + expectedStageHeight);
     } catch (e) {
       console.log(e);
       res.send({ ok: false, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
@@ -457,21 +471,6 @@ function connectToWeb3 () {
   this.web3._provider.on('connect', async (eventObj) => {
     this.storageManager = new StorageManager(this.web3);
     this.infinitechain = new Infinitechain(this.web3, this.storageManager);
-    // Watch latest block
-    this.booster.events.Attach({
-      toBlock: 'latest' 
-    }, async (err, result) => {
-      if (err) console.error(err);
-      try {
-        let stageHeight = result.returnValues._stageHeight;
-        // Remove offchain receipt json
-        await this.storageManager.removeOffchainReceipts(parseInt(stageHeight, 16));
-        let expectedStageHeight = await this.storageManager.getExpectedStageHeight();
-        console.log('expectedStageHeight: ' + expectedStageHeight);
-      } catch (e) {
-        console.error(e);
-      }
-    });
   });
 
   this.web3._provider.on('end', (eventObj) => {
