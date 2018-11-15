@@ -339,7 +339,11 @@ if (mode !== 'production') {
         } else {
           let receipt = await this.infinitechain.attach(stageHeight);
           txHash = receipt.transactionHash;
-          success = true;
+          if (receipt.status === true || receipt.status === '0x1') {
+            success = true;
+          } else {
+            message = 'Attach failed.';
+          }
         }
       } else {
         if (generateEmptyTx === true) {
@@ -355,7 +359,11 @@ if (mode !== 'production') {
             stageBuildingLock = true;
             let txReceipt = await this.infinitechain.attach(stageHeight);
             txHash = txReceipt.transactionHash;
-            success = true;
+            if (txReceipt.status === true || txReceipt.status === '0x1') {
+              success = true;
+            } else {
+              message = 'Attach failed.';
+            }
           }
         } else {
           message = 'Receipts are empty.';
@@ -363,12 +371,14 @@ if (mode !== 'production') {
         }
       }
   
-      stageBuildingLock = false;
       if (success) {
+        await this.storageManager.increaseExpectedStageHeight();
         res.send({ ok: true, txHash: txHash });
       } else {
+        console.log(message, 'code: ' + code);
         res.send({ ok: false, message: message, code: code });
       }
+      stageBuildingLock = false;
     } catch (e) {
       console.log(e);
       stageBuildingLock = false;
