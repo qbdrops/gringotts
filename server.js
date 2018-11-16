@@ -388,13 +388,14 @@ if (mode !== 'production') {
   
   app.post('/finalize', async function (req, res) {
     try {
-      const stageHeight = await this.booster.methods.stageHeight().call();
+      let stageHeight = await this.booster.methods.stageHeight().call();
+      stageHeight = parseInt(stageHeight);
       const receipt = await this.infinitechain.finalize();
       if (receipt.status === true || receipt.status === '0x1') {
         await this.storageManager.updateTree({
           column: 'finalizeTxHash',
           value: receipt.transactionHash.substr(-64),
-          stageHeight: stageHeight.padStart(64, '0')
+          stageHeight: stageHeight.toString(16).padStart(64, '0')
         });
         await this.storageManager.removeOffchainReceipts(parseInt(stageHeight));
         res.send(receipt);
