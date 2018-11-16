@@ -384,7 +384,7 @@ if (mode !== 'production') {
         await this.storageManager.updateTree({
           column: 'finalizeTxHash',
           value: receipt.transactionHash.substr(-64),
-          stageHeight: stageHeight.padStart(64, '0')
+          stageHeight: (+stageHeight).toString(16).padStart(64, '0')
         });
         res.send(receipt);
       } else {
