@@ -69,6 +69,7 @@ class Initial {
 
   getStage(height) {
     return new Promise((resolve, reject) => {
+      height = parseInt(height, 16);
       this.booster.methods.stages(height).call().then((result) => {
         // console.log(result);
         resolve(result);
