@@ -75,7 +75,7 @@ class Gazer extends Initial {
 
   latestStage() {
     return new Promise(async (resolve, reject) => {
-      const result = await this.pool.query(`SELECT * FROM trees ORDER BY ID DESC LIMIT ${this.amount}`);
+      const result = await this.pool.query('SELECT * FROM trees ORDER BY ID DESC');
       const period = await this.booster.methods.stagePeriod().call();
 
       if (!result.rows) reject([]);
@@ -90,7 +90,7 @@ class Gazer extends Initial {
                   accountRootHash: data.accountRootHash,
                   attachTimestamp: data.attachTimestamp * 1000,
                   finalizeTimestamp: data.finalizeTimeStamp * 1000,
-                  stageHeight: +`0x${curr['stage_height']}`,
+                  stageHeight: parseInt(curr['stage_height'], 16),
                   challengePeriod: period * 1000
                 });
                 rslv(arr);
@@ -105,19 +105,19 @@ class Gazer extends Initial {
         });
         const gsnRes = await this.pool.query('SELECT gsn FROM gsn_number');
         const gsn = gsnRes.rows[0].gsn;
-        if (finalData[0].finalizeTimestamp) {
+        if (finalData[0].attachTimestamp) {
           finalData.unshift({
             txAmount: gsn - total,
             receiptRootHash: '',
             accountRootHash: '',
             attachTimestamp: '0',
             finalizeTimestamp: '0',
-            stageHeight: parseInt(finalData[0].stage_height, 16) + 1,
+            stageHeight: finalData[0].stageHeight + 1,
             challengePeriod: period * 1000
           });
         }
         
-        resolve(finalData);
+        resolve(finalData.slice(0, this.amount));
       });
     });
   }

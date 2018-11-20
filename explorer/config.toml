@@ -11,6 +11,6 @@ pathname = [
   "post | /addressLTxList | postgres.getAddressLTxList",
   "get | /addressBalance/:address | postgres.getAddressBalance",
   "get | /stageInfo/:stageHeight | stage.getStageInfo",
-  "get | /stageList/:amount | stage.getStageList",
+  "get | /stageList/:amount/:start | stage.getStageList",
   "post | /stageLTxList | stage.getStageLTxList"
 ]

@@ -33,7 +33,6 @@ class Stage extends Initial {
 
       this.getStage(height)
         .then((stage) => {
-          console.log(stage);
           res.json({
             txAmount: receipt_tree.leafElements.length,
             receiptRootHash: stage.receiptRootHash,
@@ -48,13 +47,17 @@ class Stage extends Initial {
   }
 
   getStageList(req, res) {
-    const { amount } = req.params;
-
-    this.pool.query(`SELECT * FROM trees LIMIT ${amount}`, (err, result) => {
+    const { amount, start } = req.params;
+    let startWith = '';
+    if (+start > 0) {
+      startWith = `WHERE id < ${+start}`;
+    }
+    this.pool.query(`SELECT * FROM trees ${startWith} ORDER BY id DESC LIMIT ${amount}`, async (err, result) => {
+      const totalAmount = await this.pool.query('SELECT COUNT(*) FROM trees ');
       if (err || result.rows.length < 1) {
         console.log(err);
         return res.json({
-          error: 'eror error error'
+          error: 'tages not found'
         });
       }
 
@@ -65,9 +68,10 @@ class Stage extends Initial {
               .then((data) => {
                 arr.push({
                   txAmount: curr['receipt_tree'].leafElements.length,
-                  receiptRootHash: data.receiptRootHash,
-                  accountRootHash: data.accountRootHash,
-                  stageHeight: +`0x${curr['stage_height']}`
+                  attachTxHash: data.attachTxHash,
+                  stageHeight: +`0x${curr['stage_height']}`,
+                  timestamp: data.attachTimestamp * 1000,
+                  status: +data.finalizeTimeStamp > 0 ? 'Finalized' : 'Challenge'
                 });
                 resolve(arr);
               });
@@ -75,7 +79,10 @@ class Stage extends Initial {
         });
         
       }, Promise.resolve([])).then((finalData) => {
-        res.json(finalData);
+        res.json({
+          stages: finalData,
+          totalAmount: +totalAmount.rows[0].count
+        });
       });
       
     });

@@ -94,7 +94,7 @@ class Postgres extends Initial {
           return {
             lTxHash: v.light_tx_hash,
             timestamp: Date.parse(v.createdAt),
-            type: this.getType(from.substr(-40), to.substr(-40)),
+            type: this.getType(from, to),
             value: data.lightTxData.value
           };
         });
@@ -104,21 +104,34 @@ class Postgres extends Initial {
 
   getLTxDetail(req, res) {
     const { hash } = req.params;
-    this.pool.query(`SELECT * FROM receipts WHERE light_tx_hash = '${hash}'`, (err, result) => {
-      if (err || receipt.rows.length < 1) {
+    this.pool.query(`SELECT * FROM receipts LEFT OUTER JOIN trees ON receipts.stage_height = trees.stage_height WHERE receipts.light_tx_hash = '${hash}' `, (err, result) => {
+      if (err || result.rows.length < 1) {
         console.log(err);
         return res.json({
           error: 'light_tx_hash not exit.'
         });
       }
       const receipt = result.rows[0];
-      const { lightTxData } = receipt.data;
+      const { lightTxData, receiptData } = receipt.data;
       const { from, to } = lightTxData;
+      /*eslint-disable camelcase*/
+      const { finalizeTxHash, stage_height } = receipt;
+      let status = 'Waiting';
+      if (stage_height && finalizeTxHash) {
+        status = 'Finalized';
+      }
+      else if (stage_height && !finalizeTxHash) {
+        status = 'Challenge Period';
+      }
 
       res.json({
         receipt: lightTxData,
-        type: this.getType(from.substr(-40), to.substr(-40)),
-        timestamp: Date.parse(receipt.createdAt)
+        gsn: parseInt(receipt.gsn, 16),
+        type: this.getType(from, to),
+        timestamp: Date.parse(receipt.createdAt),
+        stage: parseInt(receiptData.stageHeight, 16),
+        status,
+        serverMetadataHash: receiptData.serverMetadataHash
       });
     });
   }
@@ -140,7 +153,6 @@ class Postgres extends Initial {
         const timestamp = Date.parse(d.createdAt);
         const { lightTxData, receiptData } = d.data;
         const { from, to, value } = lightTxData;
-
         return {
           timestamp,
           stage: receiptData.stageHeight,
