@@ -349,7 +349,7 @@ if (mode !== 'production') {
         if (generateEmptyTx === true) {
           // generate an empty light tx
           console.log('Receipts are empty, generate an empty light tx');
-          let res = await this.infinitechain.sendLightTx(boosterAccountAddress, boosterAccountAddress, 0, 0, 0);
+          let res = await this.infinitechain.sendLightTx(boosterAccountAddress, boosterAccountAddress, '0', '0', '0');
           let receipt = new Receipt(res.data);
           if (verifier.verifyReceipt(receipt) === false) {
             message = 'Including wrong signature receipt.';
