@@ -398,7 +398,7 @@ if (mode !== 'production') {
           stageHeight: stageHeight.toString(16).padStart(64, '0')
         });
         await this.storageManager.removeOffchainReceipts(parseInt(stageHeight));
-        res.send(receipt);
+        res.send({ ok: true, receipt: receipt });
       } else {
         console.log('Finalize failed.');
         res.send({ ok: false, errors: 'Finalize failed.', code: ErrorCodes.SOMETHING_WENT_WRONG });
