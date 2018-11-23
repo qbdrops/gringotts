@@ -140,9 +140,10 @@ class Postgres extends Initial {
     const { address, amount, lTxType, tokenType, sort  } = req.body;
 
     const order = sort ? sort : 'DESC';
-    const whereCondition = this.typeQuery({ type: lTxType, address });
+    const whereCondition = lTxType ? this.typeQuery({ type: lTxType, address }) : '';
+    const tokenCondition = tokenType ? `WHERE asset_id = '${tokenType.padStart(64, 0)}'` : 'WHERE'; 
 
-    this.pool.query(`SELECT * FROM receipts WHERE asset_id = '${tokenType.padStart(64, 0)}' ${whereCondition} ORDER BY id ${order} LIMIT ${amount}`, (err, result) => {
+    this.pool.query(`SELECT * FROM receipts ${tokenCondition} ${lTxType && `AND ${whereCondition}`} ORDER BY id ${order} LIMIT ${amount}`, (err, result) => {
       if (err || result.rows.length < 1) { 
         return res.json({
           error: 'transaction not found'

@@ -3,9 +3,9 @@ const Initial = require('./initial');
 const readConfig = require('../lib/readConfig');
 
 class Gazer extends Initial {
-  constructor(app) {
+  constructor(server) {
     super();
-    const server = require('http').Server(app);
+    // const server = require('http').Server(app);
     this.io = Socket(server);
     // this.io.set('transports', ['websocket']);
     this.io.set('origins', '*:*');
@@ -74,11 +74,10 @@ class Gazer extends Initial {
   }
 
   latestStage() {
-    return new Promise(async (resolve, reject) => {
+    return new Promise(async (resolve,) => {
       const result = await this.pool.query('SELECT * FROM trees ORDER BY ID DESC');
       const period = await this.booster.methods.stagePeriod().call();
-
-      if (!result.rows) reject([]);
+      if (!result.rows || result.rows.length < 1) return resolve([]);
       result.rows.reduce((prev, curr) => {
         return prev.then((arr) => {
           return new Promise((rslv) => {

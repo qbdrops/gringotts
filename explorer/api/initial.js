@@ -44,22 +44,22 @@ class Initial {
     if (address) {
       switch (type) {
       case 'deposit':
-        return `AND ("from" = '${lontOutside}' AND "to" = '${longAddr}')`;
+        return `("from" = '${lontOutside}' AND "to" = '${longAddr}')`;
       case 'withdraw':
-        return `AND "from" = '${longAddr}' AND "to" = '${lontOutside}'`;
+        return `"from" = '${longAddr}' AND "to" = '${lontOutside}'`;
       case 'remittance':
-        return `AND (("from" = '${longAddr}' AND "to" != '${lontOutside}') OR ("from" != '${lontOutside}' AND "to" = '${longAddr}'))`;
+        return `(("from" = '${longAddr}' AND "to" != '${lontOutside}') OR ("from" != '${lontOutside}' AND "to" = '${longAddr}'))`;
       default:
         return '';
       }
     } else {
       switch (type) {
       case 'deposit':
-        return `AND ("from" = '${lontOutside}' AND "to" != '${lontOutside}')`;
+        return `("from" = '${lontOutside}' AND "to" != '${lontOutside}')`;
       case 'withdraw':
-        return `AND "from" != '${lontOutside}' AND "to" = '${lontOutside}'`;
+        return `"from" != '${lontOutside}' AND "to" = '${lontOutside}'`;
       case 'remittance':
-        return `AND ("from" != '${lontOutside}' AND "to" != '${lontOutside}')`;
+        return `("from" != '${lontOutside}' AND "to" != '${lontOutside}')`;
       default:
         return '';
       }

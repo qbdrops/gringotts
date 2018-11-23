@@ -1,4 +1,5 @@
 const express = require('express');
+const http = require('http');
 // const https = require('https');
 const bodyParser = require('body-parser');
 var cors = require('cors');
@@ -24,10 +25,12 @@ app.use(cors());
 readConfig()
   .then((cfg) => {
     port = cfg.port;
-    return apiSocket(app);
+    return apiRoutes(app);
+    // return apiSocket(app);
   })
-  .then(app => apiRoutes(app))
-  .then((server) => {
+  .then(() => {
+    const server = http.createServer(app);
+    apiSocket(server);
     server.listen(port, () => {
       console.log(`explorer is running on port ${port}`);
     });

@@ -17,18 +17,40 @@ class Stage extends Initial {
   async getStageInfo(req, res) {
     const { stageHeight } = req.params;
     const height = (+stageHeight).toString(16).padStart(64, 0);
+    const next = (+stageHeight + 1).toString(16).padStart(64, 0);
     const period = await this.booster.methods.stagePeriod().call();
+    
+    const resFinal = await this.pool.query('SELECT * FROM trees ORDER BY id DESC LIMIT 1');
+    if (!resFinal.rows || resFinal.rows.length < 1) {
+      return res.json({
+        error: 'stage not found'
+      });
+    }
+    const finalStage = resFinal.rows[0];
 
-    this.pool.query(`SELECT * FROM trees WHERE stage_height = '${height}'`, (err, result) => {
-      if (err || result.rows.lenght < 1) {
+    /*eslint-disable camelcase*/
+    if (stageHeight - parseInt(finalStage.stage_height, 16) === 1) {
+      return res.json({
+        txAmount: '',
+        receiptRootHash: '',
+        accountRootHash: '',
+        attachTimestamp: '',
+        challengePeriod: period * 1000,
+        attachTxHash: '',
+        finalizeTxHash: '',
+        nextStage: ''
+      });
+    }
+
+    this.pool.query(`SELECT * FROM trees WHERE stage_height = '${height}' OR stage_height = '${next}'`, async (err, result) => {
+      if (err || result.rows.length < 1) {
         console.log(err);
-        res.json({
+        return res.json({
           error: 'stage not found'
         });
       }
 
       const tree = result.rows[0];
-      /*eslint-disable camelcase*/
       const { receipt_tree } = tree;
 
       this.getStage(height)
@@ -37,10 +59,12 @@ class Stage extends Initial {
             txAmount: receipt_tree.leafElements.length,
             receiptRootHash: stage.receiptRootHash,
             accountRootHash: stage.accountRootHash,
-            attachTimestamp: stage.attachTimestamp,
+            attachTimestamp: stage.attachTimestamp * 1000,
             challengePeriod: period * 1000,
-            attachHash: '000',
-            finalizeHash: '000'
+            attachTxHash: '000',
+            finalizeTxHash: tree.finalizeTxHash,
+            finalizeTimestamp: stage.finalizeTimeStamp * 1000,
+            nextStage: (result.rows.length > 1 || finalStage.stage_height === height) ? +stageHeight + 1 : ''
           });
         });
     });
@@ -52,7 +76,7 @@ class Stage extends Initial {
     if (+start > 0) {
       startWith = `WHERE id < ${+start}`;
     }
-    this.pool.query(`SELECT * FROM trees ${startWith} ORDER BY id DESC LIMIT ${amount}`, async (err, result) => {
+    this.pool.query(`SELECT * FROM trees ${startWith} ORDER BY id DESC LIMIT ${amount || 0}`, async (err, result) => {
       const totalAmount = await this.pool.query('SELECT COUNT(*) FROM trees ');
       if (err || result.rows.length < 1) {
         console.log(err);
@@ -90,22 +114,30 @@ class Stage extends Initial {
 
   async getStageLTxList(req, res) {
     const { stageHeight, amount, lTxType, tokenType, sort  } = req.body;
-    const height = stageHeight.toString(16).padStart(64, 0);
+    const height = stageHeight ? (+stageHeight).toString(16).padStart(64, 0) : '';
     const order = sort ? sort : 'DESC';
-    const whereCondition = this.typeQuery({ type: lTxType });
 
-    const receiptRes = await this.pool.query(`SELECT * FROM receipts WHERE asset_id = '${tokenType.padStart(64, 0)}' AND data -> 'receiptData' ->> 'stageHeight' = '${height}' ${whereCondition} ORDER BY id ${order} LIMIT ${amount}`);
-    if (!receiptRes.rows) return res.json({ error: 'transaction not found' });
+    console.log(req.body);
+    
+    const typeCondition = lTxType && lTxType.length > 0 ? `AND (${lTxType.map(d => this.typeQuery({ type: d })).join(' OR ')})` : '';
+    
+    const tokenCondition = tokenType && tokenType.length > 0 ? `AND asset_id in (${tokenType.map(t => `'${t.padStart(64, 0)}'`).join(', ')})` : '';
+    const query = `SELECT * FROM receipts WHERE stage_height = '${height}' ${tokenCondition} ${typeCondition} ORDER BY id ${order} LIMIT ${amount || 10}`
+    console.log(query);
+    const receiptRes = await this.pool.query(query);
+    
+    if (!receiptRes.rows || receiptRes.rows.length < 1) return res.json({ error: 'transaction not found' });
     const results = receiptRes.rows.map((receipt) => {
-      const { data, createdAt, value, gsn } = receipt;
-      const { from , to } = data.receiptData;
+      const { data, createdAt, value, gsn, from, to, asset_id } = receipt;
       return {
-        timestamp: Date.parse(createdAt),
+        timestamp: Date.parse(createdAt) * 1000,
         lTxType: this.getType(from, to),
+        lTxHash: data.lightTxHash,
         from,
         to,
         value,
-        gsn
+        gsn,
+        assetAddress: asset_id.substr(-40)
       };
     });
     res.json(results);
