@@ -22,6 +22,10 @@ module.exports = {
       finalizeTxHash: {
         allowNull: true,
         type: Sequelize.CHAR(64)
+      },
+      attach_tx_hash: {
+        allowNull: true,
+        type: Sequelize.CHAR(64)
       }
     }).then(() => {
       queryInterface.addIndex('trees', ['stage_height']);

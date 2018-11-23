@@ -324,13 +324,13 @@ if (mode !== 'production') {
       let txHash = null;
   
       let stageHeight = parseInt(await this.booster.methods.stageHeight().call()) + 1;
+      let hexStageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
       let hasPendingReceipts = await this.storageManager.hasPendingReceipts(stageHeight);
       if (stageBuildingLock === true) {
         message = 'Stage are building.';
         code = ErrorCodes.STAGE_IS_CURRENTLY_BUILDING;
       } else if (hasPendingReceipts) {
         stageBuildingLock = true;
-        let hexStageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
         let receipts = await this.storageManager.getReceiptByStageHeight(hexStageHeight);
         receipts = receipts.map(receipt => new Receipt(receipt.data)).map(receipt => verifier.verifyReceipt(receipt));
         if (receipts.includes(false) === true) {
@@ -372,6 +372,11 @@ if (mode !== 'production') {
       }
   
       if (success) {
+        await this.storageManager.updateTree({
+          column: 'attach_tx_hash',
+          value: txHash.substr(-64),
+          stageHeight: hexStageHeight
+        });
         await this.storageManager.increaseExpectedStageHeight();
         res.send({ ok: true, txHash: txHash });
       } else {
