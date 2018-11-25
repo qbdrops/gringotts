@@ -61,7 +61,7 @@ class Stage extends Initial {
             accountRootHash: stage.accountRootHash,
             attachTimestamp: stage.attachTimestamp * 1000,
             challengePeriod: period * 1000,
-            attachTxHash: '000',
+            attachTxHash: tree.attach_tx_hash,
             finalizeTxHash: tree.finalizeTxHash,
             finalizeTimestamp: stage.finalizeTimeStamp * 1000,
             nextStage: (result.rows.length > 1 || finalStage.stage_height === height) ? +stageHeight + 1 : ''
@@ -114,16 +114,18 @@ class Stage extends Initial {
 
   async getStageLTxList(req, res) {
     const { stageHeight, amount, lTxType, tokenType, sort  } = req.body;
+    const { start } = req.query;
     const height = stageHeight ? (+stageHeight).toString(16).padStart(64, 0) : '';
     const order = sort ? sort : 'DESC';
-
-    console.log(req.body);
     
     const typeCondition = lTxType && lTxType.length > 0 ? `AND (${lTxType.map(d => this.typeQuery({ type: d })).join(' OR ')})` : '';
     
+    const startCondition = start ? `AND id < ${start}` : '';
+
     const tokenCondition = tokenType && tokenType.length > 0 ? `AND asset_id in (${tokenType.map(t => `'${t.padStart(64, 0)}'`).join(', ')})` : '';
-    const query = `SELECT * FROM receipts WHERE stage_height = '${height}' ${tokenCondition} ${typeCondition} ORDER BY id ${order} LIMIT ${amount || 10}`
-    console.log(query);
+    
+    const query = `SELECT * FROM receipts WHERE stage_height = '${height}' ${tokenCondition} ${typeCondition} ${startCondition} ORDER BY id ${order} LIMIT ${amount || 10}`;
+    // console.log(query);
     const receiptRes = await this.pool.query(query);
     
     if (!receiptRes.rows || receiptRes.rows.length < 1) return res.json({ error: 'transaction not found' });

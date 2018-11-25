@@ -138,12 +138,22 @@ class Postgres extends Initial {
 
   getAddressLTxList(req, res) {
     const { address, amount, lTxType, tokenType, sort  } = req.body;
+    const { start } = req.query;
+    const addressPad = address.replace('0x', '').padStart(64, 0);
 
     const order = sort ? sort : 'DESC';
-    const whereCondition = lTxType ? this.typeQuery({ type: lTxType, address }) : '';
-    const tokenCondition = tokenType ? `WHERE asset_id = '${tokenType.padStart(64, 0)}'` : 'WHERE'; 
+    
+    const typeCondition = lTxType && lTxType.length > 0 ? `AND (${lTxType.map(d => this.typeQuery({ type: d })).join(' OR ')})` : '';
+    
+    const tokenCondition = tokenType && tokenType.length > 0 ? `AND asset_id in (${tokenType.map(t => `'${t.padStart(64, 0)}'`).join(', ')})` : '';
 
-    this.pool.query(`SELECT * FROM receipts ${tokenCondition} ${lTxType && `AND ${whereCondition}`} ORDER BY id ${order} LIMIT ${amount}`, (err, result) => {
+    const whereCondition = `Where ("from" = '${addressPad}' OR "to"= '${addressPad}')`;
+    
+    const startCondition = start ? `AND id < ${start}` : '';
+
+    const query = `SELECT * FROM receipts ${whereCondition} ${tokenCondition} ${typeCondition} ${startCondition} ORDER BY id ${order} LIMIT ${amount || 10}`;
+    console.log(query);
+    this.pool.query(query, (err, result) => {
       if (err || result.rows.length < 1) { 
         return res.json({
           error: 'transaction not found'
