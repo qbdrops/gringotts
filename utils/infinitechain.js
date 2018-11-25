@@ -98,9 +98,37 @@ class Infinitechain {
     receipt = await this.web3.eth.sendSignedTransaction(serializedTx);
     txHash = receipt.transactionHash;
     console.log('Attach txHash: ' + txHash);
-    await this.storageManager.increaseExpectedStageHeight();
     return receipt;
   }
+
+  async finalize() {
+    
+    const period = await this.booster.methods.stagePeriod().call();
+    const height = await this.booster.methods.stageHeight().call();
+    console.log('period: ', period, 'stageHeight: ', height);
+    const txMethodData = this.booster.methods.finalizeStage().encodeABI();
+    let receipt;
+    let nonce = this.web3.utils.toHex(await this.web3.eth.getTransactionCount(boosterAccountAddress, 'pending'));
+    let txParams = {
+      data: txMethodData,
+      from: boosterAccountAddress,
+      to: env.contractAddress,
+      value: '0x0',
+      nonce: nonce,
+      gas: 4700000,
+      gasPrice: '0x2540be400'
+    };
+
+    let tx = new EthereumTx(txParams);
+    tx.sign(Buffer.from(env.signerKey, 'hex'));
+    let serializedTx = '0x' + tx.serialize().toString('hex');
+
+    receipt = await this.web3.eth.sendSignedTransaction(serializedTx);
+    const txHash = receipt.transactionHash;
+    console.log('Finalize txHash: ' + txHash);
+    return receipt;
+  }
+
 
   _sha3 (content) {
     return EthUtils.sha3(content).toString('hex');

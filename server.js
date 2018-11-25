@@ -14,6 +14,8 @@ let Infinitechain = require('./utils/infinitechain');
 let Verifier = require('./utils/verifier');
 let Receipt = require('./models/receipt');
 
+const mode = process.env.NODE_ENV || 'develop';
+
 let boosterPort = parseInt(env.boosterPort);
 
 if (isNaN(boosterPort) || boosterPort <= 0) {
@@ -137,7 +139,16 @@ app.get('/receipts/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
     stageHeight = parseInt(stageHeight).toString(16).padStart(64, '0').slice(-64);
-    let receipts = await this.storageManager.getReceiptByStageHeight(stageHeight);
+    let address = req.query.address || '';
+    let receipts = [];
+    if (address.length === 0) {
+      receipts = await this.storageManager.getReceiptByStageHeight(stageHeight);
+    } else {
+      address = address.slice(-40).padStart(64, '0');
+      if (address != burnAddress) {
+        receipts = await this.storageManager.getReceiptsByStageHeightAndAddress(stageHeight, address);
+      }
+    }
     receipts = receipts.map(receipt => receipt.data);
     res.send(receipts);
   } catch (e) {
@@ -180,8 +191,12 @@ app.get('/receipt_by_gsn/:GSN', async function (req, res) {
 app.get('/personalreceipt/:address', async function (req, res) {
   try {
     let address = req.params.address.slice(-40).padStart(64, '0');
-    let receipts = await this.storageManager.getReceiptsByAddress(address);
-    res.send(receipts);
+    if (address != burnAddress) {
+      let receipts = await this.storageManager.getReceiptsByAddress(address);
+      res.send(receipts);
+    } else {
+      res.status(400).send({ errors: 'Parameter address is missing.' });
+    }
   } catch (e) {
     console.error(e);
     res.status(500).send({ ok: false, message: e.message, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
@@ -269,6 +284,7 @@ app.get('/roothash', async function (req, res) {
 app.get('/roothash/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
+    stageHeight = parseInt(stageHeight);
     let trees = await this.storageManager.getTrees(stageHeight);
 
     if (Object.keys(trees).length > 0) {
@@ -284,9 +300,10 @@ app.get('/roothash/:stageHeight', async function (req, res) {
 app.get('/trees/:stageHeight', async function (req, res) {
   try {
     let stageHeight = req.params.stageHeight;
+    stageHeight = parseInt(stageHeight);
     let trees = await this.storageManager.getTrees(stageHeight);
 
-    if (Object.keys(trees).length > 0) {
+    if (trees && Object.keys(trees).length > 0) {
       res.send({ ok: true, receiptTree: trees.receipt_tree, accountTree: trees.account_tree });
     } else {
       res.send({ ok: false, message: 'StageHeight does not exist.' });
@@ -296,65 +313,111 @@ app.get('/trees/:stageHeight', async function (req, res) {
   }
 });
 
-app.post('/attach', async function (req, res) {
-  try {
-    let success = false;
-    let message = 'Something went wrong.';
-    let code = ErrorCodes.SOMETHING_WENT_WRONG;
-    let txHash = null;
 
-    let stageHeight = parseInt(await this.booster.methods.stageHeight().call()) + 1;
-    let hasPendingReceipts = await this.storageManager.hasPendingReceipts(stageHeight);
-    if (stageBuildingLock === true) {
-      message = 'Stage are building.';
-      code = ErrorCodes.STAGE_IS_CURRENTLY_BUILDING;
-    } else if (hasPendingReceipts) {
-      stageBuildingLock = true;
+if (mode !== 'production') {
+
+  app.post('/attach', async function (req, res) {
+    try {
+      let success = false;
+      let message = 'Something went wrong.';
+      let code = ErrorCodes.SOMETHING_WENT_WRONG;
+      let txHash = null;
+  
+      let stageHeight = parseInt(await this.booster.methods.stageHeight().call()) + 1;
       let hexStageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
-      let receipts = await this.storageManager.getReceiptByStageHeight(hexStageHeight);
-      receipts = receipts.map(receipt => new Receipt(receipt.data)).map(receipt => verifier.verifyReceipt(receipt));
-      if (receipts.includes(false) === true) {
-        message = 'Including wrong signature receipt.';
-        code = ErrorCodes.WRONG_SIGNATURE;
-      } else {
-        let receipt = await this.infinitechain.attach(stageHeight);
-        txHash = receipt.transactionHash;
-        success = true;
-      }
-    } else {
-      if (generateEmptyTx === true) {
-        // generate an empty light tx
-        console.log('Receipts are empty, generate an empty light tx');
-        let res = await this.infinitechain.sendLightTx(boosterAccountAddress, boosterAccountAddress, 0, 0, 0);
-        let receipt = new Receipt(res.data);
-        if (verifier.verifyReceipt(receipt) === false) {
+      let hasPendingReceipts = await this.storageManager.hasPendingReceipts(stageHeight);
+      if (stageBuildingLock === true) {
+        message = 'Stage are building.';
+        code = ErrorCodes.STAGE_IS_CURRENTLY_BUILDING;
+      } else if (hasPendingReceipts) {
+        stageBuildingLock = true;
+        let receipts = await this.storageManager.getReceiptByStageHeight(hexStageHeight);
+        receipts = receipts.map(receipt => new Receipt(receipt.data)).map(receipt => verifier.verifyReceipt(receipt));
+        if (receipts.includes(false) === true) {
           message = 'Including wrong signature receipt.';
           code = ErrorCodes.WRONG_SIGNATURE;
         } else {
-          // attach
-          stageBuildingLock = true;
-          let txReceipt = await this.infinitechain.attach(stageHeight);
-          txHash = txReceipt.transactionHash;
-          success = true;
+          let receipt = await this.infinitechain.attach(stageHeight);
+          txHash = receipt.transactionHash;
+          if (receipt.status === true || receipt.status === '0x1') {
+            success = true;
+          } else {
+            message = 'Attach failed.';
+          }
         }
       } else {
-        message = 'Receipts are empty.';
-        code = ErrorCodes.RECEIPTS_ARE_EMPTY;
+        if (generateEmptyTx === true) {
+          // generate an empty light tx
+          console.log('Receipts are empty, generate an empty light tx');
+          let res = await this.infinitechain.sendLightTx(boosterAccountAddress, boosterAccountAddress, '0', '0', '0');
+          let receipt = new Receipt(res.data);
+          if (verifier.verifyReceipt(receipt) === false) {
+            message = 'Including wrong signature receipt.';
+            code = ErrorCodes.WRONG_SIGNATURE;
+          } else {
+            // attach
+            stageBuildingLock = true;
+            let txReceipt = await this.infinitechain.attach(stageHeight);
+            txHash = txReceipt.transactionHash;
+            if (txReceipt.status === true || txReceipt.status === '0x1') {
+              success = true;
+            } else {
+              message = 'Attach failed.';
+            }
+          }
+        } else {
+          message = 'Receipts are empty.';
+          code = ErrorCodes.RECEIPTS_ARE_EMPTY;
+        }
       }
+  
+      if (success) {
+        await this.storageManager.updateTree({
+          column: 'attach_tx_hash',
+          value: txHash.substr(-64),
+          stageHeight: hexStageHeight
+        });
+        await this.storageManager.increaseExpectedStageHeight();
+        res.send({ ok: true, txHash: txHash });
+      } else {
+        console.log(message, 'code: ' + code);
+        res.send({ ok: false, message: message, code: code });
+      }
+      stageBuildingLock = false;
+    } catch (e) {
+      console.log(e);
+      stageBuildingLock = false;
+      res.send({ ok: false, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
     }
+  });
+  
+  app.post('/finalize', async function (req, res) {
+    try {
+      let stageHeight = await this.booster.methods.stageHeight().call();
+      stageHeight = parseInt(stageHeight);
+      const receipt = await this.infinitechain.finalize();
+      if (receipt.status === true || receipt.status === '0x1') {
+        await this.storageManager.updateTree({
+          column: 'finalizeTxHash',
+          value: receipt.transactionHash.substr(-64),
+          stageHeight: stageHeight.toString(16).padStart(64, '0')
+        });
+        await this.storageManager.removeOffchainReceipts(parseInt(stageHeight));
+        res.send({ ok: true, receipt: receipt });
+      } else {
+        console.log('Finalize failed.');
+        res.send({ ok: false, errors: 'Finalize failed.', code: ErrorCodes.SOMETHING_WENT_WRONG });
+      }
+      let expectedStageHeight = await this.storageManager.getExpectedStageHeight();
+      console.log('expectedStageHeight: ' + expectedStageHeight);
+    } catch (e) {
+      console.log(e);
+      res.send({ ok: false, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
+    }
+  });
 
-    stageBuildingLock = false;
-    if (success) {
-      res.send({ ok: true, txHash: txHash });
-    } else {
-      res.send({ ok: false, message: message, code: code });
-    }
-  } catch (e) {
-    console.log(e);
-    stageBuildingLock = false;
-    res.send({ ok: false, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
-  }
-});
+}
+
 
 app.get('/booster/address', async function (req, res) {
   try {
@@ -397,6 +460,7 @@ app.get('/assetlist', async function (req, res) {
 server.listen(boosterPort, async function () {
   try {
     console.log(`App listening on port ${boosterPort}!`);
+    console.log(`Gringotts is running on ${mode} mode`);
     connectToWeb3();
   } catch (e) {
     console.error(e.message);
@@ -413,21 +477,6 @@ function connectToWeb3 () {
   this.web3._provider.on('connect', async (eventObj) => {
     this.storageManager = new StorageManager(this.web3);
     this.infinitechain = new Infinitechain(this.web3, this.storageManager);
-    // Watch latest block
-    this.booster.events.Attach({
-      toBlock: 'latest' 
-    }, async (err, result) => {
-      if (err) console.error(err);
-      try {
-        let stageHeight = result.returnValues._stageHeight;
-        // Remove offchain receipt json
-        await this.storageManager.removeOffchainReceipts(parseInt(stageHeight, 16));
-        let expectedStageHeight = await this.storageManager.getExpectedStageHeight();
-        console.log('expectedStageHeight: ' + expectedStageHeight);
-      } catch (e) {
-        console.error(e);
-      }
-    });
   });
 
   this.web3._provider.on('end', (eventObj) => {

@@ -1,12 +1,14 @@
 {
   "name": "infinitechain_node",
-  "version": "0.4.1",
+  "version": "0.4.5",
   "description": "Infinitechain Node",
   "main": "index.js",
   "scripts": {
     "test": "truffle test",
     "lint": "./node_modules/.bin/eslint .",
     "start": "node server.js",
+    "prod": "NODE_ENV=production node server.js",
+    "pm2Prod": "NODE_ENV=production pm2 start server.js",
     "reset": "rm -rf ./chaindata/level ./chaindata/rocksdb",
     "pgmigrate": "NODE_ENV=production ./node_modules/.bin/sequelize db:migrate --config env.js --migrations-path ./storage-manager/migrations --models-path ./storage-manager/models",
     "deleteDB": "NODE_ENV=production ./node_modules/.bin/sequelize db:migrate:undo:all --config env.js --migrations-path ./storage-manager/migrations --models-path ./storage-manager/models",

@@ -1,11 +1,10 @@
-let EthUtils = require('ethereumjs-util');
+let Util = require('../utils/util');
 let assert = require('assert');
-let types = require('./types.js');
+let types = require('./types');
 
 const allowedLightTxDataKeys = ['from', 'to', 'assetID', 'value', 'fee', 'nonce', 'logID', 'clientMetadataHash'];
 const allowedSigKeys = ['clientLightTx', 'serverLightTx'];
 const allowedMetadataKeys = ['client', 'server'];
-const instantWithdrawalLimit = 10;
 
 class LightTransaction {
   constructor (lightTxJson) {
@@ -57,60 +56,35 @@ class LightTransaction {
     });
 
     this.lightTxData = this._normalize(orderedLightTxData);
-    this.lightTxData.clientMetadataHash = this._sha3(metadata.client);
+    this.lightTxData.clientMetadataHash = Util.sha3(metadata.client);
     this.sig = sig;
-    this.lightTxHash = this._sha3(Object.values(this.lightTxData).reduce((acc, curr) => acc + curr, ''));
+    this.lightTxHash = Util.sha3(Object.values(this.lightTxData).reduce((acc, curr) => acc + curr, ''));
     this.metadata = metadata;
+    this.instantWithdrawalLimit = Util.toBN(1E19);
   }
 
   _normalize (lightTxData) {
-    lightTxData.from    = this._remove0x(lightTxData.from).padStart(64, '0').slice(-64).toLowerCase();
-    lightTxData.to      = this._remove0x(lightTxData.to).padStart(64, '0').slice(-64).toLowerCase();
-    lightTxData.logID   = this._remove0x(lightTxData.logID).padStart(64, '0').slice(-64).toLowerCase();
-    lightTxData.nonce   = this._remove0x(lightTxData.nonce).padStart(64, '0').slice(-64).toLowerCase();
-    lightTxData.assetID = this._remove0x(lightTxData.assetID).padStart(64, '0').slice(-64).toLowerCase();
-    lightTxData.value   = this._to32BytesHex(lightTxData.value, true);
-    lightTxData.fee     = this._to32BytesHex(lightTxData.fee, true);
+    lightTxData.from    = Util.toByte32(lightTxData.from);
+    lightTxData.to      = Util.toByte32(lightTxData.to);
+    lightTxData.logID   = Util.toByte32(lightTxData.logID);
+    lightTxData.nonce   = Util.toByte32(lightTxData.nonce);
+    lightTxData.assetID = Util.toByte32(lightTxData.assetID);
+    lightTxData.value   = Util.toByte32(Util.isByte32(lightTxData.value)? lightTxData.value : Util.toWei(lightTxData.value, 18));
+    lightTxData.fee     = Util.toByte32(Util.isByte32(lightTxData.fee)? lightTxData.fee : Util.toWei(lightTxData.fee, 18));
     return lightTxData;
-  }
-
-  _to32BytesHex (n, toWei) {
-    let startWith0x = ((n.toString().slice(0, 2) == '0x') && (n.toString().substring(2).length == 64));
-    let lengthIs64Bytes = (n.toString().length == 64);
-
-    if (startWith0x || lengthIs64Bytes) {
-      n = n.slice(-64).toLowerCase();
-    } else {
-      let m = parseFloat(n);
-      m = toWei ? (m * 1e18) : m;
-      m = Math.floor(m);
-      let h = m.toString(16);
-      assert(h != 'NaN', '\'' + n + '\' can not be parsed to an integer.');
-      n = h.padStart(64, '0').toLowerCase();
-    }
-
-    return n;
-  }
-
-  _remove0x (value) {
-    value = value.toString();
-    if (value.slice(0, 2) == '0x') {
-      value = value.substring(2);
-    }
-    return value;
   }
 
   type () {
     let res;
     let from = this.lightTxData.from;
     let to = this.lightTxData.to;
-    let value = parseInt(this.lightTxData.value, 16) / 1e18;
+    let value = Util.toBN(this.lightTxData.value, 16);
 
     if (from == 0 || to == 0) {
       if (from == 0) {
         res = types.deposit;
       } else {
-        res = (value > instantWithdrawalLimit) ? types.withdrawal : types.instantWithdrawal;
+        res = (value.gt(this.instantWithdrawalLimit)) ? types.withdrawal : types.instantWithdrawal;
       }
     } else {
       res = types.remittance;
@@ -139,10 +113,6 @@ class LightTransaction {
 
   toString () {
     return JSON.stringify(this.toJson());
-  }
-
-  _sha3 (content) {
-    return EthUtils.sha3(content).toString('hex');
   }
 }
 
