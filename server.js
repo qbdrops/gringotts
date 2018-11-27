@@ -225,7 +225,6 @@ app.post('/send/light_tx', async function (req, res) {
           let isValidAssetLightTx = await isValidAsset(lightTx);
           if (isValidAssetLightTx) {
             let updateResult = await this.storageManager.applyLightTx(lightTx);
-
             if (updateResult.ok) {
               success = true;
               receipt = updateResult.receipt;
@@ -252,32 +251,6 @@ app.post('/send/light_tx', async function (req, res) {
   } catch (e) {
     console.log(e);
     res.status(500).send({ ok: false, message: e.message, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
-  }
-});
-
-app.get('/roothash', async function (req, res) {
-  try {
-    let stageHeight = parseInt(await this.booster.methods.stageHeight().call()) + 1;
-    let hasPendingReceipts = await this.storageManager.hasPendingReceipts(stageHeight);
-
-    if (hasPendingReceipts) {
-      /*
-        Should Fix account hashes before increasing expectedStageHeight in order to
-        prevnet the upcoming light transaction keep changing the accout hashes
-       */
-      let trees = await this.storageManager.commitTrees(stageHeight);
-
-      res.send({
-        ok: true,
-        stageHeight: stageHeight,
-        trees: trees
-      });
-    } else {
-      res.send({ ok: false, message: 'Receipts are empty.', code: ErrorCodes.RECEIPTS_ARE_EMPTY });
-    }
-  } catch (e) {
-    console.log(e);
-    res.status(500).send({ ok: false, errors: e.message });
   }
 });
 
@@ -313,16 +286,14 @@ app.get('/trees/:stageHeight', async function (req, res) {
   }
 });
 
-
 if (mode !== 'production') {
-
   app.post('/attach', async function (req, res) {
     try {
       let success = false;
       let message = 'Something went wrong.';
       let code = ErrorCodes.SOMETHING_WENT_WRONG;
       let txHash = null;
-  
+
       let stageHeight = parseInt(await this.booster.methods.stageHeight().call()) + 1;
       let hexStageHeight = stageHeight.toString(16).padStart(64, '0').slice(-64);
       let hasPendingReceipts = await this.storageManager.hasPendingReceipts(stageHeight);
@@ -370,7 +341,7 @@ if (mode !== 'production') {
           code = ErrorCodes.RECEIPTS_ARE_EMPTY;
         }
       }
-  
+
       if (success) {
         await this.storageManager.updateTree({
           column: 'attach_tx_hash',
@@ -390,7 +361,7 @@ if (mode !== 'production') {
       res.send({ ok: false, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
     }
   });
-  
+
   app.post('/finalize', async function (req, res) {
     try {
       let stageHeight = await this.booster.methods.stageHeight().call();
@@ -415,9 +386,7 @@ if (mode !== 'production') {
       res.send({ ok: false, errors: e.message, code: ErrorCodes.SOMETHING_WENT_WRONG });
     }
   });
-
 }
-
 
 app.get('/booster/address', async function (req, res) {
   try {
@@ -473,24 +442,14 @@ server.on('error', function (err) {
 
 function connectToWeb3 () {
   this.web3 = new Web3(env.web3Url);
-  this.booster = new this.web3.eth.Contract(Booster.abi, env.contractAddress);
-  this.web3._provider.on('connect', async (eventObj) => {
+  this.web3._provider.on('connect', async () => {
+    this.booster = new this.web3.eth.Contract(Booster.abi, env.contractAddress);
     this.storageManager = new StorageManager(this.web3);
     this.infinitechain = new Infinitechain(this.web3, this.storageManager);
   });
 
-  this.web3._provider.on('end', (eventObj) => {
+  this.web3._provider.on('end', () => {
     console.log('Try to reconnect to: ' + env.web3Url + ' ...');
-    delay(5000).then(() => {
-      connectToWeb3();
-    });
-  });
-}
-
-function delay (millisecond) {
-  return new Promise(function (resolve, reject) {
-    setTimeout(function () {
-      resolve('');
-    }, millisecond? millisecond : 1000);
+    new Promise(resolve => setTimeout(resolve, 5000)).then(connectToWeb3);
   });
 }

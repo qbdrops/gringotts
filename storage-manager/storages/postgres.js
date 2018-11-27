@@ -95,11 +95,9 @@ class Postgres {
   }
 
   async expectedStageHeightModel (tx = null) {
-    // SQL SELECT
     let expectedStageHeight = await ExpectedStageHeightModel.findById(1, {
       transaction: tx
     });
-
     return expectedStageHeight;
   }
 
@@ -239,56 +237,6 @@ class Postgres {
     let slice = new GetSlice(stageHeight, receiptHash, trees.receipt_tree).build();
 
     return slice;
-  }
-
-  async getContractAddress () {
-    // SQL SELECT
-    try {
-      let contractAddress = await chain.get('contract_address');
-      return contractAddress;
-    } catch (e) {
-      if (e.type == 'NotFoundError') {
-        await chain.put('contract_address', null);
-        return null;
-      } else {
-        throw e;
-      }
-    }
-  }
-
-  async saveContractAddress (contractAddress) {
-    // SQL INSERT
-    await chain.put('contract_address', contractAddress);
-  }
-
-  addOffchainReceipt (receipt) {
-    // SQL INSERT
-    let offchainLightTxHash = receipt.lightTxHash;
-    this.offchainReceipts[offchainLightTxHash] = receipt;
-    this.offchainReceiptHashes.push(offchainLightTxHash);
-  }
-
-  async getOffchainReceipts (targetStageHeight) {
-    // SQL SELECT
-    targetStageHeight = parseInt(targetStageHeight, 16);
-    let receipts = [];
-    for (let i = 0; i < this.offchainReceiptHashes.length; i++) {
-      let lightTxHash = this.offchainReceiptHashes[i];
-      let receipt = await chain.get('receipt::' + lightTxHash);
-      receipts.push(receipt);
-    }
-
-    return receipts.filter((receipt) => {
-      let stageHeight = parseInt(receipt.receiptData.stageHeight, 16);
-      return stageHeight === targetStageHeight;
-    }).map((receipt) => {
-      return receipt.lightTxHash;
-    });
-  }
-
-  removeOffchainReceipt (lightTxHash) {
-    // SQL DELETE
-    this.offchainReceiptHashes.splice(this.offchainReceiptHashes.indexOf(lightTxHash), 1);
   }
 
   async removeOffchainReceipts (stageHeight, tx = null) {
