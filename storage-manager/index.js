@@ -38,24 +38,6 @@ class StorageManager {
     return slice;
   }
 
-  async getContractAddress () {
-    let contractAddress = await this.storage.getContractAddress();
-    return contractAddress;
-  }
-
-  async saveContractAddress (contractAddress) {
-    await this.storage.saveContractAddress(contractAddress);
-  }
-
-  async addOffchainReceipt (receipt) {
-    await this.storage.addOffchainReceipt(receipt);
-  }
-
-  async getOffchainReceipts (targetStageHeight) {
-    let offchainReceipts = await this.storage.getOffchainReceipts(targetStageHeight);
-    return offchainReceipts;
-  }
-
   async getAccountBalances () {
     let balances = await this.storage.getAccountBalances();
     return balances;
@@ -64,10 +46,6 @@ class StorageManager {
   async getAccountsByStageHeight (stageHeight) {
     let accounts = await this.storage.getAccountsByStageHeight(stageHeight);
     return accounts;
-  }
-
-  async removeOffchainReceipt (lightTxHash) {
-    await this.storage.removeOffchainReceipt(lightTxHash);
   }
 
   async removeOffchainReceipts (stageHeight) {
