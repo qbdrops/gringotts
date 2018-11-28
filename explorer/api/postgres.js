@@ -47,11 +47,11 @@ class Postgres extends Initial {
         error: 'Please attach assetId'
       });
     }
-    let balance = bnHex(0, 16);
+    let balance = bnHex(0);
     let withdraw = 0;
 
     this.pool.query(`SELECT data FROM receipts WHERE asset_id = '${id}' ORDER BY id ASC`, (err, result) => {
-      if (err) console.log(err);
+      if (err) res.json({ error: 'asset_id not found' });
       const receipts = result.rows
         .map(receipt => receipt.data)
         .map((rcpt) => {
@@ -149,7 +149,7 @@ class Postgres extends Initial {
 
     const whereCondition = `Where ("from" = '${addressPad}' OR "to"= '${addressPad}')`;
     
-    const startCondition = start ? `AND id < ${start}` : '';
+    const startCondition = start ? `AND id <= ${start}` : '';
 
     const query = `SELECT * FROM receipts ${whereCondition} ${tokenCondition} ${typeCondition} ${startCondition} ORDER BY id ${order} LIMIT ${amount || 10}`;
     console.log(query);
@@ -166,32 +166,39 @@ class Postgres extends Initial {
         const { from, to, value } = lightTxData;
         return {
           timestamp,
-          stage: receiptData.stageHeight,
-          from,
-          to,
+          stage: parseInt(receiptData.stageHeight, 16),
+          from: `0x${from.substr(-40)}`,
+          to: `0x${to.substr(-40)}`,
           value,
-          type: this.getType(from, to)
+          gsn: d.gsn,
+          type: this.getType(from, to),
+          lTxHash: d.light_tx_hash,
+          assetId: `0x${d.asset_id.substr(-40)}`
         };
 
       });
-      res.json({
-        amount: list.length,
-        lTxList: list
-      });
+      res.json(list);
     });
   }
 
   getAddressBalance(req, res) {
     const { address } = req.params;
-    const longAddr = address.padStart(64, 0);
-    this.pool.query(`SELECT * FROM assets WHERE address = '${longAddr}'`, (err, result) => {
+    if (!address) return res.json({ error: 'address not exit' });
+    const longAddr = address.replace('0x', '').padStart(64, 0);
+    this.pool.query(`SELECT * FROM assets WHERE address = '${longAddr}'`, async (err, result) => {
       if (err || result.rows.length < 1) {
         return res.json({
           error: 'address not exit'
         });
       }
+
+      const amountRes = await this.pool.query(`SELECT COUNT(*), asset_id FROM receipts WHERE "from" = '${longAddr}' OR "to" = '${longAddr}' GROUP BY asset_id`);
       /*eslint-disable camelcase*/
-      const list = result.rows.map(d => ({ value: d.balance, assetId: d.asset_id }));
+      const list = result.rows.map(d => ({
+        value: d.balance,
+        assetId: `0x${d.asset_id.substr(-40)}`,
+        amount: +(amountRes.rows.find(tk => tk.asset_id === d.asset_id).count)
+      }));
       
       res.json(list);
     });

@@ -1,6 +1,6 @@
 const Socket = require('socket.io'); 
 const Initial = require('./initial');
-const readConfig = require('../lib/readConfig');
+const { bnHex } = require('../lib/math');
 
 class Gazer extends Initial {
   constructor(server) {
@@ -10,21 +10,26 @@ class Gazer extends Initial {
     // this.io.set('transports', ['websocket']);
     this.io.set('origins', '*:*');
     this.amount = 10;
+    this.users = {};
   }
 
   async init() {
     let receiptTotal = 0;
-    let treeTotal = 0;
-    const config = await readConfig();
-    const port = config.socketPort;
-    this.io.listen(port);
     this.io.on('connection', async (socket) => {
-      console.log('connected');
+      // console.log('connected', socket.handshake.headers.cookie);
+      const { cookie } = socket.handshake.headers;
+      this.users[cookie] = {
+        socket
+      };
 
       const transactions = await this.latestLtx();
       const stages = await this.latestStage();
       socket.emit('lTxs', transactions);
       socket.emit('stages', stages);
+
+      socket.on('setToken', (data) => {
+        this.users[cookie].token = data;
+      });
     });
 
     setInterval(async () => {
@@ -37,6 +42,12 @@ class Gazer extends Initial {
         receiptTotal = receiptAmount;
         const transactions = await this.latestLtx();
         this.io.emit('lTxs', transactions);
+
+        const tokenList = await this.tokenInfo();
+        Object.keys(this.users).map((key) => {
+          if (!this.users[key].token) this.users[key].token = Object.keys(tokenList)[0];
+          this.users[key].socket.emit('tokenInfo', tokenList[this.users[key].token]);
+        });
       }
 
       // if (treeTotal < treeAmount) {
@@ -47,8 +58,6 @@ class Gazer extends Initial {
       const stages = await this.latestStage();
       this.io.emit('stages', stages);
     }, 5000);
-
-    console.log(`gazer init, socket running on port ${port}`);
 
     return Promise.resolve();
   }
@@ -118,6 +127,63 @@ class Gazer extends Initial {
         
         resolve(finalData.slice(0, this.amount));
       });
+    });
+  }
+
+  tokenInfo()
+  {
+    return new Promise((resolve, reject) => {
+      this.pool.query('SELECT * FROM receipts ORDER BY asset_id', (err, result) => {
+        if (err) return reject({});
+        let balance = bnHex(0);
+        let withdraw = 0;
+        const final = {};
+        let amount = 0;
+        // const receipts = result.rows
+        //   .map((receipt) => {
+        //     const from = receipts.from.toLowerCase().substr(-40);
+        //     const to = receipts.to.toLowerCase().substr(-40);
+        //     const { lightTxData } = receipt.data;
+        //     if (from === this.outside) {
+        //       balance = balance.add(bnHex(lightTxData.value));
+        //     } else if (to === this.outside) {
+        //       balance = balance.sub(bnHex(lightTxData.value));
+        //       withdraw++;
+        //     }
+        //   });
+        result.rows.reduce((prev, curr) => {
+          if (prev.asset_id !== curr.asset_id) {
+            withdraw = 0;
+            balance = bnHex(0);
+            amount = 0;
+          }
+          const from = curr.from.toLowerCase().substr(-40);
+          const to = curr.to.toLowerCase().substr(-40);
+          const { lightTxData } = curr.data;
+          if (from === this.outside) {
+            balance = balance.add(bnHex(lightTxData.value));
+          } else if (to === this.outside) {
+            balance = balance.sub(bnHex(lightTxData.value));
+            withdraw++;
+          }
+          amount++;
+          final[`0x${curr.asset_id.substr(-40)}`] = {
+            balance: balance.toString(),
+            totalWithdraw: withdraw,
+            totalLTx: amount,
+            address: `0x${curr.asset_id.substr(-40)}`
+          };
+          return curr;
+        }, {});
+        resolve(final);
+        // res.json({
+        //   balance: balance.toString(),
+        //   totalWithdraw: withdraw,
+        //   totalWithdraw: receipts.length,
+        //   address: id.substr(-40)
+        // });
+      });
+  
     });
   }
 }

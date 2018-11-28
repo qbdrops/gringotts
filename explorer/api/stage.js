@@ -120,12 +120,12 @@ class Stage extends Initial {
     
     const typeCondition = lTxType && lTxType.length > 0 ? `AND (${lTxType.map(d => this.typeQuery({ type: d })).join(' OR ')})` : '';
     
-    const startCondition = start ? `AND id < ${start}` : '';
+    const startCondition = start ? `AND id <= ${start}` : '';
 
     const tokenCondition = tokenType && tokenType.length > 0 ? `AND asset_id in (${tokenType.map(t => `'${t.padStart(64, 0)}'`).join(', ')})` : '';
     
     const query = `SELECT * FROM receipts WHERE stage_height = '${height}' ${tokenCondition} ${typeCondition} ${startCondition} ORDER BY id ${order} LIMIT ${amount || 10}`;
-    // console.log(query);
+    console.log(query);
     const receiptRes = await this.pool.query(query);
     
     if (!receiptRes.rows || receiptRes.rows.length < 1) return res.json({ error: 'transaction not found' });
@@ -135,11 +135,11 @@ class Stage extends Initial {
         timestamp: Date.parse(createdAt) * 1000,
         lTxType: this.getType(from, to),
         lTxHash: data.lightTxHash,
-        from,
-        to,
+        from: `0x${from.substr(-40)}`,
+        to: `0x${to.substr(-40)}`,
         value,
         gsn,
-        assetAddress: asset_id.substr(-40)
+        assetAddress: asset_id.substr(-40),
       };
     });
     res.json(results);
