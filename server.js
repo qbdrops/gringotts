@@ -47,10 +47,14 @@ app.get('/balance/:address', async function (req, res) {
     if (address && (address != burnAddress)) {
       let balance = await this.storageManager.getBalance(address, assetID);
       if (assetID == null) {
+        balance.map((asset) => {
+          asset.balance = asset.balance.toString(10);
+          return asset;
+        });
         res.send(balance);
       } else {
         balance = new BigNumber('0x' + balance);
-        res.send({ balance: balance.toString() });
+        res.send({ balance: balance.toString(10) });
       }
     } else {
       res.status(400).send({ errors: 'Parameter address is missing.' });
