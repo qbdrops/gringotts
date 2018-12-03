@@ -1,22 +1,22 @@
 # Gringotts API
 Total api amount: 16
 
-1. get:/balance/:address
-2. get:/slice/:stageHeight/:receiptHash
-3. get:/accounts/:stageHeight
-4. get:/receipts/:stageHeight
-5. get:/receipt/:lightTxHash
-6. get:/receipt_by_gsn/:GSN
-7. get:/personalreceipt/:address
-8. post:/send/light_tx
-9. get:/roothash/:stageHeight
-10. get:/trees/:stageHeight
-11. get:/booster/address
-12. get:/server/address
-13. get:/pending/receipts
-14. get:/assetlist
-15. post:/attach //for testing only
-16. post:/finalize' //for testing only
+1. [get:/balance/:address](#1-get-balance-by-address)
+2. [get:/slice/:stageHeight/:receiptHash](#2-get-slice-by-stage-height-and-receipt-hash)
+3. [get:/accounts/:stageHeight](#3-get-accounts-by-stage-height)
+4. [get:/receipts/:stageHeight](#4-get-receipts-by-stage-height)
+5. [get:/receipt/:lightTxHash](#5-get-receipt-by-lightTxHash)
+6. [get:/receipt_by_gsn/:GSN](#6-get-receipt-by-gsn)
+7. [get:/personalreceipt/:address](#7-get-receipts-by-address)
+8. [post:/send/light_tx](#8-send-light-transacton)
+9. [get:/roothash/:stageHeight](#9-get-root-hash-by-stage-height)
+10. [get:/trees/:stageHeight](#10-get-trees-by-stage-height)
+11. [get:/booster/address](#11-get-booster-address)
+12. [get:/server/address](#12-get-server-address)
+13. [get:/pending/receipts](#13-get-lightTxHashes-of-pending-receipts)
+14. [get:/assetlist](#14-get-asset-list)
+15. [post:/attach](#15-attach) //for testing only
+16. [post:/finalize](#16-finalize) //for testing only
 
 
 ## 1. get balance by address
@@ -52,7 +52,7 @@ address: string
 
 **Data example** All fields must be sent.
 
-```json
+```
 {
 	"assetID": "0000000000000000000000000000000000000000000000000000000000000000"
 }
@@ -65,7 +65,7 @@ address: string
 **Content example**
 
 The balances of all kinds of assets in the given address.
-```json
+```
 [
     {
         "assetID": "0000000000000000000000000000000000000000000000000000000000000000",
@@ -85,7 +85,7 @@ The balances of all kinds of assets in the given address.
 **Content example**
 
 The balance of the given asset in the given address.
-```json
+```
 {
     "balance": "1000000000000000000"
 }
@@ -99,7 +99,7 @@ The balance of the given asset in the given address.
 
 **Content example**
 
-```json
+```
 {
     "errors": "Parameter address is missing."
 }
@@ -113,7 +113,7 @@ The balance of the given asset in the given address.
 
 **Content example**
 
-```json
+```
 {
     "errors": ""
 }
@@ -149,7 +149,7 @@ receiptHash: string
 
 **Content example**
 
-```json
+```
 {
     "ok": true,
     "slice": {
@@ -185,7 +185,7 @@ receiptHash: string
 
 **Content example** :
 
-```json
+```
 {
     "ok": false
     "message": ""
@@ -221,7 +221,7 @@ stageHeight: int
 
 **Content example**
 
-```json
+```
 {
     "0000000000000000000000000000000000000000000000000000000000000001": {
         "0000000000000000000000000000000000000000000000000000000000000000": "000000000000000000000000000000000000000000000000002386f26fc10000",
@@ -242,7 +242,7 @@ stageHeight: int
 
 **Content example**
 
-```json
+```
 {
     "ok": false
     "errors": ""
@@ -282,7 +282,7 @@ stageHeight: int
 
 **Data example** All fields must be sent.
 
-```json
+```
 {
     "address": "2acc0478a1d650a75181c15ec06454253f946c2f"
 }
@@ -295,7 +295,7 @@ stageHeight: int
 **Content example**
 
 All receipts in the given stage.
-```json
+```
 [
     {
         "lightTxHash": "43c46e6810a8de157c3e1c6f957683ffccb08c2a521b1f54c2994cea9a7fc6df",
@@ -353,7 +353,7 @@ All receipts in the given stage.
 **Content example**
 
 All receipts of the given address in the given stage.
-```json
+```
 [
     {
         "lightTxHash": "43c46e6810a8de157c3e1c6f957683ffccb08c2a521b1f54c2994cea9a7fc6df",
@@ -413,7 +413,7 @@ All receipts of the given address in the given stage.
 
 **Content example**
 
-```json
+```
 {
     "ok": false
     "errors": "
@@ -449,7 +449,7 @@ lightTxHash: string
 
 **Content example**
 
-```json
+```
 {
     "id": "9",
     "gsn": "0000000000000000000000000000000000000000000000000000000000000009",
@@ -519,7 +519,7 @@ lightTxHash: string
 
 **Content example**
 
-```json
+```
 {
     "ok": false
     "errors": "Not found"
@@ -534,7 +534,7 @@ lightTxHash: string
 
 **Content example**
 
-```json
+```
 {
     "ok": false
     "errors": ""
@@ -570,7 +570,7 @@ GSN: int
 
 **Content example**
 
-```json
+```
 {
     "id": "25",
     "gsn": "0000000000000000000000000000000000000000000000000000000000000019",
@@ -639,7 +639,7 @@ GSN: int
 **Code** : `404`
 
 **Content example** :
-```json
+```
 {
     "ok": false
     "errors": "Not found"
@@ -654,7 +654,7 @@ GSN: int
 
 **Content example**
 
-```json
+```
 {
     "ok": false
     "erros": ""
@@ -690,7 +690,7 @@ address: string
 
 **Content example**
 
-```json
+```
 [
     {
         "lightTxHash": "e8b4eee3bded9f95a05dfb81596a04149336953beb8eb4700e82c4741baea053",
@@ -748,7 +748,7 @@ address: string
 
 **Content example**
 
-```json
+```
 {
     "errors": "Parameter address is missing."
 }
@@ -762,7 +762,7 @@ address: string
 
 **Content example**
 
-```json
+```
 {
     "ok": false
     "message": ""
@@ -819,7 +819,7 @@ LightTransaction {
 
 **Data example** All fields must be sent.
 
-```json
+```
 LightTransaction {
   lightTxHash: 'cf8f03c0609356713583cadff189f88577fd78f9149af8791e003fecd5a16414',
   lightTxData:
@@ -849,7 +849,7 @@ LightTransaction {
 
 **Content example**
 
-```json
+```
 Receipt {
   lightTxHash: 'cf8f03c0609356713583cadff189f88577fd78f9149af8791e003fecd5a16414',
   lightTxData:
@@ -892,7 +892,7 @@ Receipt {
 **Condition** : If fields has wrong format or miss fields.
 
 **Content example** :
-```json
+```
 {
     "ok": false
     "message": ""
@@ -908,7 +908,7 @@ Receipt {
 
 **Content example**
 
-```json
+```
 {
     "ok": false
     "message": ""
@@ -946,7 +946,7 @@ stageHeight: int
 
 **Content example**
 
-```json
+```
 {
     "ok": true,
     "receiptRootHash": "efad11b76f9cf535899501a99df5a1a09c6f89ae223c5fd0f39c2d0a626a9ed0",
@@ -959,7 +959,7 @@ stageHeight: int
 **Condition** : If stage height does not exist.
 
 **Content example** :
-```json
+```
 {
     "ok": false
     "message": "StageHeight does not exist."
@@ -972,7 +972,7 @@ stageHeight: int
 
 **Content example** :
 
-```json
+```
 {
     "ok": false
     "message": ""
@@ -1008,7 +1008,7 @@ stageHeight: int
 
 **Content example**
 
-```json
+```
 {
     "ok": true,
     "receiptTree": {
@@ -1149,7 +1149,7 @@ stageHeight: int
 **Condition** : If the given stage height does not exist.
 
 **Content example** :
-```json
+```
 {
     "ok": false
     "message": "StageHeight does not exist."
@@ -1162,7 +1162,7 @@ stageHeight: int
 
 **Content example**
 
-```json
+```
 {
     "ok": false
     "message": ""
@@ -1194,7 +1194,7 @@ Get the address of booster.
 
 **Content example**
 
-```json
+```
 {
     "contractAddress": "0xf4C990a6c7B4ee6f16E8964Fd732e7B23BC35254",
     "accountAddress": "0x5aca469494fe25977b81b954ae84f55cf8bf3d63"
@@ -1209,7 +1209,7 @@ Get the address of booster.
 
 **Content example**
 
-```json
+```
 {
     "errors": ""
 }
@@ -1241,7 +1241,7 @@ Get the address of server.
 
 **Content example**
 
-```json
+```
 {
     "address": "0x2acc0478a1d650a75181c15ec06454253f946c2f"
 }
@@ -1255,7 +1255,7 @@ Get the address of server.
 
 **Content example**
 
-```json
+```
 {
     "errors": ""
 }
@@ -1286,7 +1286,7 @@ Gets light transactions hashes of the receipts which do not be attached yet.
 
 **Content example**
 
-```json
+```
 {
     "lightTxHashes": [
         "2ffb69b6ff198846bb26dfc6faefe03cd637b00e45edab3d31146a6790ffbedb",
@@ -1345,7 +1345,7 @@ Gets light transactions hashes of the receipts which do not be attached yet.
 
 **Content example**
 
-```json
+```
 {
     "errors": ""
 }
@@ -1376,7 +1376,7 @@ Get the asset list of booster.
 
 **Content example**
 
-```json
+```
 {
     "assetList": [
         {
@@ -1401,7 +1401,7 @@ Get the asset list of booster.
 
 **Content example**
 
-```json
+```
 {
     "errors": ""
 }
@@ -1433,7 +1433,7 @@ Then make an onchain transation to record root hashes in its metadata and return
 
 **Content example**
 
-```json
+```
 {
     "ok": true,
     "txHash": "0x9ef03bc478635a9813a19124a6b4bb5b7398db37c1db1104d0f70e9ecb9419fc"
@@ -1446,7 +1446,7 @@ Then make an onchain transation to record root hashes in its metadata and return
 
 **Content example**
 
-```json
+```
 {
     "ok": false
     "message": ""
@@ -1460,7 +1460,7 @@ Then make an onchain transation to record root hashes in its metadata and return
 
 **Content example**
 
-```json
+```
 {
     "ok": false
     "errors": ""
@@ -1493,7 +1493,7 @@ Make an onchain transaction that sets the status of the last attached stage to f
 
 **Content example**
 
-```json
+```
 {
     "ok": true,
     "receipt": {
@@ -1534,7 +1534,7 @@ Make an onchain transaction that sets the status of the last attached stage to f
 
 **Content example**
 
-```json
+```
 {
     "ok": false
     "errors": "Finalize failed."
@@ -1547,7 +1547,7 @@ Make an onchain transaction that sets the status of the last attached stage to f
 
 **Content example**
 
-```json
+```
 {
     "ok": false
     "errors": ""
